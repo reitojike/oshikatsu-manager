@@ -282,10 +282,7 @@ const eslintConfig = defineConfig([
   {
     rules: {
       // サイズ・複雑さ
-      "max-lines-per-function": [
-        "error",
-        { max: 60, skipBlankLines: true, skipComments: true },
-      ],
+      "max-lines-per-function": ["error", { max: 60, skipBlankLines: true, skipComments: true }],
       complexity: ["error", 20],
       "max-depth": ["error", 4],
       "max-params": ["warn", 6],
@@ -311,13 +308,7 @@ const eslintConfig = defineConfig([
   // supabase/.temp/** は `supabase start` が生成するローカル成果物(.gitignore済み)。
   // tsconfigのプログラムに含まれないため projectService が解析できずParsing errorになる。
   // `yarn test:db` のためにSupabaseを起動しているだけで `yarn lint` が落ちるのを防ぐ。
-  globalIgnores([
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-    "supabase/.temp/**",
-  ]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "supabase/.temp/**"]),
 ]);
 
 export default eslintConfig;

@@ -3,20 +3,14 @@ import { createTestUser } from "./helpers";
 
 test("本人は自分のprofilesを読める", async () => {
   const user = await createTestUser();
-  const { data, error } = await user.client
-    .from("profiles")
-    .select()
-    .eq("id", user.userId);
+  const { data, error } = await user.client.from("profiles").select().eq("id", user.userId);
   expect(error).toBeNull();
   expect(data).toHaveLength(1);
 });
 
 test("他人のprofilesはテーブル直参照では読めない", async () => {
   const [userA, userB] = await Promise.all([createTestUser(), createTestUser()]);
-  const { data, error } = await userA.client
-    .from("profiles")
-    .select()
-    .eq("id", userB.userId);
+  const { data, error } = await userA.client.from("profiles").select().eq("id", userB.userId);
   expect(error).toBeNull();
   expect(data).toHaveLength(0);
 });
@@ -72,9 +66,6 @@ test("本人でもprofilesを削除できない", async () => {
   expect(error).toBeNull();
   expect(deleted).toHaveLength(0);
 
-  const { data: stillThere } = await user.client
-    .from("profiles")
-    .select()
-    .eq("id", user.userId);
+  const { data: stillThere } = await user.client.from("profiles").select().eq("id", user.userId);
   expect(stillThere).toHaveLength(1);
 });

@@ -37,14 +37,9 @@ export const createTestUser = async (): Promise<TestUser> => {
   return { client, userId: data.user.id };
 };
 
-export type CreateEventOverrides = Partial<
-  Database["public"]["Tables"]["events"]["Insert"]
->;
+export type CreateEventOverrides = Partial<Database["public"]["Tables"]["events"]["Insert"]>;
 
-export const createEvent = async (
-  owner: TestUser,
-  overrides: CreateEventOverrides = {},
-) => {
+export const createEvent = async (owner: TestUser, overrides: CreateEventOverrides = {}) => {
   const { data, error } = await owner.client
     .from("events")
     .insert({
