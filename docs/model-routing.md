@@ -53,10 +53,11 @@ Claude Code のサブエージェント文書も "Control costs by routing tasks
 上の表は**論理階層**であって、モデルIDではない。実際のモデル名(`gpt-5.6-sol` 等)と
 reasoning effort の割り当ては**ローカルのCodex設定に置き、この文書とIssue運用には書かない。**
 
-理由は世代名の入れ替わりが速いこと。Codexの公式changelogは、GPT-5.4 と GPT-5.4 mini を
-2026-08-31 に retire し `gpt-5.6-terra` / `gpt-5.6-luna` へ置換するよう案内している
-([Codex changelog](https://developers.openai.com/codex/changelog))。
-世代名を運用ルールに埋めると、モデルが変わるたびにルール本体を書き直すことになる。
+理由は世代名の入れ替わりが速いこと。**本節も含め、この文書に個別のモデル名やretire日を書かない。**
+Codexの公式changelogは頻繁に世代交代を案内しており([Codex changelog](https://developers.openai.com/codex/changelog))、
+世代名を運用ルールに埋めると、モデルが変わるたびにルール本体を書き直すことになる
+(本節がまさにその具体例を書いてしまうと、この節の主張自体が自己矛盾で陳腐化する)。
+実際のretireスケジュールはchangelogを都度参照すること。
 
 reasoning effort も同様に設定側で決める。公式の指針は
 "Use the lowest reasoning effort that produces the result you need."
