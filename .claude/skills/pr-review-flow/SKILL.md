@@ -135,6 +135,7 @@ issue #43の振り返りでは挙がらず、外部からの指摘で発覚し�
   **リポジトリに変更を加えるもの全般。**規模の大小は問わない(軽微な文言修正でも
   直接PRにはしない)。振り返りコメントへのリンクをIssue本文に書き、通常のIssue運用
   (`phase:N` ラベル、既定は `agent:sol` / `agent:terra` / `agent:luna`、Claude側で判断する場合のみ
-  `agent:opus` / `agent:sonnet` / `agent:haiku`。`docs/model-routing.md`、Projectへの登録)に従う
+  `agent:opus` / `agent:sonnet` / `agent:haiku`。詳細は `docs/model-routing.md` を参照。
+  Projectへの登録)に従う
 - **対応不要**: 一度きりの偶発的事情で、再発する見込みが薄い場合。理由を一言
   添えて記録するのみでよい
