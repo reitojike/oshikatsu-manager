@@ -25,8 +25,10 @@
 ## タスク管理
 
 [GitHub Projects](https://github.com/users/jack0jp/projects/1)で進捗を管理する。
-各タスクはIssue化し、`phase:N`(`docs/roadmap.md` のフェーズ)と
-`agent:opus` / `agent:sonnet` / `agent:haiku`(担当モデル)のラベルを付ける。
+各タスクはIssue化し、`phase:N`(`docs/roadmap.md` のフェーズ)と、既定は
+`agent:sol` / `agent:terra` / `agent:luna`(Codexが一次担当。詳細は
+`docs/model-routing.md`)、Claude側で判断する場合のみ
+`agent:opus` / `agent:sonnet` / `agent:haiku` のラベルを付ける。
 
 ## ブランチ運用
 

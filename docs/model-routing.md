@@ -8,8 +8,10 @@ Claude Code (Opus / Sonnet / Haiku) と Codex CLI (Sol / Terra / Luna) を併用
 
 ## なぜ併用するか
 
-Claude Code Pro と Codex Plus の**2つの上限を1つのプロジェクトで消費する**ため。
-片方に寄せると、そちらの上限に達した時点で作業が止まる。目的は速さではなく、
+**Claude Pro に含まれる Claude Code** と **ChatGPT Plus に含まれる Codex** の、
+**2つの利用枠を1つのプロジェクトで消費する**ため。どちらの利用枠もアカウント内の
+他の利用(チャット等)と共有されるプールであり、Web/デスクトップ/CLIの操作を合算して消費する。
+片方に寄せると、そちらの利用枠に達した時点で作業が止まる。目的は速さではなく、
 止まる頻度を下げることにある。したがって配分は意図的に非対称にする(下記「既定はCodex優先」)。
 
 ## 階層の対応
@@ -25,13 +27,18 @@ Codexの公式ドキュメントは Sol を "complex, open-ended work" で "extr
 を要するもの、Terra を "the pragmatic all-rounder"、Luna を
 "specific, high-volume tasks when you know what a good result looks like" と説明する
 ([Codex Models](https://learn.chatgpt.com/docs/models))。
-Anthropic のモデル選択マトリクスは Opus 5 を "Complex agentic coding ... multihour autonomous
-coding agents, large-scale refactoring"、Haiku 4.5 を "high-volume intelligent processing ...
-sub-agent tasks" とする
+Anthropic のモデル選択マトリクスは最上位モデル(Opus)を "Complex agentic coding ... multihour
+autonomous coding agents, large-scale refactoring"、最下位モデル(Haiku)を "high-volume
+intelligent processing ... sub-agent tasks" とする
 ([Choosing the right model](https://platform.claude.com/docs/en/docs/about-claude/models/choosing-a-model))。
 Claude Code のサブエージェント文書も "Control costs by routing tasks to faster, cheaper models like Haiku"
 と書く([Subagents](https://code.claude.com/docs/en/sub-agents))。
 **「判断は上位、機械的作業は下位」は自前の運用則ではなく、両プロバイダの公式指針と一致している。**
+
+**3回失敗した場合の通常のエスカレーション(`CLAUDE.md`の3回ルール)は、プロバイダをまたがない。**
+`Luna → Terra → Sol` のように**同じプロバイダ内**で上げる。`CLAUDE.md`の`Haiku → Sonnet → Opus`と
+同型で、この文書が変えるのは階層内の対応表だけである。プロバイダをまたぐ移動は下記
+「上限到達時のフェイルオーバー」に限られ、これはエスカレーションではない(理由は同節に書く)。
 
 ### 階層の下限はプロバイダで変わらない
 
@@ -69,8 +76,10 @@ Anthropic側も effort の調整を「モデルを切り替えるより良いレ
 ## 既定はCodex優先
 
 **新規Issueの一次担当はCodexとする。**振り分けで迷ったらCodex側に置く。
-`agent:*` ラベルは `agent:sol` / `agent:terra` / `agent:luna` を使い、Projectの `Model` にも反映する
-(既存の `agent:opus` / `agent:sonnet` / `agent:haiku` と同じ運用)。
+`agent:*` ラベルは**担当する階層に対応する1つだけ**を付ける(3つ全部を付けるのではない)。
+既定は `agent:sol` / `agent:terra` / `agent:luna` のいずれか1つ、Claude側で判断する場合のみ
+`agent:opus` / `agent:sonnet` / `agent:haiku` のいずれか1つに置き換える。Projectの `Model`
+にも同じ値を反映する(既存の `agent:opus` / `agent:sonnet` / `agent:haiku` と同じ運用)。
 
 **Claudeに残すのは次の4種類だけ。**これ以外をClaudeで実施しない。
 
@@ -94,15 +103,17 @@ Anthropic側も effort の調整を「モデルを切り替えるより良いレ
 
 ### 呼び出しの粒度
 
-**Codexには「大きめだが境界の明確な1回」を渡す。**ping・本命・追加説明・修正指示のような
-不要な分割をしない。Codexの利用上限は turn 単位で当たり、公式ドキュメントは
-"If you reach your usage limits during an active turn, the agent will be able to continue working
-on that turn, subject to fair use limits." としている
-([Codex Pricing](https://learn.chatgpt.com/docs/pricing))。
-細切れに投げるほど、上限に当たる境界を増やすことになる。
+**Codexには「境界の明確な1タスク」を渡す。**ping・本命・追加説明・修正指示のような
+不要な分割をしない。利用上限はモデル・タスクの大きさや複雑さ・実行環境に応じて消費され、
+5時間の共有窓を単位とする([Codex Pricing](https://learn.chatgpt.com/docs/pricing))。
+turn単位で区切られる保証はないが、少なくとも「進行中のturnは上限到達後も継続できる」
+("If you reach your usage limits during an active turn, the agent will be able to continue working
+on that turn, subject to fair use limits."、同上)ため、細切れに投げて呼び出し回数を増やすほど、
+上限に当たる境界を不必要に増やすことになる点は変わらない。
 
 推奨する単位は **Sub-issue 1つ、または受け入れ条件が一組で完結する範囲**。
-最初のpromptに必要情報・実装対象・受け入れ条件・報告形式まで含める。
+最初のpromptに、必要情報・実装対象・受け入れ条件・報告形式に加えて、
+**最大コンテキスト量の目安・作業範囲・停止条件(どこまで終えたら止めて報告するか)**を明記する。
 長い作業では、コミットとIssueコメントを回収可能なチェックポイントとして残させる。
 
 ## 上限到達時のフェイルオーバー
@@ -135,17 +146,24 @@ Codexの残量確認手段は、対話セッション内の `/status` と
 ものであって、`mcp__codex__codex` 経由で実際に返るエラー文言そのものを確認済みではない。
 **最初にこの分類のいずれかに実際に遭遇したら、判別に使った実際の文言をこの表に追記して更新する。**
 
+**上から順に判定し、最初に一致した行を採用する(複数該当してもそれ以降は見ない)。**
+`rate limit` と `retry-after` が明示されていれば、たとえ本文に `quota` や `try again` が
+同時に含まれていても「一時的なレート制限」を優先する。フェイルオーバー(横移動)は
+不可逆コストが伴う一方、待つ・再試行するだけの誤判定は安全側だからである。
+
 | 分類 | 判別 | 対応 |
 | --- | --- | --- |
-| 上限到達 | 本文に `usage limit` / `limit reached` / `quota` と、リセット時刻や `try again` の言及 | 同階層のClaudeへ即フェイルオーバー |
-| 一時的なレート制限 | `rate limit` かつ短い retry-after が示される | 待つか、別のIssueに移る。切り替えない |
 | 認証・権限 | ログイン切れ、`codex` が見つからない、MCPサーバー未接続 | 人間に依頼。Claudeへ切り替えても直らない |
-| コンテキスト超過 | 入力が長すぎる旨 | 引き継ぎを圧縮して**同じ階層で1回だけ**再試行 |
 | サンドボックス拒否 | ファイル書き込み・ネットワークの拒否 | 呼び出し時のパラメータを直す。切り替えない |
+| コンテキスト超過 | 入力が長すぎる旨 | 引き継ぎを圧縮して**同じ階層で1回だけ**再試行 |
+| 一時的なレート制限 | `rate limit` かつ短い retry-after が示される | 待つか、別のIssueに移る。切り替えない |
+| 上限到達 | 本文に `usage limit` / `limit reached` / `quota` と、リセット時刻や `try again` の言及 | 同階層のClaudeへ即フェイルオーバー |
 | 不明 | 上のどれでもない | **連続リトライしない。**原文をIssueに貼って上位へ返す |
 
 **文字列判定だけで断定しない。**上限とレート制限の区別が付かないときは、
 **1回だけ同じ内容で再試行し、同じエラーなら上限として扱う。**
+**この表の判定はまだ実エラー文言で検証されていない(前述)。**実際に取り違いが起きた場合は、
+安全側(レート制限扱い・待つ)に倒れていたはずで、逆方向(誤ってフェイルオーバー)より実害が小さい。
 
 ### 手順
 
@@ -166,7 +184,12 @@ Codexの残量確認手段は、対話セッション内の `/status` と
 
 フェイルオーバー時の引き継ぎは、下記「プロバイダをまたぐ引き継ぎ計画」の内容に加えて、
 **Codexがどこまで進めたか**を書く。これが無いと受け取った側が最初からやり直す。
+**Issueコメント(上記「手順」4)への記録だけでは不十分で、次を引き継ぎ先へのprompt本文にも
+そのまま含める**(受け取る側はコールドスタートで、Issueコメントを能動的に遡って読むとは限らない)。
 
+- 失敗した具体的な箇所(どのプロバイダ・階層で、何を渡したときに止まったか)
+- 実際に返ったエラー文言の原文と、上表のどの分類に判定したか
+- リセット時刻が読み取れていればその時刻。読み取れなければ「不明」と明記する
 - 変更済みのファイルと、その変更が意図どおりか未確認か
 - 実行したコマンドと結果(緑だったもの・赤いままのもの)
 - Codexが判断を保留した箇所
@@ -210,6 +233,11 @@ Codex側も同じで、リポジトリ全体が自動でコンテキストに入
 
 返す形式は `docs/decision-policy.md`「提示に書くこと」の5点で統一する
 (何が割れているか / 選択肢 / 推奨と理由 / 影響範囲 / 確認を待たずに進めた場合の手戻り)。
+
+**差し戻したら、Sub-issueにコメントし、Projectの `Status` を `Blocked` にする**
+(`CLAUDE.md`「計画に無い判断に出くわしたら」と同じ扱い)。PO確認が取れて再開できる
+ようになった時点で、確認結果をSub-issueに記録し `Status` を `In Progress` に戻す。
+`In Progress` のまま放置しない。
 
 差し戻し先は**呼び出し元のClaudeセッション**。ただし
 **「Codexから返ってきたらClaudeが選んでよい」ということではない。**受け取った側は、
