@@ -92,10 +92,10 @@ Codex側の Sol / Terra / Luna は下記の Opus / Sonnet / Haiku と同じ基�
   (Haiku→Sonnet→Opus)。** 闇雲なリトライを重ねない。エスカレーション後は、なぜ3回失敗したかを
   引き継ぐこと(何を試して何が起きたか)。Opusで3回試しても解決しない場合はProjectの`Status`を
   Blockedにし、何を試して何が起きたかをIssueに記録した上で人間に確認を依頼する。
-- Issueには `agent:opus` / `agent:sonnet` / `agent:haiku` ラベルを付け、Projectの `Model`
-  フィールドにも反映する(Codex優先時は `agent:sol` / `agent:terra` / `agent:luna`。
-  プロバイダの振り分けは `docs/model-routing.md`「既定はCodex優先」を参照)。
-  **Issue全体の担当が変わったとき(最初の分類が誤っていた、
+- Issueには既定で `agent:sol` / `agent:terra` / `agent:luna` ラベルを付け(Codexが一次担当。
+  プロバイダの振り分けは `docs/model-routing.md`「既定はCodex優先」を参照)、Claude側で判断する
+  場合のみ `agent:opus` / `agent:sonnet` / `agent:haiku` を付ける。Projectの `Model`
+  フィールドにも反映する。**Issue全体の担当が変わったとき(最初の分類が誤っていた、
   エスカレーションで上げた)は、ラベルとProjectの`Model`の両方を書き換える。**
   判断が済んだ後に残りの作業だけを下位に渡す場合は書き換えない(下記
   「Issue内でモデル階層を分担する」。親Issueは判断を下したモデルのまま残す)。
