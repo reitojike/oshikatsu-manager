@@ -31,6 +31,7 @@ coverage/
 
 # Claude Code (ローカル個人設定)
 .claude/settings.local.json
+.claude/worktrees/
 
 # OS / エディタ
 .DS_Store

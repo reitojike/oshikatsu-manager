@@ -59,8 +59,9 @@ mainはRulesetで保護されており、リポジトリ管理者(あなた)の�
 (下記「タスク管理とモデルの使い分け」)。メインのチェックアウトを複数チャットが直接共有すると、
 あるチャットの未コミット変更が別チャットの`git status`に混ざり込み、ブランチが分かれていても
 PR以前にファイルシステムレベルで衝突する(「並行しているか」は着手前には分からず、
-事後の判定は間に合わない)。作業完了(PRマージ)後は `git worktree remove` でworktreeを片付ける。
-lock済みのworktreeは `git worktree unlock` してから削除する。
+事後の判定は間に合わない)。**配置先は `.claude/worktrees/<branch名>`(`.gitignore`済み)に統一する。**
+作業完了後(PRマージ、またはマージせずcloseした場合も含む)は `git worktree remove` で
+worktreeを片付ける。lock済みのworktreeは `git worktree unlock` してから削除する。
 
 **PRはまずDraftで作成する。**Draftでレビューボットと反復し、指摘が尽きてから
 `gh pr ready`でReady化してGitHub Copilotの最終レビューを1回だけ受ける。
