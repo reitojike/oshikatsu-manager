@@ -15,6 +15,8 @@
 - **テストの書き方とカバーすべきパターン → `docs/testing.md`。テストを書く/直す前に必ず読む**
 - **成果物間で記述が矛盾している/判断が割れたときの止まり方 → `docs/decision-policy.md`。
   「何を選ぶか」を含む実装に着手する前に必ず読む**
+- **Claude / Codex どちらのプロバイダに振るか、上限到達時の引き継ぎ → `docs/model-routing.md`。
+  タスクの担当を決める前に必ず読む**
 
 ## ディレクトリ構成
 
@@ -75,6 +77,11 @@ worktreeを片付ける。lock済みのworktreeは `git worktree unlock` して�
 タスクはGitHub Issues + Projects(`推し活管理アプリ 開発`ボード)で管理する。人に確認せず
 自律的に何十分〜何時間か作業を進めることを前提にするため、着手前にIssue化されていることを必須とする。
 
+**このリポジトリは Claude Code と Codex CLI を併用する。**下記はClaude側の階層の決め方であり、
+**そもそもどちらのプロバイダに振るかは `docs/model-routing.md` が決める**(既定はCodex優先)。
+Codex側の Sol / Terra / Luna は下記の Opus / Sonnet / Haiku と同じ基準線で分かれるので、
+**この節の判定はそのままCodex側にも使える。**上限到達時の横移動の手順も同文書にある。
+
 - **設計・方針決定はOpus、実装はSonnet、機械的な作業はHaiku。**
   データモデルの変更、権限マトリクスの変更、フェーズ分割、ドキュメント間の矛盾の解消など
   「何を選ぶか」を判断する作業はOpusが行う。方針が`docs/`に書かれていて、
@@ -96,7 +103,10 @@ worktreeを片付ける。lock済みのworktreeは `git worktree unlock` して�
   (Haiku→Sonnet→Opus)。** 闇雲なリトライを重ねない。エスカレーション後は、なぜ3回失敗したかを
   引き継ぐこと(何を試して何が起きたか)。Opusで3回試しても解決しない場合はProjectの`Status`を
   Blockedにし、何を試して何が起きたかをIssueに記録した上で人間に確認を依頼する。
-- Issueには `agent:opus` / `agent:sonnet` / `agent:haiku` ラベルを付け、Projectの `Model`
+- Issueには `agent:*` ラベルを**いずれか1つ**付ける。既定は
+  `agent:sol` / `agent:terra` / `agent:luna` のいずれか(Codexが一次担当。
+  プロバイダの振り分けは `docs/model-routing.md`「既定はCodex優先」を参照)、Claude側で判断する
+  場合のみ `agent:opus` / `agent:sonnet` / `agent:haiku` のいずれかに置き換える。Projectの `Model`
   フィールドにも反映する。**Issue全体の担当が変わったとき(最初の分類が誤っていた、
   エスカレーションで上げた)は、ラベルとProjectの`Model`の両方を書き換える。**
   判断が済んだ後に残りの作業だけを下位に渡す場合は書き換えない(下記
@@ -240,6 +250,10 @@ Sonnetがそこで選んでよいことにはならない。**宛先の決め方
 **サブエージェントは毎回コールドスタートする。**ここまでの会話は引き継がれないので、
 **Sub-issueの本文だけで作業が完結するか**が、そのまま渡せるかどうかの判定になる。
 上記「引き継ぎ計画に必ず書くこと」は儀式ではなく、この前提条件そのものである。
+
+**Codex(`mcp__codex__codex`)に渡すときも上の5項目は必須で、そこに4項目を足す**
+(実行環境と権限、現在の作業状態、必読資料と読む順序、差し戻し契約)。
+足す理由と各項目の中身は `docs/model-routing.md`「プロバイダをまたぐ引き継ぎ計画」。
 
 **方向は下向きだけではない。**チャットの既定セッションはSonnetで動かす。`agent:opus` の
 Issueに着手するときは、**判断フェーズをOpusのサブエージェントに投げる。**ラベルが着手の

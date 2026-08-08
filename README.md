@@ -20,13 +20,17 @@
 | [`docs/permissions.md`](docs/permissions.md) | 権限マトリクスとRLSの検証要件 |
 | [`docs/lint-policy.md`](docs/lint-policy.md) | lint/型の運用方針、例外の作法 |
 | [`docs/testing.md`](docs/testing.md) | テストの書き方 |
+| [`docs/model-routing.md`](docs/model-routing.md) | Claude/Codex間の作業分担とフェイルオーバー |
 | [`CLAUDE.md`](CLAUDE.md) | AIエージェント向けの規約 |
 
 ## タスク管理
 
 [GitHub Projects](https://github.com/users/jack0jp/projects/1)で進捗を管理する。
-各タスクはIssue化し、`phase:N`(`docs/roadmap.md` のフェーズ)と
-`agent:opus` / `agent:sonnet` / `agent:haiku`(担当モデル)のラベルを付ける。
+各タスクはIssue化し、`phase:N`(`docs/roadmap.md` のフェーズ)と、
+`agent:*` ラベルを**いずれか1つ**付ける。既定は
+`agent:sol` / `agent:terra` / `agent:luna` のいずれか(Codexが一次担当。詳細は
+`docs/model-routing.md`)、Claude側で判断する場合のみ
+`agent:opus` / `agent:sonnet` / `agent:haiku` のいずれかに置き換える。
 
 ## ブランチ運用
 

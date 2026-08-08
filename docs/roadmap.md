@@ -5,10 +5,13 @@
 ## タスク管理
 
 各フェーズのチェックリストはGitHub Issuesとして起票し、Project「推し活管理アプリ 開発」
-(`Status` / `Phase` / `Model` フィールド)で進捗を管理する。ラベルは `phase:N` と
-`agent:opus` / `agent:sonnet` / `agent:haiku`。モデルの使い分けとエスカレーション基準は `CLAUDE.md`
-「タスク管理とモデルの使い分け」を参照。**Issue 1件の粒度(含める判断の数)とPR差分サイズの目安も
-同節「Issueの粒度とPR差分サイズの目安」にある。フェーズのチェックリストをIssueへ落とすときに読む。**
+(`Status` / `Phase` / `Model` フィールド)で進捗を管理する。ラベルは `phase:N` と、
+`agent:*` を**いずれか1つ**。既定は `agent:sol` / `agent:terra` / `agent:luna` のいずれか
+(Codexが一次担当。プロバイダの振り分けは `docs/model-routing.md`「既定はCodex優先」を参照)。
+Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haiku` のいずれかに置き換える。
+モデルの使い分けとエスカレーション基準は `CLAUDE.md`「タスク管理とモデルの使い分け」を参照。
+**Issue 1件の粒度(含める判断の数)とPR差分サイズの目安も同節「Issueの粒度とPR差分サイズの目安」
+にある。フェーズのチェックリストをIssueへ落とすときに読む。**
 
 ## この順序にした理由
 

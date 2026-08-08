@@ -1,7 +1,8 @@
 # 判断が割れたときの止まり方
 
-成果物(`docs/prd.md` / `docs/data-model.md` / `docs/permissions.md` / `docs/roadmap.md` / `CLAUDE.md`)
-の記述が矛盾している、またはどちらとも取れる判断が必要になったときの進め方。
+成果物(`docs/prd.md` / `docs/data-model.md` / `docs/permissions.md` / `docs/roadmap.md` /
+`docs/model-routing.md` / `CLAUDE.md`)の記述が矛盾している、またはどちらとも取れる判断が
+必要になったときの進め方。
 **判断を含む実装に着手する前に読む。**
 
 ## なぜこれが必要か
