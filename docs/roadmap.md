@@ -6,10 +6,10 @@
 
 各フェーズのチェックリストはGitHub Issuesとして起票し、Project「推し活管理アプリ 開発」
 (`Status` / `Phase` / `Model` フィールド)で進捗を管理する。ラベルは `phase:N` と、
-既定は `agent:sol` / `agent:terra` / `agent:luna`(Codexが一次担当。プロバイダの振り分けは
-`docs/model-routing.md`「既定はCodex優先」を参照)。Claude側で判断する場合のみ
-`agent:opus` / `agent:sonnet` / `agent:haiku`。モデルの使い分けとエスカレーション基準は
-`CLAUDE.md`「タスク管理とモデルの使い分け」を参照。
+`agent:*` を**いずれか1つ**。既定は `agent:sol` / `agent:terra` / `agent:luna` のいずれか
+(Codexが一次担当。プロバイダの振り分けは `docs/model-routing.md`「既定はCodex優先」を参照)。
+Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haiku` のいずれかに置き換える。
+モデルの使い分けとエスカレーション基準は `CLAUDE.md`「タスク管理とモデルの使い分け」を参照。
 
 ## この順序にした理由
 
