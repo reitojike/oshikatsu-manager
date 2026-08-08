@@ -13,3 +13,6 @@ yarn.lock
 
 # supabase start のローカル生成物
 supabase/.temp/
+
+# Prettierは標準でSQLのパーサーを持たない(docs/lint-policy.md 参照)
+supabase/migrations/**/*.sql

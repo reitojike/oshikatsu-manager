@@ -233,7 +233,8 @@ ESLint v9のコアからスタイル系ルールは削除済みで、`@stylistic
 (置き換えではない)。
 
 - `yarn lint` の先頭で `prettier --check .` を実行し、整形の失敗をESLintの本題より先に落とす
-- 対象は `.prettierignore` の除外を除く全ファイル。**Markdownは対象外**
+- 対象は `.prettierignore` の除外を除く、Prettierがパーサーを推論できるファイル種別
+  (JS/TS/JSON/CSS/YAML等)。**Markdownは対象外**
   (`markdownlint-cli2` が既に担当しており、リストマーカー・テーブル整形・順序付きリスト番号で
   衝突するため。二重に持たせない)
 - オプションは `printWidth: 100` のみ設定する。既存の書き方に近く、
@@ -243,7 +244,10 @@ ESLint v9のコアからスタイル系ルールは削除済みで、`@stylistic
 - `.prettierignore` で除外しているもの(各行の理由は `.prettierignore` 内のコメントを参照):
   `*.md`(上記)、`supabase/types.ts`(`yarn gen:types` で再生成するたびに差分が出ると
   Supabaseワークフローが恒久的に赤くなるため)、生成物(`.next/` `out/` `build/`
-  `*.tsbuildinfo` `yarn.lock`)、`supabase/.temp/`
+  `*.tsbuildinfo` `yarn.lock`)、`supabase/.temp/`、`supabase/migrations/**/*.sql`
+  (Prettierは標準でSQLのパーサーを持たない。`prettier --check .` のディレクトリ指定では
+  未対応拡張子は黙ってスキップされ現状は無害だが、明示的にglob指定した場合はエラーになるため
+  先回りして除外する)
 
 導入時点(issue #65)でTSファイルは11個のみで違反が無かったため、drainを挟まず
 **最初からerrorで入れた**(`prettier --write .` を1回かけただけ)。
