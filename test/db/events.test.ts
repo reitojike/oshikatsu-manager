@@ -5,10 +5,7 @@ test("未削除のイベントは無関係のユーザーも閲覧できる", as
   const [owner, stranger] = await Promise.all([createTestUser(), createTestUser()]);
   const event = await createEvent(owner);
 
-  const { data, error } = await stranger.client
-    .from("events")
-    .select()
-    .eq("id", event.id);
+  const { data, error } = await stranger.client.from("events").select().eq("id", event.id);
   expect(error).toBeNull();
   expect(data).toHaveLength(1);
 });
@@ -161,10 +158,7 @@ test("削除後もオーナー自身は引き続き閲覧できる", async () =>
     .eq("id", event.id);
   expect(deleteResult.error).toBeNull();
 
-  const { data, error } = await owner.client
-    .from("events")
-    .select()
-    .eq("id", event.id);
+  const { data, error } = await owner.client.from("events").select().eq("id", event.id);
   expect(error).toBeNull();
   expect(data).toHaveLength(1);
 });
@@ -177,10 +171,7 @@ test("削除後は無関係のユーザーから見えなくなる", async () =>
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", event.id);
 
-  const { data, error } = await stranger.client
-    .from("events")
-    .select()
-    .eq("id", event.id);
+  const { data, error } = await stranger.client.from("events").select().eq("id", event.id);
   expect(error).toBeNull();
   expect(data).toHaveLength(0);
 });
@@ -200,10 +191,7 @@ test("削除後も自分の支出が紐づくユーザーは引き続き閲覧�
     .eq("id", event.id);
   expect(deleteResult.error).toBeNull();
 
-  const { data, error } = await spender.client
-    .from("events")
-    .select()
-    .eq("id", event.id);
+  const { data, error } = await spender.client.from("events").select().eq("id", event.id);
   expect(error).toBeNull();
   expect(data).toHaveLength(1);
 });

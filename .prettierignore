@@ -1,0 +1,15 @@
+# markdownlint-cli2 の担当と衝突するため(docs/lint-policy.md 参照)
+*.md
+
+# yarn gen:types で再生成されるたびに差分が出ると Supabase ワークフローが恒久的に赤くなるため
+supabase/types.ts
+
+# 生成物
+.next/
+out/
+build/
+*.tsbuildinfo
+yarn.lock
+
+# supabase start のローカル生成物
+supabase/.temp/

@@ -226,6 +226,28 @@ CodeRabbitがPR #35〜#39で繰り返し指摘した「コードフェンスに�
 テーブルのパイプ間隔など)だったため、drainの手作業を挟まず**その場でfixして初日からerror**にした。
 言語識別子の欠落(MD040、3件)と引用ブロック内の空行(MD028、1件)だけは自動修正できず手で直した。
 
+### フォーマット (Prettier)
+
+ESLint v9のコアからスタイル系ルールは削除済みで、`@stylistic` も未導入のため、
+整形を機械的に止める仕組みが無かった(issue #65)。Prettierを**ESLintと併用**で導入している
+(置き換えではない)。
+
+- `yarn lint` の先頭で `prettier --check .` を実行し、整形の失敗をESLintの本題より先に落とす
+- 対象は `.prettierignore` の除外を除く全ファイル。**Markdownは対象外**
+  (`markdownlint-cli2` が既に担当しており、リストマーカー・テーブル整形・順序付きリスト番号で
+  衝突するため。二重に持たせない)
+- オプションは `printWidth: 100` のみ設定する。既存の書き方に近く、
+  `max-lines-per-function: 60` を余計に圧迫しない。それ以外は既定値のまま動かさない
+- `eslint-config-prettier` は導入していない。競合するスタイルルールが現状ゼロのため不要。
+  `@stylistic` を入れる日が来たらその時に追加する
+- `.prettierignore` で除外しているもの(各行の理由は `.prettierignore` 内のコメントを参照):
+  `*.md`(上記)、`supabase/types.ts`(`yarn gen:types` で再生成するたびに差分が出ると
+  Supabaseワークフローが恒久的に赤くなるため)、生成物(`.next/` `out/` `build/`
+  `*.tsbuildinfo` `yarn.lock`)、`supabase/.temp/`
+
+導入時点(issue #65)でTSファイルは11個のみで違反が無かったため、drainを挟まず
+**最初からerrorで入れた**(`prettier --write .` を1回かけただけ)。
+
 ## 型の出どころ
 
 **同じ型を二重に定義しない。**出どころは3つだけ。
@@ -334,3 +356,10 @@ warnで残すルールがある場合、なぜ今errorにできないのか、�
   導入する場合もCIのゲートにはせず、レポートのみにする。
   初日からブロックすると、無視するための作法(`// knip-ignore` を反射的に付ける等)が育つ。
 - **複数OSでのCI** — 実行環境がVercel(Linux)に一本化されているため不要。
+- **Biome(formatter-onlyでの置き換えを含む)** — linterとして見ると、`no-restricted-syntax` の
+  ASTセレクタ(層の境界を強制する判断ロジック配列メソッド13種の禁止、動的import封じ。issue #43 / #60)に
+  等価物が無く、移行は `eslint.config.mjs` の最も作り込んだ部分を実験的機構へ書き直すことになる。
+  型情報を要する4ルールや `eslint-plugin-security` / `sonarjs` / `eslint-config-next` の穴も埋まらない。
+  formatter-onlyの置き換えにも利点が無い(速度差はtscのプログラム構築コストに埋まる、
+  ツール数は減らない、Windows/Linux向けにネイティブバイナリを追加で配ることになる)。
+  詳細は issue #65 参照。

@@ -46,7 +46,5 @@ export const canJoinEvent = ({ eventIsDeleted }: EventParticipationContext): boo
  *
  * RLS側の対応: `event_participants_insert_self_or_invite` の招待経路。
  */
-export const canInviteToEvent = ({
-  actorIsParticipant,
-  eventIsDeleted,
-}: InviteContext): boolean => canJoinEvent({ eventIsDeleted }) && actorIsParticipant;
+export const canInviteToEvent = ({ actorIsParticipant, eventIsDeleted }: InviteContext): boolean =>
+  canJoinEvent({ eventIsDeleted }) && actorIsParticipant;
