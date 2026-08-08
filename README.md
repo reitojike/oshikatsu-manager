@@ -20,6 +20,7 @@
 | [`docs/permissions.md`](docs/permissions.md) | 権限マトリクスとRLSの検証要件 |
 | [`docs/lint-policy.md`](docs/lint-policy.md) | lint/型の運用方針、例外の作法 |
 | [`docs/testing.md`](docs/testing.md) | テストの書き方 |
+| [`docs/model-routing.md`](docs/model-routing.md) | Claude/Codex間の作業分担とフェイルオーバー |
 | [`CLAUDE.md`](CLAUDE.md) | AIエージェント向けの規約 |
 
 ## タスク管理
