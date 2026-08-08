@@ -106,6 +106,12 @@ on that turn, subject to fair use limits." としている
 
 ## 上限到達時のフェイルオーバー
 
+**この節はCodex→Claude方向のみを扱う。**Claude側が上限に達した場合の横移動先は無い
+(「既定はCodex優先」で述べたとおり、Claudeに残すのは製品意図の判断・PO確認など
+Codex側に委譲できない4種類の作業だけであり、これらは定義上Codexへ移せない)。
+Claude側が上限に達したら、通常の `CLAUDE.md`「タスク管理とモデルの使い分け」どおり
+Projectの `Status` を `Blocked` にして待つ。
+
 ### 事前には検知できない
 
 Codexの残量確認手段は、対話セッション内の `/status` と
