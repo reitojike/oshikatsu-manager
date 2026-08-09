@@ -106,13 +106,21 @@ if (disabledText.length > 0) {
 const NON_LF = new Set(["crlf", "mixed"]);
 const nonLfInIndex = [];
 const nonLfInWorktree = [];
+const malformedRows = [];
 for (const row of splitNul(git(["ls-files", "--eol", "-z"]))) {
   const tabIndex = row.indexOf("\t");
-  if (tabIndex === -1) continue;
-  const info = row.slice(0, tabIndex);
+  const info = tabIndex === -1 ? "" : row.slice(0, tabIndex);
   const path = row.slice(tabIndex + 1);
-  const indexEol = info.match(/(?:^|\s)i\/(\S+)/)?.[1];
-  const worktreeEol = info.match(/(?:^|\s)w\/(\S+)/)?.[1];
+  // 値は空になりうる(作業ツリーに実体が無いファイルは `w/` が空)ので `\S*` で受ける。
+  // トークンごと無い場合だけ想定外の形式とみなす。
+  const indexEol = info.match(/(?:^|\s)i\/(\S*)/)?.[1];
+  const worktreeEol = info.match(/(?:^|\s)w\/(\S*)/)?.[1];
+  // 想定外の形式を黙って読み飛ばさない。読み飛ばすと、検査していない行が
+  // 「LFだった行」と区別できなくなる(このスクリプトが塞いでいる穴と同じ形)。
+  if (tabIndex === -1 || indexEol === undefined || worktreeEol === undefined) {
+    malformedRows.push(row);
+    continue;
+  }
 
   if (NON_LF.has(indexEol)) nonLfInIndex.push(`${path} (i/${indexEol})`);
   else if (indexEol === "-text" && !containsNul(indexBlob(path))) {
@@ -120,6 +128,13 @@ for (const row of splitNul(git(["ls-files", "--eol", "-z"]))) {
   }
 
   if (NON_LF.has(worktreeEol)) nonLfInWorktree.push(`${path} (w/${worktreeEol})`);
+}
+if (malformedRows.length > 0) {
+  errors.push(
+    `git ls-files --eol の出力を解釈できない行があります (${malformedRows.length}件):\n  ` +
+      malformedRows.join("\n  ") +
+      "\n  検査できていないので成功として扱わない",
+  );
 }
 if (nonLfInIndex.length > 0) {
   errors.push(
