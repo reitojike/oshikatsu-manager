@@ -1,0 +1,29 @@
+# 何を守っているか:
+# Draft前セルフレビュー(issue #81)の記入漏れを検知する。記入内容が真実かは検証できないが、
+# セクション自体が欠けている・必須項目が空のPRは止める。HEAD SHAの完全一致は要求しない
+# (指摘を修正すると必ず不一致になるため)。
+name: PR Template Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-template-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Draft前セルフレビューセクションを確認
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node .github/scripts/check-pr-template.mjs
