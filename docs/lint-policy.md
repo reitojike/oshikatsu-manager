@@ -273,7 +273,7 @@ Prettierは改行コードもフォーマットの一部として見る。Window
 | `.prettierrc` に `"endOfLine": "auto"` | 1行 | **CIもCRLFを通すようになる。**判定そのものが消える |
 | `core.autocrlf` を各自ローカルで `input` | コミット不能 | 環境ごとに揺れる。設定を消せば再発する |
 
-- **`endOfLine: "auto"` は判定を弱める側の変更である。**ファイルの多数派の改行に合わせるので、
+- **`endOfLine: "auto"` は判定を弱める側の変更である。**ファイルに既にある改行に合わせるので、
   CRLFのまま入ったファイルをCIも通す。「壊れたらCIが赤くなる」の逆方向であり、
   上記「オプションは `printWidth: 100` のみ設定する」とも衝突する
 - **`core.autocrlf` はリポジトリにコミットできない。**issue #98 の起票後、この設定がローカルで
@@ -295,22 +295,54 @@ UTF-16のようにNULを含むテキストはバイナリ扱いになり、変�
 
 導入時点(issue #98)で index にCRLFのblobは**0件**、作業ツリーも全ファイルがLFだったため、
 再チェックアウトも `git add --renormalize` も差分を生まなかった。
+**これは作業していたマシンの `core.autocrlf` がたまたま `false` だったからで、一般には成り立たない。**
+CRLFのチェックアウトが手元にある場合は下記「既存のチェックアウトを移行する」が要る。
 
 #### `.gitattributes` が効いていることを機械で確かめる
 
 **`.gitattributes` を消しても、Ubuntu上のCIは既存blobがLFなので `prettier --check` は緑のまま通る。**
 つまりこの設定自体は「壊れたらCIが赤くなる」の外側にある。そこで `yarn lint` の先頭で
-`node .github/scripts/check-eol.mjs` を実行し、2つを確かめる。
+`node .github/scripts/check-eol.mjs` を実行し、3つを確かめる。
 
 1. **追跡されている全ファイルに `eol=lf` が適用されているか**(`git check-attr`)。
    `.gitattributes` の削除やパターンの弱体化がここで落ちる
 2. **indexにCRLFのblobが入っていないか**(`git ls-files --eol` の `i/crlf` `i/mixed`)。
-   1が通っていても、attributeが付く前にコミットされたblobは残りうる。
-   そのファイルはWindowsでもCRLFのままチェックアウトされ、症状が再発する
+   1が通っていても、attributeが付く前にコミットされたblobは残りうる
+3. **作業ツリーにCRLFのファイルが残っていないか**(同じく `w/crlf` `w/mixed`)。
+   下記のとおり `.gitattributes` の追加は既存のチェックアウトを書き換えないので、
+   **indexがLFでも作業ツリーがCRLFのままなら `prettier --check` は落ちたまま**になる
 
 **`yarn lint` に入れる(CI専用のジョブにしない)。**このIssueで直したのは
 「ローカルとCIで判定基準が割れていたこと」なので、その再発を見る仕組みを片方だけに置くと
-同じ形の穴をもう一度開けることになる。
+同じ形の穴をもう一度開けることになる。3はfresh checkoutのCIでは常に緑になるが、
+**その3こそがローカルでしか起きない**という非対称性が、`yarn lint` 側に置く理由そのものである。
+
+#### 既存のチェックアウトを移行する
+
+**`.gitattributes` の追加は、既にあるチェックアウトの作業ツリーを書き換えない。**
+`core.autocrlf=true` でcloneしたリポジトリにこの変更を取り込んでも、内容が変わらないファイルは
+触られずCRLFのまま残る(実測: 50ファイルが `i/lf w/crlf` になり、
+`prettier --check` は27ファイルで落ちたままだった)。
+
+**次の3つはいずれも書き換えない。**先に試して「効かないので設定が間違っている」と読み違えないこと。
+
+| 試したくなるコマンド | 結果 | 理由 |
+| --- | --- | --- |
+| `git add --renormalize .` | 変化なし | indexは既にLF。正規化の差分が出ない |
+| `git checkout -- .` | 変化なし | 属性を通した比較でindexと一致するため、変更扱いにならない |
+| `git checkout-index -f -a` | 変化なし | 同上 |
+
+**indexへの登録をいったん外して作り直す。**未コミットの変更は失われるので、先に退避する。
+
+```bash
+git status --porcelain                   # 空でなければ commit するか stash する
+git rm --cached -qr .
+git reset --hard
+git ls-files --eol | grep -c 'w/crlf'    # 0 になっていることを確認する
+```
+
+**この操作は他のworktreeには影響しない**(作業ツリーとindexはworktreeごとに独立している)。
+影響するのは実行したworktreeの未コミット変更だけである。
 
 ## 型の出どころ
 
