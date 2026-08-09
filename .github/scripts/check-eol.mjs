@@ -44,7 +44,11 @@ for (let cursor = 0; cursor + 3 <= attrFields.length; cursor += 3) {
 // 「本当にバイナリか」をindexのblobで確かめてから許す。docs/lint-policy.md「改行コード」の
 // 「誤検出する形式が出てきたら、そのときに `binary` を明示する」を機械側でも受け止める。
 // 全体を `-text` にする書き方はテキストファイルがここで落ちるので通らない。
-const TEXT_ENABLED = new Set(["auto", "set"]);
+//
+// **`auto` のみを許す。`text`(= set)も通してはいけない。**set は全ファイルをテキスト扱いに
+// するので、バイナリの自動判定という `text=auto` を選んだ理由そのものが消え、
+// バイナリが改行変換で壊れる。方針からの逸脱をここで検出できなくなる。
+const TEXT_ATTR_EXPECTED = "auto";
 
 const missingAttr = [];
 const disabledText = [];
@@ -62,7 +66,7 @@ for (const path of paths) {
     missingAttr.push(`${path} (eol=${eol})`);
   }
   const text = attrs.get("text");
-  if (!TEXT_ENABLED.has(text) && !containsNul(indexBlob(path))) {
+  if (text !== TEXT_ATTR_EXPECTED && !containsNul(indexBlob(path))) {
     disabledText.push(`${path} (text=${text})`);
   }
 }
@@ -81,9 +85,10 @@ if (missingAttr.length > 0) {
 }
 if (disabledText.length > 0) {
   errors.push(
-    `テキストファイルなのに text が無効になっています (${disabledText.length}件):\n  ` +
+    `テキストファイルの text が auto ではありません (${disabledText.length}件):\n  ` +
       disabledText.join("\n  ") +
-      "\n  text が無効だと eol=lf があっても改行は変換されない",
+      "\n  unset/unspecified: eol=lf があっても改行が変換されない" +
+      "\n  set: バイナリの自動判定が効かなくなり、バイナリが改行変換で壊れる",
   );
 }
 
