@@ -97,7 +97,7 @@ required checkにはまだ配線されていない(人間の手動対応待ち)�
 PRはまず`gh pr create --draft`でDraft作成する。
 
 - **Claude**(`claude-review.yml`): `CLAUDE_CODE_OAUTH_TOKEN`設定時にdraftのpushごとに走る。未設定時はスキップ。`claude-review.yml`自体を変更するPRでは別の理由でスキップされる(下記「`claude-review.yml`変更時のスキップの見分け方」参照)
-- **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点を`AGENTS.md`で指定する仕組み(`## Code Review Rules`節)はまだ無く(issue #82)、現状は汎用の観点でレビューされる。**Draft PRで自動発火するかは未検証**なので、Draftのpushで投稿が無い場合はPRコメント欄でcodexへメンションして手動リクエストする(誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は現状維持(残すか削除するかはissue #82で検討)
+- **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点を`AGENTS.md`で指定する仕組み(`## Code Review Rules`節)はまだ無く(issue #82)、現状は汎用の観点でレビューされる。**Draft PRを開いただけでは自動発火しない**(PR #113で確認済み。botの案内文言によれば発火条件は「PRをreview用にopen」「Draftをreadyにする」「`@codex review`とコメント」の3つ)。Draft中に投稿が欲しい場合は、PRコメント欄でcodexへメンションして手動リクエストする(誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は現状維持(残すか削除するかはissue #82で検討)
 - **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。ただしFreeプランはGitHub連携のPRレビューが**1回/時/開発者**に制限されている(PR #35で実際にレート制限を確認済み。詳細は`docs/roadmap.md`「CodeRabbitの導入」参照)。Draftで短時間に何度もpushしても2回目以降はスキップされうる。反復の主力はClaude/Codexで、CodeRabbitは取れたときに追加の視点が入る、という位置づけで期待値を持つこと
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
 
