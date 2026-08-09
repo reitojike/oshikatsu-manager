@@ -20,7 +20,14 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 //   files: ["lib/supabase/rpc.ts"], // 生成型が及ばないRPCの戻り値
 //   rules: { "@typescript-eslint/no-explicit-any": "off" },
 // },
-const exceptions = [];
+const exceptions = [
+  {
+    // git を絶対パスで指定できない。実行場所がローカル(Windows)とCI(ubuntu)で異なり、
+    // どちらでも動く固定パスが存在しないため、PATH経由の解決が構造的に必要になる。
+    files: [".github/scripts/check-eol.mjs"],
+    rules: { "sonarjs/no-os-command-from-path": "off" },
+  },
+];
 
 // ---- 層の境界 (docs/lint-policy.md 「層の境界」) ----
 //
