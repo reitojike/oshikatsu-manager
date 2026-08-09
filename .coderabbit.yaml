@@ -5,7 +5,7 @@ reviews:
   auto_review:
     enabled: true
     # デフォルトはdraft PRをスキップするが、このリポジトリはDraftで
-    # Claude/Codexと反復してからReady化する運用(CLAUDE.md「ブランチとPR」)。
+    # Claude/Codexと反復してからReady化する運用(AGENTS.md「ブランチとPR」)。
     # CodeRabbitはCopilotと違いdraft中も含めて都度レビュー対象にする
     # (実際に消費するのはFreeプランのレート制限: GitHub連携のPRレビューは
     # 1回/時/開発者。1時間に複数pushしても2回目以降はスキップされうる。
@@ -24,7 +24,7 @@ reviews:
   path_instructions:
     - path: "**/*.{ts,tsx}"
       instructions: |
-        CLAUDE.md の絶対ルールに違反していないか重点的に確認すること。
+        AGENTS.md の絶対ルールに違反していないか重点的に確認すること。
         - `as` によるキャスト、`any`、`@ts-ignore` / `@ts-expect-error` / `eslint-disable` による
           エラーの黙殺がないか
         - common/ に置くべき判断ロジック(フィルタ・並び順・検証・集計・権限判定・日付計算)が
