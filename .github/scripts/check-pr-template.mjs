@@ -39,7 +39,9 @@ for (const line of section.split("\n")) {
   const rest = bulletBodyMatch?.[1]?.trimStart();
   if (rest !== undefined) {
     const colonIndex = rest.search(/[:：]/);
-    const label = (colonIndex === -1 ? rest : rest.slice(0, colonIndex)).trim();
+    const rawLabel = (colonIndex === -1 ? rest : rest.slice(0, colonIndex)).trim();
+    // "**実施主体**" のようなMarkdown強調装飾を剥がしてから照合する。
+    const label = rawLabel.replace(/^\*\*(.*)\*\*$/, "$1");
     if (REQUIRED_LABELS.includes(label)) {
       flush();
       currentLabel = label;
@@ -62,7 +64,16 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const resultMatch = (fields.get("結果") ?? "").match(/(指摘なし|指摘あり)/);
+const resultText = (fields.get("結果") ?? "").trim();
+// .github/pull_request_template.md の初期値そのもの(未選択のプレースホルダー)を弾く。
+// これを弾かないと「結果」の部分一致が先頭の「指摘なし」に誤って一致してしまう。
+if (resultText === "指摘なし / 指摘あり") {
+  console.error(
+    "「結果」がテンプレートの初期値のまま(未選択)です。指摘なし・指摘ありのいずれかを選んでください。",
+  );
+  process.exit(1);
+}
+const resultMatch = resultText.match(/^(指摘なし|指摘あり)/);
 if (!resultMatch) {
   console.error("「結果」に指摘なし・指摘ありのいずれかが記載されていません。");
   process.exit(1);
