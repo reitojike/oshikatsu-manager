@@ -316,10 +316,8 @@ const eslintConfig = defineConfig([
   // tsconfigのプログラムに含まれないため projectService が解析できずParsing errorになる。
   // `yarn test:db` のためにSupabaseを起動しているだけで `yarn lint` が落ちるのを防ぐ。
   //
-  // .claude/worktrees/** は別チェックアウト(.gitignore済み)。ESLintのflat configは
-  // .gitignore を自動では読まないため、ここに書かないと走査対象に入る。入れておかないと
-  // **作業中の別ブランチのコードが、メインのチェックアウトの `yarn lint` を落とす**
-  // (issue #130。AGENTS.md がIssueごとのworktreeを必須にしている以上、常に存在する)。
+  // .claude/worktrees/** は別チェックアウト。ESLintに走査させない
+  // (理由は docs/lint-policy.md「無視の指定」。issue #130)。
   globalIgnores([
     ".next/**",
     "out/**",
