@@ -41,9 +41,12 @@ PR #18〜#32の実績分析(Claude/Copilotの指摘重複率、Copilotのクレ�
    実装に使ったCodexセッションを`mcp__codex__codex-reply`で継続しない。実装時に置いた前提を
    そのまま引き継ぐと、前提そのものの誤りを見落とすため(issue #102)。
 3. **`/code-review`スキルを使うのは、`common/`・権限/RLS・`supabase/migrations/**`のいずれかに
-   触れるPRのみ。**それ以外は既定のCodexで足りる。levelは論理プロファイル名
-   (`code-review-default` / `code-review-deep`)で判断し、具体値は運用ルールに固定しない。
-   `ultra`は使わない。
+   触れるPRのみ。**それ以外は既定のCodexで足りる。levelは`medium`を既定とし、上記に該当する
+   PRのみ`high`に上げる。`ultra`は使わない。**具体値をここに書くのは、levelの名称選択肢
+   (`low`/`medium`/`high`/`xhigh`/`max`/`ultra`)自体が`/code-review`skill側の固定語彙であり、
+   `docs/model-routing.md`「モデル名を文書に固定しない」が警戒する対象(変わりうるモデル名)とは
+   別物だから。**論理プロファイル名で抽象化する案(issue #81で一時検討)は、名前と具体値を
+   紐づけるローカル設定がこのリポジトリにまだ無いため、このPRでは採らない。
 
 **Codexへ渡す最低限のコンテキスト:**
 
