@@ -67,15 +67,14 @@ PR以前にファイルシステムレベルで衝突する(「並行してい�
 branch名との一致は求めない(`EnterWorktree`ツールはbranch名を`worktree-<name>`に自動生成するため、
 一致させるには手動リネームが必要になってしまう)。
 作業完了後(PRマージ、またはマージせずcloseした場合も含む)は `git worktree remove` で
-worktreeを片付ける。lock済みのworktreeは `git worktree unlock` してから削除する。
+worktreeを片付ける。**自分の**worktreeがlock済みなら `git worktree unlock` してから削除する
+(他人の残骸を畳むときは別。`docs/worktree-policy.md`)。
 
-**畳むのは2段構えで、新しくworktreeを切る前にも棚卸しする。**片付けを担当した本人だけに任せると、
-セッションが閉じた後には誰も実行できない(issue #84で実際に漏れた)。
-**ローカル`main`は参照専用**とし、worktreeでチェックアウトもコミットもしない。`main`を握った
-worktreeが残ると、他のworktreeでの`main`基準diffが古い`main`を見る(issue #84では、この汚染で
-約50万トークン相当のレビューが無駄になった)。**`/code-review`などdiffベースのツールを使う前に、
-ローカル`main`が`origin/main`に追随していることを確認する。**畳んでよい条件、点検のコマンド、
-自動化の線引きは `docs/worktree-policy.md`(理屈をここに書き写さない。片方だけ古くなる)。
+**畳むのは2段構えで、新しくworktreeを切る前にも棚卸しする。**
+**ローカル`main`は参照専用**とし、worktreeでチェックアウトもコミットもしない。
+**`/code-review`などdiffベースのツールを使う前に、ローカル`main`が`origin/main`に
+追随していることを確認する。**理由、畳んでよい条件、点検のコマンド、自動化の線引きは
+`docs/worktree-policy.md`(理屈をここに書き写さない。片方だけ古くなる)。
 
 **PRはまずDraftで作成する。**Draftでレビューボットと反復し、指摘が尽きてから
 `gh pr ready`でReady化してGitHub Copilotの最終レビューを1回だけ受ける。

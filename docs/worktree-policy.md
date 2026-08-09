@@ -53,15 +53,27 @@ issue #84のとき偶然このコマンドが通ったのは、放置worktreeを
 ### 更新するときはメインのチェックアウトで早送りする
 
 ```bash
-# main を握っているチェックアウトの場所を確認する
+# 1. リモートの現在の姿を取り込む
+git fetch --prune origin
+
+# 2. ずれ方を確認する。左(main固有のコミット数)が 0 でなければ早送りしない
+git rev-list --left-right --count main...origin/main
+
+# 3. main を握っているチェックアウトの場所を確認する
 git worktree list
 
-# そこで origin/main に早送りする
+# 4. そこで origin/main に早送りし、もう一度 2 が「0 0」になることを確かめる
 git -C <上で出たパス> merge --ff-only origin/main
 ```
 
-`--ff-only` にするのは、`main` に固有のコミットがあれば失敗してほしいからである。
-成功したなら「参照専用」が守られていたことの確認にもなる。
+**2を飛ばして`--ff-only`だけに頼らない。`--ff-only` は「`main` に固有のコミットがある」状態を
+検出しない。**`origin/main` が `main` の祖先なら、`main` が何コミット先行していても
+`Already up to date.` を返して**成功する**(exit 0。本ブランチで実測)。
+`--ff-only` が弾くのは履歴が分岐してマージコミットが要る場合だけなので、
+「参照専用」が守られていたかどうかは2の左側でしか確かめられない。
+
+左が0でなかったら、そこで止めて報告する。ローカル `main` に固有のコミットがある時点で
+上のルールが破られており、機械的に消してよいものかは判断が要る。
 
 ## diffベースのツールを使う前の点検
 
@@ -114,27 +126,39 @@ git rev-list --left-right --count main...origin/main
 
 ### 削除してよい条件(白)
 
-worktreeは次の3つを全部満たすとき。
+worktreeは次の4つを全部満たすとき。
 
 1. 自分が今いるworktreeではない
-2. `git -C <path> status --porcelain` が空(未コミット・未追跡の変更が無い)
-3. そのworktreeが持つブランチが、下のブランチの条件を全部満たす
+2. **`locked` が付いていない**(下記)
+3. `git -C <path> status --porcelain` が空(未コミット・未追跡の変更が無い)
+4. そのworktreeが持つブランチが、下のブランチの条件を全部満たす
 
 ブランチは次の3つを全部満たすとき。
 
-1. `main` ではなく、どのworktreeにもチェックアウトされていない
-2. そのブランチをheadとするPRが存在し、状態が `MERGED` である
-3. ローカルの先端が、そのPRの `headRefOid` と一致する
+1. `main` ではなく、**畳もうとしているworktree以外の**worktreeにチェックアウトされていない
+   (**「どのworktreeにも」ではない。**畳む対象のworktree自身は、当然そのブランチを握っている。
+   ここを「どのworktreeにも」と書くと、どの候補も永久に白にならない)
+2. そのブランチをheadとするPRのうち、状態が `MERGED` で**ローカルの先端と `headRefOid` が
+   一致するものがちょうど1件**ある
+3. **同じ先端を指すオープンなPRが無い**
 
-**3が「マージ後にローカルでコミットを足していない」ことの証明になる。**`headRefOid` は
+**2が「マージ後にローカルでコミットを足していない」ことの証明になる。**`headRefOid` は
 リモートのブランチが削除済みでも取得できる(PR #50で実測。リモートは既に無いが `9adadae` が返り、
-ローカルの先端と一致した)。
+ローカルの先端と一致した)。ブランチ名は使い回せるので **PRを名前だけで1件に決めない。**
+`gh pr list --head <branch> --state all` は複数返しうる。
+
+**`locked` のworktreeは白にしない。**`git worktree unlock` は、そのworktreeを他のセッションが
+使っていないことを確認しない。`locked` は「使用中」の合図として付いていることがあり
+(このPRを作業したworktree自身がそうだった)、棚卸しする側からは自分のものかどうか区別できない。
+`CLAUDE.md`「lock済みのworktreeは `git worktree unlock` してから削除する」は、
+**自分の作業を終えて自分のworktreeを畳む一次の場面**を指す。他人の残骸を畳む二次の棚卸しでは、
+`locked` は報告対象であって削除対象ではない。
 
 ### `git branch --merged` も `git branch -d` も、単独では判定に使えない
 
 **このリポジトリはsquash mergeなので、マージ済みブランチのコミットは `main` から到達できない。**
 実測: `git branch --merged origin/main` はマージ済みPRのブランチを**1本も**返さない
-(#71・#75・#76・#80 のブランチが全部 `--no-merged` 側に出る)。到達可能性では判定できない。
+(#50・#71・#75・#76・#80 のブランチが全部 `--no-merged` 側に出る)。到達可能性では判定できない。
 
 `git branch -d` の可否も、白/黒とは別の軸を見ている。実測すると、
 
@@ -159,13 +183,17 @@ git for-each-ref --format='%(refname:short) %(upstream:track)' refs/heads
 
 # 2. 候補ごとに白の条件を確認する
 git -C <worktree-path> status --porcelain
-gh pr list --head <branch> --state all --json number,state,headRefOid
+gh pr list --head <branch> --state all --json number,state,headRefOid,headRefName
 git rev-parse <branch>
 
 # 3. 白のものだけ畳む(自分が中にいるworktreeは畳めない。先に出る)
-git worktree unlock <path>   # locked のときだけ
+#    locked は白にしないので、ここに unlock は出てこない
 git worktree remove <path>
 git branch -D <branch>
+
+# 4. 消えたことを確認する。remove の成否だけを信じない
+git worktree list
+test ! -e <path>
 ```
 
 **0を飛ばさない。`git branch -r` はローカルのキャッシュであって、リモートの現在の姿ではない。**
@@ -174,9 +202,14 @@ git branch -D <branch>
 死んでいるブランチを生きていると読み違える。
 
 **`git worktree remove` が `Permission denied` で失敗することがある**(OneDrive同期のロックと
-見られる。issue #84で実際に発生)。この場合 `.git/worktrees/<name>` のメタデータが残るだけで、
-`git worktree list` からは既に外れている。`git worktree prune` で後始末し、
-**この失敗を「片付いていない」と読み違えない。**
+見られる。issue #84のOwnerコメントに実例がある)。**このとき「失敗した = 何も起きていない」とは
+限らない。**実例では `.git/worktrees/<name>` のメタデータ削除だけが失敗し、
+`git worktree list` からは既に外れていた。逆に、一覧から外れても物理ディレクトリが
+残ることもありうる。
+
+**だから成否ではなく結末を確かめる**(手順の4)。`git worktree list` に残っていれば
+`git worktree prune` で後始末し、物理ディレクトリが残っていれば手動対応として報告する。
+**「片付いていない」と「エラーが出た」を同一視しない。**
 
 ## 自動化の線引き
 
