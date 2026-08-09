@@ -1,4 +1,4 @@
-# 推し活管理アプリ データモデル設計 (v0.5)
+# イベント管理アプリ データモデル設計 (v0.5)
 
 前提: PostgreSQL (Supabase) / Supabase Auth (Google SSO) / RLSによる行レベル制御
 
