@@ -1,10 +1,23 @@
+# Claude / Codex 併用の根拠と、上限到達時の手順
+
+`docs/model-routing.md` の規則が**なぜそうなっているか**(併用の目的、階層の対応が
+両社の公式ガイダンスと一致すること、出典)と、**Codexがエラーを返して実際に切り替えを
+検討するときの手順**。
+**振り分けを決めるだけならこの文書は読まなくてよい。**配分の方針を見直すとき、
+または上限到達に遭遇したときに読む。
+
+規則そのものは `docs/model-routing.md` にある。ここには書き写さない。
+
 ## なぜ併用するか
 
 **Claude Pro に含まれる Claude Code** と **ChatGPT Plus に含まれる Codex** の、
 **2つの利用枠を1つのプロジェクトで消費する**ため。どちらの利用枠もアカウント内の
 他の利用(チャット等)と共有されるプールであり、Web/デスクトップ/CLIの操作を合算して消費する。
 片方に寄せると、そちらの利用枠に達した時点で作業が止まる。目的は速さではなく、
-止まる頻度を下げることにある。したがって配分は意図的に非対称にする(下記「既定はCodex優先」)。
+止まる頻度を下げることにある。したがって配分は意図的に非対称にする
+(`docs/model-routing.md`「既定はCodex優先」)。
+
+## 階層の対応が公式ガイダンスと一致する
 
 **この対応は偶然ではなく、両社の公式ガイダンスが同じ軸で書かれている。**
 Codexの公式ドキュメントは Sol を "complex, open-ended work" で "extra analysis, judgment, or polish"
@@ -19,26 +32,34 @@ Claude Code のサブエージェント文書も "Control costs by routing tasks
 と書く([Subagents](https://code.claude.com/docs/en/sub-agents))。
 **「判断は上位、機械的作業は下位」は自前の運用則ではなく、両プロバイダの公式指針と一致している。**
 
-理由は世代名の入れ替わりが速いこと。**本節も含め、この文書に個別のモデル名やretire日を書かない。**
+## モデル名とreasoning effortを設定側に置く理由
+
+世代名の入れ替わりが速いこと。
 Codexの公式changelogは頻繁に世代交代を案内しており([Codex changelog](https://developers.openai.com/codex/changelog))、
 世代名を運用ルールに埋めると、モデルが変わるたびにルール本体を書き直すことになる
-(本節がまさにその具体例を書いてしまうと、この節の主張自体が自己矛盾で陳腐化する)。
-実際のretireスケジュールはchangelogを都度参照すること。
+(この節がまさにその具体例を書いてしまうと、節の主張自体が自己矛盾で陳腐化する)。
+**この文書自身も同じ禁止の対象である**(規則は `docs/model-routing.md`「モデル名を文書に固定しない」)。
 
-reasoning effort も同様に設定側で決める。公式の指針は
+reasoning effort を設定側に置くのも同じ理由による。公式の指針は
 "Use the lowest reasoning effort that produces the result you need."
 ([Codex Models](https://learn.chatgpt.com/docs/models))で、
 Anthropic側も effort の調整を「モデルを切り替えるより良いレバーであることが多い」としている
 ([Choosing the right model](https://platform.claude.com/docs/en/docs/about-claude/models/choosing-a-model))。
-**上限節約のためにeffortを常に最大にするのは逆効果**なので、既定を上げない。
+この2つの指針が、effortの既定を上げないことの根拠である。
 
-**Codexには「境界の明確な1タスク」を渡す。**ping・本命・追加説明・修正指示のような
-不要な分割をしない。利用上限はモデル・タスクの大きさや複雑さ・実行環境に応じて消費され、
+## 呼び出しを細かく割らない理由
+
+利用上限はモデル・タスクの大きさや複雑さ・実行環境に応じて消費され、
 5時間の共有窓を単位とする([Codex Pricing](https://learn.chatgpt.com/docs/pricing))。
 turn単位で区切られる保証はないが、少なくとも「進行中のturnは上限到達後も継続できる」
 ("If you reach your usage limits during an active turn, the agent will be able to continue working
 on that turn, subject to fair use limits."、同上)ため、細切れに投げて呼び出し回数を増やすほど、
 上限に当たる境界を不必要に増やすことになる点は変わらない。
+
+## 上限到達時に読む手順
+
+**Codexがエラーを返した時点で読む節。**振り分けを決めるときには要らない
+(規則の入口は `docs/model-routing.md`「上限到達時のフェイルオーバー」)。
 
 ### 事前には検知できない
 
@@ -102,8 +123,8 @@ Codexの残量確認手段は、対話セッション内の `/status` と
 
 ### 引き継ぎに何を足すか
 
-フェイルオーバー時の引き継ぎは、下記「プロバイダをまたぐ引き継ぎ計画」の内容に加えて、
-**Codexがどこまで進めたか**を書く。これが無いと受け取った側が最初からやり直す。
+フェイルオーバー時の引き継ぎは、`docs/model-routing.md`「プロバイダをまたぐ引き継ぎ計画」の
+内容に加えて、**Codexがどこまで進めたか**を書く。これが無いと受け取った側が最初からやり直す。
 **Issueコメント(上記「手順」4)への記録だけでは不十分で、次を引き継ぎ先へのprompt本文にも
 そのまま含める**(受け取る側はコールドスタートで、Issueコメントを能動的に遡って読むとは限らない)。
 
@@ -113,6 +134,11 @@ Codexの残量確認手段は、対話セッション内の `/status` と
 - 変更済みのファイルと、その変更が意図どおりか未確認か
 - 実行したコマンドと結果(緑だったもの・赤いままのもの)
 - Codexが判断を保留した箇所
+
+## 引き継ぎに4項目を足す理由
+
+`docs/model-routing.md`「プロバイダをまたぐ引き継ぎ計画」が足す4項目(実行環境と権限 /
+現在の作業状態 / 必読資料と読む順序 / 差し戻し契約)について。
 
 **この4項目は儀式ではなく、両プロバイダのサブエージェントに共通する前提そのものである。**
 Claude Code の公式文書は "Each subagent starts with a fresh, isolated context window. It doesn't
@@ -125,8 +151,8 @@ Codex側も同じで、リポジトリ全体が自動でコンテキストに入
 
 ## 出典
 
-この文書の判断は、Codex側(Sol、`mcp__codex__codex` 経由で2往復)の見解と、
-以下の公式ドキュメントを突き合わせて決めた。やり取りの内容は issue #67 のコメントに記録がある。
+`docs/model-routing.md` とこの文書の判断は、Codex側(Sol、`mcp__codex__codex` 経由で2往復)の
+見解と、以下の公式ドキュメントを突き合わせて決めた。やり取りの内容は issue #67 のコメントに記録がある。
 
 - [Codex Models](https://learn.chatgpt.com/docs/models) —— Sol / Terra / Luna の使い分けと reasoning effort
 - [Codex Pricing](https://learn.chatgpt.com/docs/pricing) —— 利用上限の窓、turn途中で上限に達した場合、残量の確認手段
