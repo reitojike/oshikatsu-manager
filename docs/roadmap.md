@@ -60,10 +60,10 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
   - [ ] db test(フェーズ1でSupabaseが入るまでは空で通る)
   - [ ] supabase型検証(`yarn gen:types` して差分があれば失敗)
   - [x] 自動コードレビュー: Claude(`claude-review.yml`)本稼働。実際にPRへ総評+インライン
-        コメントを投稿することを確認済み。CodexはCodex CloudのPR自動レビュー
-        (ワークフローファイル・APIキーとも不要)を有効化し、実PRでの投稿を確認済み
-        (下記「保留: 外部アカウント待ち」参照)。GitHub Actions版(`codex-review.yml`)を
-        残すか削除するかは別Issue(#82)で扱う
+        コメントを投稿することを確認済み
+  - [x] 自動コードレビュー: CodexはCodex CloudのPR自動レビュー(ワークフローファイル・
+        APIキーとも不要)を有効化し、実PRでの投稿を確認済み(下記「保留: 外部アカウント待ち」
+        参照)。GitHub Actions版(`codex-review.yml`)を残すか削除するかは別Issue(#82)で扱う
   - [x] 自動コードレビュー: GitHub Copilotの自動レビュー。Ruleset(`copilot_code_review`)で
         有効化済み。PR作成時・push毎に自動でレビューコメントを投稿することを確認済み
   - [ ] keep-alive(日次。向き先は本番ができるフェーズ6で設定)
