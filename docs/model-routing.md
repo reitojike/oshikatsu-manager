@@ -48,7 +48,8 @@ Claude Code (Opus / Sonnet / Haiku) と Codex CLI (Sol / Terra / Luna) を併用
 上の表は**論理階層**であって、モデルIDではない。実際のモデル名(バージョン番号付きの具体的なモデルID)と
 reasoning effort の割り当ては**ローカルのCodex設定に置き、この文書とIssue運用には書かない。**
 **個別のモデル名やretire日を書かないという禁止は、`docs/model-routing-details.md` にも同じく掛かる。**
-実際のretireスケジュールは公式changelogを都度参照すること。
+実際のretireスケジュールは公式changelogを都度参照すること
+(リンクは `docs/model-routing-details.md`「出典」)。
 
 reasoning effort も同様に設定側で決める。
 **上限節約のためにeffortを常に最大にするのは逆効果**なので、既定を上げない。
