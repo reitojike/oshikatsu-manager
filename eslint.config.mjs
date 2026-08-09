@@ -315,7 +315,17 @@ const eslintConfig = defineConfig([
   // supabase/.temp/** は `supabase start` が生成するローカル成果物(.gitignore済み)。
   // tsconfigのプログラムに含まれないため projectService が解析できずParsing errorになる。
   // `yarn test:db` のためにSupabaseを起動しているだけで `yarn lint` が落ちるのを防ぐ。
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "supabase/.temp/**"]),
+  //
+  // .claude/worktrees/** は別チェックアウト。ESLintに走査させない
+  // (理由は docs/lint-policy.md「無視の指定」。issue #130)。
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "supabase/.temp/**",
+    ".claude/worktrees/**",
+  ]),
 ]);
 
 export default eslintConfig;

@@ -363,6 +363,57 @@ git ls-files --eol | grep -c 'w/crlf'    # 0 になっていることを確認�
 **この操作は他のworktreeには影響しない**(作業ツリーとindexはworktreeごとに独立している)。
 影響するのは実行したworktreeの未コミット変更だけである。
 
+### 無視の指定
+
+`yarn lint` はツールを順に呼ぶが、**何を走査しないかの指定はツールごとに別の場所にある。**
+片方だけ直すと、そちらだけがすり抜ける。
+
+下表は**ファイルを探しに行くツール**を並べたもの
+(`check-lint-scope.mjs` は下記のとおりESLintの無視判定を問い合わせるだけで、走査はしない)。
+
+| ツール | 除外の指定 | 未追跡ディレクトリへ入るか |
+| --- | --- | --- |
+| `check-eol.mjs` | (指定なし) | 入らない。`git ls-files` が返す**追跡ファイル**しか見ない |
+| Prettier | `.prettierignore` | 入らない。Prettier 3 の `--ignore-path` の既定が `.gitignore` + `.prettierignore` |
+| markdownlint-cli2 | `.markdownlint-cli2.jsonc` の globs | 入らない。対象globがルート相対で、worktree配下まで届かない |
+| **ESLint** | `eslint.config.mjs` の `globalIgnores` | **入る。**flat configは `.gitignore` を参照しない |
+
+**追加の対応が要るのはESLintだけである。**`.gitignore` にあるディレクトリでも、
+`globalIgnores` に書かなければ走査する。
+
+これで実際に踏んだのが `.claude/worktrees/**`(issue #130)。**worktreeは別チェックアウト**なので、
+除外していないと**作業中の別ブランチのコードが、メインのチェックアウトの `yarn lint` を落とす。**
+issue #98 の直後に、まさにその形で `yarn lint` が赤くなった
+(worktree側にコピーされた `check-eol.mjs` が、ルート相対で書かれた例外エントリに
+マッチせずerrorになった)。worktreeは作業完了時に畳む決まりだが(`AGENTS.md`)、
+**作業中は必ず存在する**ので、踏む頻度は「たまに」ではない。
+
+**`.gitignore` に足したディレクトリが走査されて困るものなら、`globalIgnores` にも足す。**
+
+#### 走査範囲の退行は、ファイルの有無では検出できない
+
+**`globalIgnores` からこの行が消えても、CIでもローカルでも黙って通る。**
+
+- CIのcheckoutに `.claude/worktrees/` は**存在しない**ので、走査対象が広がっても差が出ない
+- ローカルでも、worktreeの中身がlintを通るコードなら(作成直後は普通そうである)
+  **余分に検査されるだけでエラーにならない**
+
+issue #130 が見つかったのは、たまたまworktree側のファイルが例外エントリに
+マッチせずerrorになったからで、**再現性のある検出ではなかった。**
+
+そこで `yarn lint` から `node .github/scripts/check-lint-scope.mjs` を実行し、
+**ESLintの無視判定そのものを問い合わせる**(`ESLint#isPathIgnored`)。
+ファイルの有無に依存しないので、CIでもローカルでも同じ結果になる。
+
+両方向を見る。片方だけでは通り抜けられる。
+
+- `.claude/worktrees/**` 配下の代表パスが**無視されること**
+- 通常のパス(`app/` `common/` など)が**無視されないこと**
+  —— これが無いと、全部を無視する設定で1つ目を満たせてしまう
+
+**代表パスは実在しなくてよい。**worktreeのディレクトリ名も階層の深さも決め打ちできないので、
+形の違う例を並べてある。
+
 ## 型の出どころ
 
 **同じ型を二重に定義しない。**出どころは3つだけ。

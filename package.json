@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "node .github/scripts/check-eol.mjs && prettier --check . && eslint && markdownlint-cli2",
+    "lint": "node .github/scripts/check-eol.mjs && node .github/scripts/check-lint-scope.mjs && prettier --check . && eslint && markdownlint-cli2",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project unit --project component",
     "test:db": "vitest run --project db",
