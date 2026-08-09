@@ -329,4 +329,4 @@ MVPのスコープ外。**利用者を家族・友人に広げるタイミング
 | v0.4 | mainブランチをRulesetで保護(PR必須・force push禁止・削除禁止・管理者バイパス可)。Claude/Codexの自動レビューworkflow骨格を導入(シークレット未設定時は自動スキップ)。「保留: 外部アカウント待ち」を新設し、Copilot自動レビューの有効化とシークレット設定の作業を記載 |
 | v0.5 | Claude自動レビューを本稼働化(id-token権限とコメント投稿手段の指示が不足していた不具合を修正し、実PRで動作確認)。Copilot自動レビューをRulesetで有効化し動作確認。Codexレビューは意図的に保留(APIキーを取得しない方針) |
 | v0.6 | Codexレビューの本稼働化の状態を「保留」から「見送り(確定)」に変更。ChatGPT Plusの契約にAPIキーは含まれず、OpenAI Platformの従量課金である点を理由として明記(v0.5の「取得しない方針」の撤回ではなく、理由の追記と確定) |
-| v0.7 | Codex Cloud のPR自動レビュー(Automatic reviews)を有効化(issue #101)。GitHub Actions版`codex-review.yml`とは別経路で、ワークフローファイル・APIキーとも不要。「保留: 外部アカウント待ち」の行をGitHub Actions版とCodex Cloud版に分割。実PRで、Draft作成だけでは自動発火しないこと・`@codex review`の手動リクエストで投稿されることを確認 |
+| v0.7 | Codex Cloud のPR自動レビュー(Automatic reviews)を有効化(issue #101)。GitHub Actions版`codex-review.yml`とは別経路で、ワークフローファイル・APIキーとも不要。「保留: 外部アカウント待ち」の行をGitHub Actions版とCodex Cloud版に分割。実PRで、Draft PRへのpushでは自動発火しないこと・`@codex review`の手動リクエストで投稿されること・Ready化後のpushでは手動メンション無しで自動投稿されること(発火条件は「Draftではない状態でのpush」と見られる)を確認 |
