@@ -232,7 +232,8 @@ ESLint v9のコアからスタイル系ルールは削除済みで、`@stylistic
 整形を機械的に止める仕組みが無かった(issue #65)。Prettierを**ESLintと併用**で導入している
 (置き換えではない)。
 
-- `yarn lint` の先頭で `prettier --check .` を実行し、整形の失敗をESLintの本題より先に落とす
+- `yarn lint` では `prettier --check .` をESLintより先に実行し、整形の失敗を本題より先に落とす
+  (さらにその手前で改行コードを確認する。下記「改行コード」)
 - 対象は `.prettierignore` の除外を除く、Prettierがパーサーを推論できるファイル種別
   (JS/TS/JSON/CSS/YAML等)。**Markdownは対象外**
   (`markdownlint-cli2` が既に担当しており、リストマーカー・テーブル整形・順序付きリスト番号で
@@ -259,9 +260,10 @@ ESLint v9のコアからスタイル系ルールは削除済みで、`@stylistic
 
 Prettierは改行コードもフォーマットの一部として見る。Windowsで `core.autocrlf=true` だと
 作業ツリーがCRLFになるため、**1行も編集していないファイルまで `prettier --check` が全滅する**
-一方、CI(ubuntu、LF)は緑のままになる(issue #98。実測27ファイル)。
+一方、CI(ubuntu、LF)は緑のままになる(issue #98)。
 `AGENTS.md`「コミット前に `yarn lint && yarn typecheck && yarn test` を通す」が
-その環境では原理的に実行できなくなる。
+その環境では原理的に実行できなくなる。件数は対象ファイル数に比例して増える
+(issue #98 起票時点で27ファイル、修正時点の再現で29ファイル)。
 
 `.gitattributes` を選ぶのは、**ローカルとCIの判定基準を1つに保ったまま直せる唯一の案**だからである。
 
@@ -278,16 +280,37 @@ Prettierは改行コードもフォーマットの一部として見る。Window
   `false` にされていたため症状は一時的に見えなくなっていたが、**設定が消えれば戻る。**
   再発を機械が検出しないので、これは修正ではない
 - **`.gitattributes` は `core.autocrlf` より優先される。**各環境で手を動かす必要が無くなる。
-  さらに `text=auto` がindex側もLFに正規化するので、**CRLFがリポジトリに入る経路自体が閉じる**
+  さらに `text=auto` がindex側もLFに正規化するので、**Gitがテキストと判定したファイルについては、
+  CRLFがリポジトリに入る経路自体が閉じる**
 
 **バイナリを拡張子で列挙しない。**列挙するとその一覧が検出の上限になり、形式が1つ増えるたびに
 穴が開く(層の境界の設定と同じ失敗の形。上記「設定を書くときの落とし穴」)。
 `text=auto` はNUL検出で自動的に外すので、上限が無い。誤検出する形式が出てきたら、
 そのときに `binary` を明示する。
 
+**上の保証は「Gitがテキストと判定したファイル」にしか掛からない。**判定はNULの有無で行われるので、
+UTF-16のようにNULを含むテキストはバイナリ扱いになり、変換も正規化も受けない。
+現時点の追跡ファイルでバイナリ判定されるのは `app/favicon.ico` の1件だけで実害はないが、
+「全ファイルが必ずLFになる」とは読まないこと。
+
 導入時点(issue #98)で index にCRLFのblobは**0件**、作業ツリーも全ファイルがLFだったため、
 再チェックアウトも `git add --renormalize` も差分を生まなかった。
-`git ls-files --eol` でバイナリと判定されたのは `app/favicon.ico` の1件のみ。
+
+#### `.gitattributes` が効いていることを機械で確かめる
+
+**`.gitattributes` を消しても、Ubuntu上のCIは既存blobがLFなので `prettier --check` は緑のまま通る。**
+つまりこの設定自体は「壊れたらCIが赤くなる」の外側にある。そこで `yarn lint` の先頭で
+`node .github/scripts/check-eol.mjs` を実行し、2つを確かめる。
+
+1. **追跡されている全ファイルに `eol=lf` が適用されているか**(`git check-attr`)。
+   `.gitattributes` の削除やパターンの弱体化がここで落ちる
+2. **indexにCRLFのblobが入っていないか**(`git ls-files --eol` の `i/crlf` `i/mixed`)。
+   1が通っていても、attributeが付く前にコミットされたblobは残りうる。
+   そのファイルはWindowsでもCRLFのままチェックアウトされ、症状が再発する
+
+**`yarn lint` に入れる(CI専用のジョブにしない)。**このIssueで直したのは
+「ローカルとCIで判定基準が割れていたこと」なので、その再発を見る仕組みを片方だけに置くと
+同じ形の穴をもう一度開けることになる。
 
 ## 型の出どころ
 
