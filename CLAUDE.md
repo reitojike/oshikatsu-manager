@@ -17,6 +17,8 @@
   「何を選ぶか」を含む実装に着手する前に必ず読む**
 - **Claude / Codex どちらのプロバイダに振るか、上限到達時の引き継ぎ → `docs/model-routing.md`。
   タスクの担当を決める前に必ず読む**
+- **worktree/ブランチの畳み方とローカル`main`の扱い → `docs/worktree-policy.md`。
+  worktreeを切る前と、`/code-review`などdiffベースのツールを使う前に必ず読む**
 
 ## ディレクトリ構成
 
@@ -66,6 +68,14 @@ branch名との一致は求めない(`EnterWorktree`ツールはbranch名を`wor
 一致させるには手動リネームが必要になってしまう)。
 作業完了後(PRマージ、またはマージせずcloseした場合も含む)は `git worktree remove` で
 worktreeを片付ける。lock済みのworktreeは `git worktree unlock` してから削除する。
+
+**畳むのは2段構えで、新しくworktreeを切る前にも棚卸しする。**片付けを担当した本人だけに任せると、
+セッションが閉じた後には誰も実行できない(issue #84で実際に漏れた)。
+**ローカル`main`は参照専用**とし、worktreeでチェックアウトもコミットもしない。`main`を握った
+worktreeが残ると、他のworktreeでの`main`基準diffが古い`main`を見る(issue #84では、この汚染で
+約50万トークン相当のレビューが無駄になった)。**`/code-review`などdiffベースのツールを使う前に、
+ローカル`main`が`origin/main`に追随していることを確認する。**畳んでよい条件、点検のコマンド、
+自動化の線引きは `docs/worktree-policy.md`(理屈をここに書き写さない。片方だけ古くなる)。
 
 **PRはまずDraftで作成する。**Draftでレビューボットと反復し、指摘が尽きてから
 `gh pr ready`でReady化してGitHub Copilotの最終レビューを1回だけ受ける。
