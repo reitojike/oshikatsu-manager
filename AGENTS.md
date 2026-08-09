@@ -1,6 +1,6 @@
 # AGENTS.md
 
-推し活スケジュール・予算管理アプリ。Next.js + Supabase + Vercel。
+イベント参加のスケジュール・予算管理アプリ。Next.js + Supabase + Vercel。
 
 このリポジトリは**人間がdiffを読まない前提**で運用する。壊れたらCIが赤くなることで品質を担保する。
 迷ったら「これは機械が止められるか？」を先に考えること。
@@ -83,7 +83,7 @@ worktreeを片付ける。**自分の**worktreeがlock済みなら `git worktree
 
 ## タスク管理とモデルの使い分け
 
-タスクはGitHub Issues + Projects(`推し活管理アプリ 開発`ボード)で管理する。人に確認せず
+タスクはGitHub Issues + Projects(`イベント管理アプリ 開発`ボード)で管理する。人に確認せず
 自律的に何十分〜何時間か作業を進めることを前提にするため、着手前にIssue化されていることを必須とする。
 
 **このリポジトリは Claude Code と Codex CLI を併用する。**下記はClaude側の階層の決め方であり、

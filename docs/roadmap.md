@@ -4,7 +4,7 @@
 
 ## タスク管理
 
-各フェーズのチェックリストはGitHub Issuesとして起票し、Project「推し活管理アプリ 開発」
+各フェーズのチェックリストはGitHub Issuesとして起票し、Project「イベント管理アプリ 開発」
 (`Status` / `Phase` / `Model` フィールド)で進捗を管理する。ラベルは `phase:N` と、
 `agent:*` を**いずれか1つ**。既定は `agent:sol` / `agent:terra` / `agent:luna` のいずれか
 (Codexが一次担当。プロバイダの振り分けは `docs/model-routing.md`「既定はCodex優先」を参照)。
