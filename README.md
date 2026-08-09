@@ -21,7 +21,7 @@
 | [`docs/lint-policy.md`](docs/lint-policy.md) | lint/型の運用方針、例外の作法 |
 | [`docs/testing.md`](docs/testing.md) | テストの書き方 |
 | [`docs/model-routing.md`](docs/model-routing.md) | Claude/Codex間の作業分担とフェイルオーバー |
-| [`CLAUDE.md`](CLAUDE.md) | AIエージェント向けの規約 |
+| [`AGENTS.md`](AGENTS.md) | AIエージェント向けの規約(Claude Codeは`CLAUDE.md`が`AGENTS.md`をimportして読む) |
 
 ## タスク管理
 
@@ -54,4 +54,4 @@ yarn dev
 ## 開発方針
 
 このリポジトリは**人間がdiffを読まない前提**で運用する。品質は静的解析とテストで担保し、
-コードレビューは別モデルによる自動レビューをCIで回す。詳細は `CLAUDE.md` と `docs/` を参照。
+コードレビューは別モデルによる自動レビューをCIで回す。詳細は `AGENTS.md` と `docs/` を参照。

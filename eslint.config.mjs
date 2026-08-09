@@ -24,7 +24,7 @@ const exceptions = [];
 
 // ---- 層の境界 (docs/lint-policy.md 「層の境界」) ----
 //
-// CLAUDE.md「ディレクトリ構成」が定める依存の向きを、importの静的解析で固定する。
+// AGENTS.md「ディレクトリ構成」が定める依存の向きを、importの静的解析で固定する。
 // 向きが逆でもTypeScriptは通り、テストも緑になるため、ここで止めないと誰も気づかない。
 //
 // 内部モジュールは `@/` エイリアスで書く規約だが、相対パス(`../../lib/x`)で書けば
@@ -65,9 +65,9 @@ const MESSAGES = {
     "common/ は判断ロジック層。I/O(lib/)・UI(app/)・MCP(mcp/)・フレームワーク・" +
     "Supabaseクライアントに依存させない。依存した時点で「Supabaseもブラウザも無しに" +
     "全ルールをテストできる」(docs/roadmap.md フェーズ2の完了条件)が壊れる。" +
-    "現在時刻・ユーザーID・DBから読んだ行は引数で受け取る(CLAUDE.md「境界では依存を引数で渡す」)。",
+    "現在時刻・ユーザーID・DBから読んだ行は引数で受け取る(AGENTS.md「境界では依存を引数で渡す」)。",
   libNoRules:
-    "lib/ にルールを書かない(CLAUDE.md「lib/ — I/O層。ここにルールを書かない」)。" +
+    "lib/ にルールを書かない(AGENTS.md「lib/ — I/O層。ここにルールを書かない」)。" +
     "common/ の判断ロジックを lib/ から呼ぶと、I/O層が判断を持つことになり、" +
     "app/ と mcp/ のどちらを通ったかで結果が変わる余地ができる。" +
     "型だけが必要なら `import type` で書く。",
@@ -76,17 +76,17 @@ const MESSAGES = {
     "MCPサーバーがNext.jsを丸ごと読み込むことになる。",
   noSupabaseOutsideLib:
     "Supabaseクライアントを直接生成しない。クエリは lib/ に置き、ここはその結果を受け取るだけにする" +
-    "(CLAUDE.md「lib/ — I/O層。Supabaseクライアント、外部通信」)。",
+    "(AGENTS.md「lib/ — I/O層。Supabaseクライアント、外部通信」)。",
   twoRoutes:
     "app/ と mcp/ は同じ操作の2経路。互いにimportせず、共有したい判断は common/ に置く" +
-    "(CLAUDE.md「MCPサーバーとWeb UIは同じ操作を2経路持つ」)。",
+    "(AGENTS.md「MCPサーバーとWeb UIは同じ操作を2経路持つ」)。",
   mcpNoFramework:
-    "mcp/ はstdioサーバー。Next.js / React に依存させない(CLAUDE.md「mcp/ — common/ を" +
+    "mcp/ はstdioサーバー。Next.js / React に依存させない(AGENTS.md「mcp/ — common/ を" +
     "呼ぶだけの薄い層に保つ」)。",
   noJudgementLogic:
     "取得結果をここでフィルタ・並び替え・集計しない。フィルタ・並び順・検証・集計・権限判定・" +
     "日付計算は common/ のpure関数に切り出し、ここは結果を描画/返却するだけにする" +
-    "(CLAUDE.md「ルールをpure関数に切り出す」)。アプリを起動しないと到達できないルールは" +
+    "(AGENTS.md「ルールをpure関数に切り出す」)。アプリを起動しないと到達できないルールは" +
     "テストされない。表示のための単純な変換は .map() で書く。",
 };
 
@@ -186,7 +186,7 @@ const layerBoundaries = [
             {
               group: layer("common"),
               message: MESSAGES.libNoRules,
-              // 型は二重定義しない(CLAUDE.md)。値としての判断ロジックだけを止める。
+              // 型は二重定義しない(AGENTS.md)。値としての判断ロジックだけを止める。
               allowTypeImports: true,
             },
             {

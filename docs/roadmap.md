@@ -9,7 +9,7 @@
 `agent:*` を**いずれか1つ**。既定は `agent:sol` / `agent:terra` / `agent:luna` のいずれか
 (Codexが一次担当。プロバイダの振り分けは `docs/model-routing.md`「既定はCodex優先」を参照)。
 Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haiku` のいずれかに置き換える。
-モデルの使い分けとエスカレーション基準は `CLAUDE.md`「タスク管理とモデルの使い分け」を参照。
+モデルの使い分けとエスカレーション基準は `AGENTS.md`「タスク管理とモデルの使い分け」を参照。
 **Issue 1件の粒度(含める判断の数)とPR差分サイズの目安は、
 同節「Issueの粒度と、Issue内でのモデル階層の分担」にある。
 その裏付けは `docs/task-management.md`。フェーズのチェックリストをIssueへ落とすときに読む。**

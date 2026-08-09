@@ -62,7 +62,7 @@ required checkにはまだ配線されていない(人間の手動対応待ち)�
   | 種別 | 対象パス | 当てる観点 |
   | --- | --- | --- |
   | `code` | `**/*.{ts,tsx,mjs}`、`supabase/migrations/**` | `as`キャスト・`any`・`eslint-disable`/`@ts-ignore`の黙殺禁止、`common/`の層越え禁止、否定側テスト、型の二重定義禁止 |
-  | `governance-docs` | `docs/**`、`CLAUDE.md`、`.claude/skills/**`、PRテンプレート | 成果物間の整合性(矛盾・重複・無確認の判断) |
+  | `governance-docs` | `docs/**`、`AGENTS.md`、`CLAUDE.md`、`.claude/skills/**`、PRテンプレート | 成果物間の整合性(矛盾・重複・無確認の判断) |
   | `automation-config` | `.github/workflows/**`、`package.json`/lockfile、`supabase/config.toml`、`.coderabbit.yaml`、Vercel/ESLint/TS/Vitest設定 | 権限の拡大・secret未設定によるskipのsuccess偽装・イベント種別と再実行条件・required checkの永続pending・fork PRでのsecretの挙動・actionのSHA固定・設定変更と関連ドキュメント/テストの整合 |
 
   複数の分類にまたがるPRは該当する観点をすべて当てる。`.github/review-prompts/`に
@@ -82,7 +82,7 @@ required checkにはまだ配線されていない(人間の手動対応待ち)�
    (`common/`・権限/RLS・`supabase/migrations/**`)では`/code-review`に切り替え、
    それ以外のPRでは新規のローカルCodexを再実行する。**切り替え先(`/code-review`)でも
    同じ失敗が起きた場合は、この4の条件をそのまま適用して再実行する。**同じ問題が
-   3回続く場合は`CLAUDE.md`のエスカレーション基準(Sonnet→Opus)に従う
+   3回続く場合は`AGENTS.md`のエスカレーション基準(Sonnet→Opus)に従う
 
 **記録は`.github/pull_request_template.md`の「Draft前セルフレビュー」セクションに書く。**
 実施主体・レビュー対象リビジョン・結果・指摘と処置・静的解析でのフォローアップ有無を記入する。
@@ -221,7 +221,7 @@ issue #43の振り返りでは挙がらず、外部からの指摘で発覚し�
   **このリポジトリ内のファイルではない。**追加するたびに肥大化していないか
   (エントリが読み込み時に切り捨てられる閾値に近づいていないか)を確認し、
   近ければ新規追加より先に既存エントリの統合・削除を検討する
-- **Issueを立てて対応する**: このskillや`CLAUDE.md`の更新、実装・設定変更など、
+- **Issueを立てて対応する**: このskillや`AGENTS.md`の更新、実装・設定変更など、
   **リポジトリに変更を加えるもの全般。**規模の大小は問わない(軽微な文言修正でも
   直接PRにはしない)。振り返りコメントへのリンクをIssue本文に書き、通常のIssue運用
   (`phase:N` ラベル、`agent:*` は**いずれか1つ**。既定は `agent:sol` / `agent:terra` / `agent:luna`

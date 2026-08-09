@@ -52,7 +52,7 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            このPRをレビューしてください。CLAUDE.mdとdocs/(prd.md, data-model.md,
+            このPRをレビューしてください。AGENTS.mdとdocs/(prd.md, data-model.md,
             permissions.md, lint-policy.md, testing.md)の方針に沿っているかを重点的に見ること。
 
             特に確認する観点:

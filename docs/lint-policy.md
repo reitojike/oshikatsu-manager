@@ -79,7 +79,7 @@ typescript-eslintで `strict` を選んでいるのは、`any` まわりや非nu
 
 ### 層の境界 (`common/` / `lib/` / `app/` / `mcp/`)
 
-`CLAUDE.md`「ディレクトリ構成」が定める依存の向きを、`no-restricted-imports` と
+`AGENTS.md`「ディレクトリ構成」が定める依存の向きを、`no-restricted-imports` と
 `no-restricted-syntax` で固定する(issue #43)。**向きが逆でもTypeScriptは通り、テストも緑になる。**
 人間がdiffを読まない前提では、ここを機械が止めないと誰も気づかない。
 
@@ -123,7 +123,7 @@ every some includes indexOf sort toSorted reduce reduceRight
 ```
 
 `.map()` は描画のための変換として正当なので除いてある。引っかかったら
-`common/` のpure関数に切り出す(`CLAUDE.md`「ルールをpure関数に切り出す」の
+`common/` のpure関数に切り出す(`AGENTS.md`「ルールをpure関数に切り出す」の
 「フィルタ、並び順、検証、集計、権限判定、日付計算」がそのまま対象)。
 
 `includes` / `indexOf` を含めているのは、`ALLOWED_IDS.includes(userId)` が
@@ -132,7 +132,7 @@ every some includes indexOf sort toSorted reduce reduceRight
 
 **`mcp/` も対象に含めている。**`app/` と同じく `common/` を経由せず `lib/` を直接叩いて
 判断する余地があり、そちらだけ古いルールで動き続けるのがこのリポジトリで最も痛い壊れ方
-(`CLAUDE.md`「MCPサーバーとWeb UIは同じ操作を2経路持つ」)。着手時点で `mcp/` は空なので、
+(`AGENTS.md`「MCPサーバーとWeb UIは同じ操作を2経路持つ」)。着手時点で `mcp/` は空なので、
 含めるコストはゼロだった。
 
 #### 設定を書くときの落とし穴
