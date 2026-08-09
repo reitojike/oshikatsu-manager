@@ -71,7 +71,8 @@ worktreeを片付ける。**自分の**worktreeがlock済みなら `git worktree
 (他人の残骸を畳むときは別。`docs/worktree-policy.md`)。
 
 **畳むのは2段構えで、新しくworktreeを切る前にも棚卸しする。**
-**ローカル`main`は参照専用**とし、worktreeでチェックアウトもコミットもしない。
+**ローカル`main`は参照専用**とし、メインのチェックアウトで保持する。
+作業用worktreeではチェックアウトもコミットもしない。
 **`/code-review`などdiffベースのツールを使う前に、ローカル`main`が`origin/main`に
 追随していることを確認する。**理由、畳んでよい条件、点検のコマンド、自動化の線引きは
 `docs/worktree-policy.md`(理屈をここに書き写さない。片方だけ古くなる)。
