@@ -63,4 +63,8 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`OK: 追跡ファイル${paths.length}件の改行コードはLFに固定されています。`);
+// バイナリ判定されたファイルは 2 の対象外なので、「全ファイルがLF」とは言わない
+// (docs/lint-policy.md「改行コード」の「Gitがテキストと判定したファイル」に合わせる)。
+console.log(
+  `OK: 追跡ファイル${paths.length}件への eol=lf の適用と、テキストblobのLF正規化を確認しました。`,
+);
