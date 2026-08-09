@@ -36,8 +36,8 @@ PR #18〜#32の実績分析(Claude/Copilotの指摘重複率、Copilotのクレ�
 
 **現時点では、この必須化は運用ルールとしてのみ存在し、CIのrequired status checkでは
 強制されていない。**`pr-template-check.yml`(下記)は記入漏れを検知するが、Rulesetの
-required checkにはまだ配線されていない(人間の手動対応待ち)。つまり現状はCIが赤くならな
-くてもマージできてしまう。
+required checkにはまだ配線されていない(人間の手動対応待ち)。つまり現状は、CIが赤く
+ならなくてもマージできてしまう。
 
 1. **前提確認。**`pwd`で今どのworktreeにいるかを確認し、ローカル`main`が`origin/main`に
    追随しているかを点検する(`docs/worktree-policy.md`「diffベースのツールを使う前の点検」)。

@@ -40,15 +40,18 @@ for (const line of section.split("\n")) {
   // 装飾はラベルの周囲にしか現れない前提で、行全体から "**" を除去してから分割する。
   const rest = bulletBodyMatch?.[1]?.replaceAll("**", "").trimStart();
   if (rest !== undefined) {
+    // トップレベルの箇条書きは、必須ラベルに一致するかどうかに関わらず常に項目境界とする。
+    // 一致しない場合(例: "- メモ:")でも直前の必須フィールドへ取り込んではいけない
+    // (取り込むと、空の必須項目が後続の無関係な箇条書きで非空に化けてすり抜ける)。
+    flush();
     const colonIndex = rest.search(/[:：]/);
     const label = (colonIndex === -1 ? rest : rest.slice(0, colonIndex)).trim();
     if (REQUIRED_LABELS.includes(label)) {
-      flush();
       currentLabel = label;
       const content = colonIndex === -1 ? "" : rest.slice(colonIndex + 1).trim();
       currentLines = content ? [content] : [];
-      continue;
     }
+    continue;
   }
   if (currentLabel !== null) {
     currentLines.push(line);
