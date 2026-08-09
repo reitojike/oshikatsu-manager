@@ -156,6 +156,13 @@ worktreeは次の4つを全部満たすとき。
 3. `git -C <path> status --porcelain` が空(未コミット・未追跡の変更が無い)
 4. そのworktreeが持つブランチが、下のブランチの条件を全部満たす
 
+**worktreeを持たないブランチは、下のブランチの3条件だけで判定する。**worktreeの4条件は
+「worktreeも一緒に畳む」ときにだけ課すもので、worktreeが無い候補に課すと永久に白にならない。
+手順の `git worktree remove` は飛ばし、`git update-ref -d` だけを実行する。
+**棚卸しで一番よく出会うのはこの形である。**一次の畳み忘れはworktreeとブランチのどちらか片方だけ
+残ることが多く、このIssueの調査時点で残っていたローカルブランチ6本は、
+**すべてworktreeを伴っていなかった。**
+
 ブランチは次の3つを全部満たすとき。
 
 1. `main` ではなく、**畳もうとしているworktree以外の**worktreeにチェックアウトされていない
@@ -239,6 +246,7 @@ gh api repos/{owner}/{repo}/commits/$(git rev-parse <branch>)/pulls \
 
 # 3. 白のものだけ畳む(自分が中にいるworktreeは畳めない。先に出る)
 #    locked は白にしないので、ここに unlock は出てこない
+#    worktreeを持たないブランチでは、次の1行は飛ばす
 git worktree remove <path>
 git update-ref -d refs/heads/<branch> <2で一致を確認した headRefOid>
 
