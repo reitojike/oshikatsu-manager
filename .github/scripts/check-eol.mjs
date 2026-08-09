@@ -18,23 +18,53 @@ const splitNul = (buffer) =>
 
 const errors = [];
 
-// 1. 追跡されている全ファイルに eol=lf が適用されているか。
+// 1. 追跡されている全ファイルに `text=auto eol=lf` が適用されているか。
 //    `.gitattributes` の削除やパターンの弱体化はここで落ちる。
+//    **`eol` だけを見ては足りない。**`* -text eol=lf` と書くと eol は lf のままだが
+//    text が無効になり、改行の変換自体が止まる(= `core.autocrlf` の挙動に戻る)。
 const paths = splitNul(git(["ls-files", "-z"]));
 // `check-attr -z` は <path> <attribute> <value> の3つ組をNUL区切りで返す。
 // 前進カーソル + slice で読む(添字アクセスは security/detect-object-injection に掛かる)。
-const attrFields = splitNul(git(["check-attr", "-z", "eol", "--stdin"], paths.join("\0")));
-const missingAttr = [];
+// 値の格納にもオブジェクトではなくMapを使う(同じ理由)。
+const attrFields = splitNul(git(["check-attr", "-z", "text", "eol", "--stdin"], paths.join("\0")));
+const attrsByPath = new Map();
 for (let cursor = 0; cursor + 3 <= attrFields.length; cursor += 3) {
-  const [path, , value] = attrFields.slice(cursor, cursor + 3);
-  if (value !== "lf") {
-    missingAttr.push(`${path} (eol=${value})`);
+  const [path, attr, value] = attrFields.slice(cursor, cursor + 3);
+  const attrs = attrsByPath.get(path) ?? new Map();
+  attrs.set(attr, value);
+  attrsByPath.set(path, attrs);
+}
+
+// `binary`(= `-diff -merge -text`)を明示したファイルは正当な例外なので、
+// 「本当にバイナリか」をindexのblobで確かめてから許す。docs/lint-policy.md「改行コード」の
+// 「誤検出する形式が出てきたら、そのときに `binary` を明示する」を機械側でも受け止める。
+// 全体を `-text` にする書き方はテキストファイルがここで落ちるので通らない。
+const TEXT_ENABLED = new Set(["auto", "set"]);
+const isBinaryInIndex = (path) => git(["show", `:${path}`]).includes(0);
+
+const missingAttr = [];
+const disabledText = [];
+for (const [path, attrs] of attrsByPath) {
+  const eol = attrs.get("eol");
+  if (eol !== "lf") {
+    missingAttr.push(`${path} (eol=${eol})`);
+  }
+  const text = attrs.get("text");
+  if (!TEXT_ENABLED.has(text) && !isBinaryInIndex(path)) {
+    disabledText.push(`${path} (text=${text})`);
   }
 }
 if (missingAttr.length > 0) {
   errors.push(
     `eol=lf が適用されていないファイルがあります (${missingAttr.length}件):\n  ` +
       missingAttr.join("\n  "),
+  );
+}
+if (disabledText.length > 0) {
+  errors.push(
+    `テキストファイルなのに text が無効になっています (${disabledText.length}件):\n  ` +
+      disabledText.join("\n  ") +
+      "\n  text が無効だと eol=lf があっても改行は変換されない",
   );
 }
 
@@ -80,6 +110,6 @@ if (errors.length > 0) {
   // バイナリ判定されたファイルは 2 の対象外なので、「全ファイルがLF」とは言わない
   // (docs/lint-policy.md「改行コード」の「Gitがテキストと判定したファイル」に合わせる)。
   console.log(
-    `OK: 追跡ファイル${paths.length}件への eol=lf の適用と、index・作業ツリーのLFを確認しました。`,
+    `OK: 追跡ファイル${paths.length}件への text=auto eol=lf の適用と、index・作業ツリーのLFを確認しました。`,
   );
 }
