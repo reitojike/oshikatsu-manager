@@ -12,21 +12,65 @@ if (!sectionMatch) {
 }
 const section = sectionMatch[1];
 
-const resultMatch = section.match(/結果[:：]\s*(指摘なし|指摘あり)/);
-if (!resultMatch) {
-  console.error(
-    "「Draft前セルフレビュー」セクションに結果(指摘なし・指摘あり)の記載がありません。",
-  );
+const REQUIRED_LABELS = [
+  "実施主体",
+  "レビュー対象リビジョン",
+  "結果",
+  "指摘と処置",
+  "静的解析でのフォローアップ有無",
+];
+
+// トップレベルの箇条書き(行頭が "- ")だけを項目境界として扱う。
+// インデントされたネスト行(例: 指摘一覧の子項目)は直前のラベルの内容として蓄積する。
+const fields = new Map();
+let currentLabel = null;
+let currentLines = [];
+
+const flush = () => {
+  if (currentLabel !== null) {
+    fields.set(currentLabel, currentLines.join("\n").trim());
+  }
+  currentLabel = null;
+  currentLines = [];
+};
+
+for (const line of section.split("\n")) {
+  const bulletBodyMatch = line.match(/^-(.*)$/);
+  const rest = bulletBodyMatch?.[1]?.trimStart();
+  if (rest !== undefined) {
+    const colonIndex = rest.search(/[:：]/);
+    const label = (colonIndex === -1 ? rest : rest.slice(0, colonIndex)).trim();
+    if (REQUIRED_LABELS.includes(label)) {
+      flush();
+      currentLabel = label;
+      const content = colonIndex === -1 ? "" : rest.slice(colonIndex + 1).trim();
+      currentLines = content ? [content] : [];
+      continue;
+    }
+  }
+  if (currentLabel !== null) {
+    currentLines.push(line);
+  }
+}
+flush();
+
+const missing = ["実施主体", "レビュー対象リビジョン", "静的解析でのフォローアップ有無"].filter(
+  (label) => !fields.get(label),
+);
+if (missing.length > 0) {
+  console.error(`「Draft前セルフレビュー」セクションの次の項目が空です: ${missing.join("、")}`);
   process.exit(1);
 }
 
-if (resultMatch[1] === "指摘あり") {
-  const findingsMatch = section.match(/指摘と処置[:：]?\s*\n?([\s\S]*)/);
-  const findingsText = (findingsMatch?.[1] ?? "").trim();
-  if (!findingsText) {
-    console.error("結果が「指摘あり」ですが、指摘と処置の記載が空です。");
-    process.exit(1);
-  }
+const resultMatch = (fields.get("結果") ?? "").match(/(指摘なし|指摘あり)/);
+if (!resultMatch) {
+  console.error("「結果」に指摘なし・指摘ありのいずれかが記載されていません。");
+  process.exit(1);
+}
+
+if (resultMatch[1] === "指摘あり" && !fields.get("指摘と処置")) {
+  console.error("結果が「指摘あり」ですが、指摘と処置の記載が空です。");
+  process.exit(1);
 }
 
 console.log("OK: 「Draft前セルフレビュー」セクションの記入を確認しました。");
