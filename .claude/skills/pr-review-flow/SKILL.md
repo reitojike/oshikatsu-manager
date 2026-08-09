@@ -34,6 +34,11 @@ PR #18〜#32の実績分析(Claude/Copilotの指摘重複率、Copilotのクレ�
 「推奨」は守られたか誰にも観測できないため必須にする。軽微な変更にも例外を設けないのは、
 「これは軽微か」という判定コストが免除で浮くコストを上回るため。
 
+**現時点では、この必須化は運用ルールとしてのみ存在し、CIのrequired status checkでは
+強制されていない。**`pr-template-check.yml`(下記)は記入漏れを検知するが、Rulesetの
+required checkにはまだ配線されていない(人間の手動対応待ち)。つまり現状はCIが赤くならな
+くてもマージできてしまう。
+
 1. **前提確認。**`pwd`で今どのworktreeにいるかを確認し、ローカル`main`が`origin/main`に
    追随しているかを点検する(`docs/worktree-policy.md`「diffベースのツールを使う前の点検」)。
    ずれている場合は比較基準に`origin/main`を明示する。
