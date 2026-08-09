@@ -27,7 +27,7 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::OPENAI_API_KEY が未設定のためCodexレビューをスキップします。platform.openai.comで発行してリポジトリシークレットに追加してください。"
+            echo "::notice::Codexレビューは見送り(確定)のため常にスキップします。OPENAI_API_KEYはChatGPT Plusの利用枠ではなくOpenAI Platformの従量課金であり、取得しない方針です。詳細はdocs/roadmap.mdの「保留: 外部アカウント待ち」を参照してください。"
           fi
 
       - uses: actions/checkout@v4
