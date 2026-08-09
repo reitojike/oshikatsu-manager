@@ -14,13 +14,20 @@
 ラベルからコマンドへの変換表が要らなくなり、対応の取り違えが起きる場所が消える。
 
 **この3つは不変の論理IDとして扱い、現行のモデル世代名との一致を保証しない。**
-モデルが世代交代したら、書き換えるのは下記プロファイルファイルの中身だけで、名前は変えない。
-名前を世代に追従させると、Issueラベル・Projectの値・過去のIssue検索の連続性がまとめて切れる。
+モデルが世代交代したら、書き換えるのは下記プロファイルファイルの中身だけで、名前は変えない
+(`docs/model-routing.md`「モデル名を文書に固定しない」を、名前そのものにも適用する)。
 
 ## 置き場所
 
 `$CODEX_HOME/<プロファイル名>.config.toml`(既定の `CODEX_HOME` は `~/.codex`)。
 つまり `sol.config.toml` / `terra.config.toml` / `luna.config.toml` の3ファイル。
+
+**`$CODEX_HOME/config.toml` の中に `[profiles.<名前>]` ブロックを書く形式ではない。**
+codex-cli 0.147.0 の `codex exec --help` は `-p, --profile` を
+「`$CODEX_HOME/<name>.config.toml` をベースのユーザー設定に重ねる」と説明しており、
+独立ファイル形式が現行の仕様である。**形式が変わっていないかは `codex exec --help` の
+`--profile` の行で確かめられる**(古い記憶に引きずられやすい箇所なので、
+下記「効いていることの確認」まで通すこと)。
 
 **リポジトリには置かない。**バージョン付きのモデルslugを含むため。
 新しい環境ではこの3ファイルを手で作り直す(下記テンプレート)。
@@ -41,8 +48,13 @@ model = "TERRA_MODEL_SLUG"
 ```
 
 `TERRA_MODEL_SLUG` の部分に、その階層に対応する現行のモデルslugを入れる。
-選べるslugは `codex debug models` の出力(JSON)にある。
 `sol` / `luna` も同じ形で、コメントの階層名だけ差し替える。
+
+**slugの一覧は `codex debug models` の出力(JSON)から取る。**codex-cli 0.147.0 で確認。
+`debug` はサブコマンドが版によって入れ替わりうるので、通らなければ
+`codex debug --help` で現行のサブコマンド名を確認するか、対話セッションのモデル選択と
+[Codex Models](https://learn.chatgpt.com/docs/models) の一覧を突き合わせる。
+どの経路で取ったslugでも、下記「効いていることの確認」を通すまで採用しない。
 
 ## reasoning effort は書かない
 
