@@ -33,7 +33,7 @@ PR #18〜#32の実績分析(Claude/Copilotの指摘重複率、Copilotのクレ�
 PRはまず`gh pr create --draft`でDraft作成する。
 
 - **Claude**(`claude-review.yml`): `CLAUDE_CODE_OAUTH_TOKEN`設定時にdraftのpushごとに走る。未設定時はスキップ。`claude-review.yml`自体を変更するPRでは別の理由でスキップされる(下記「`claude-review.yml`変更時のスキップの見分け方」参照)
-- **Codex**(`codex-review.yml`): `OPENAI_API_KEY`設定時のみ走る。未設定の間は自動でスキップ(意図的。`docs/roadmap.md`「保留: 外部アカウント待ち」参照)
+- **Codex**(`codex-review.yml`): `OPENAI_API_KEY` を設定しない方針のため、**常にスキップされる**(恒久的な決定。理由は`docs/roadmap.md`「保留: 外部アカウント待ち」参照)。Codexの視点はDraft作成前のローカルセルフレビューで入れる(#81)
 - **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。ただしFreeプランはGitHub連携のPRレビューが**1回/時/開発者**に制限されている(PR #35で実際にレート制限を確認済み。詳細は`docs/roadmap.md`「CodeRabbitの導入」参照)。Draftで短時間に何度もpushしても2回目以降はスキップされうる。反復の主力はClaude/Codexで、CodeRabbitは取れたときに追加の視点が入る、という位置づけで期待値を持つこと
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
 
