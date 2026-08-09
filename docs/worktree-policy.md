@@ -62,7 +62,7 @@ git fetch --prune origin
 # 2. ずれ方を確認する。左(main固有のコミット数)が 0 でなければ早送りしない
 git rev-list --left-right --count main...origin/main
 
-# 3. main を握っているチェックアウトの場所を確認する
+# 3. main を握っているチェックアウトの場所を確認する(見つからない場合は下記)
 git worktree list
 
 # 4. そのチェックアウトが汚れていないことを確認する。空でなければ止めて報告する
@@ -80,6 +80,18 @@ git -C <上で出たパス> merge --ff-only origin/main
 
 左が0でなかったら、そこで止めて報告する。ローカル `main` に固有のコミットがある時点で
 上のルールが破られており、機械的に消してよいものかは判断が要る。
+
+**3の結果を確かめずに4・5へ進まない。この手順は「`main` がどこかにチェックアウトされている」
+ことが前提で、その前提は常に成り立つわけではない。**メインのチェックアウトがdetached HEADに
+なっていたり、別のブランチに切り替わっていたりすると、`git worktree list` のどの行にも
+`[main]` が出てこない。それに気づかずパスを埋めて `merge --ff-only` を打つと、
+**`main` ではない別のブランチを早送りして、`main` は更新されないまま成功する。**
+
+- `[main]` の行がある → そのパスで4・5を実行する
+- **`[main]` の行が無い → この手順は使わない。`git fetch origin main:main` が直接通る。**
+  fetchの拒否は「チェックアウト中であること」が条件なので、誰も握っていなければ成立する
+  (上の「`git fetch . origin/main:main` は使えない」は、`main` が常に
+  メインのチェックアウトに居るという通常状態を前提にした話である)
 
 **4も飛ばさない。`--ff-only` は作業ツリーが汚れていても通る。**gitが早送りを中断するのは
 未コミットの変更が更新対象のファイルと**重なる**ときだけで、重ならなければ変更を保持したまま
@@ -158,6 +170,18 @@ worktreeは次の4つを全部満たすとき。
 ローカルの先端と一致した)。ブランチ名は使い回せるので **PRを名前だけで1件に決めない。**
 `gh pr list --head <branch> --state all` は複数返しうる。
 
+**3はブランチ名では確かめられない。**`gh pr list --head <branch>` は**ブランチ名で**引くので、
+**別の名前のブランチが同じ先端を指しているPR**を見つけられない。3が防ぎたいのはまさにそれなので、
+先端のコミットから引く。
+
+```bash
+gh api repos/{owner}/{repo}/commits/$(git rev-parse <branch>)/pulls \
+  --jq '.[] | select(.state == "open") | .number'
+```
+
+**1件でも返ったら白ではない。**このAPIはコミットに紐づくPRを名前によらず返す(PR #50の先端で
+実測。マージ済みPRは `state` が `closed` で返るので、オープン判定は `state == "open"` で行う)。
+
 **`locked` のworktreeは白にしない。**`git worktree unlock` は、そのworktreeを他のセッションが
 使っていないことを確認しない。`locked` は「使用中」の合図として付いていることがあり
 (このPRを作業したworktree自身がそうだった)、棚卸しする側からは自分のものかどうか区別できない。
@@ -207,8 +231,11 @@ git for-each-ref --format='%(refname:short) %(upstream:track)' refs/heads
 
 # 2. 候補ごとに白の条件を確認する
 git -C <worktree-path> status --porcelain
-gh pr list --head <branch> --state all --json number,state,headRefOid,headRefName
 git rev-parse <branch>
+gh pr list --head <branch> --state all --json number,state,headRefOid,headRefName
+# 同じ先端を指すオープンPRが無いこと(名前ではなくコミットから引く)
+gh api repos/{owner}/{repo}/commits/$(git rev-parse <branch>)/pulls \
+  --jq '.[] | select(.state == "open") | .number'
 
 # 3. 白のものだけ畳む(自分が中にいるworktreeは畳めない。先に出る)
 #    locked は白にしないので、ここに unlock は出てこない
