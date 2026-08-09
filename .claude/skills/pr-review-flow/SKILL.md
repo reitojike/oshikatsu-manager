@@ -97,7 +97,7 @@ required checkにはまだ配線されていない(人間の手動対応待ち)�
 PRはまず`gh pr create --draft`でDraft作成する。
 
 - **Claude**(`claude-review.yml`): `CLAUDE_CODE_OAUTH_TOKEN`設定時にdraftのpushごとに走る。未設定時はスキップ。`claude-review.yml`自体を変更するPRでは別の理由でスキップされる(下記「`claude-review.yml`変更時のスキップの見分け方」参照)
-- **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点を`AGENTS.md`で指定する仕組み(`## Code Review Rules`節)はまだ無く(issue #82)、現状は汎用の観点でレビューされる。**Draft PRを開いただけでは自動発火しない**(PR #113で確認済み。botの案内文言によれば発火条件は「PRをreview用にopen」「Draftをreadyにする」「`@codex review`とコメント」の3つ)。Draft中に投稿が欲しい場合は、PRコメント欄でcodexへメンションして手動リクエストする(誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は現状維持(残すか削除するかはissue #82で検討)
+- **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点を`AGENTS.md`で指定する仕組み(`## Code Review Rules`節)はまだ無く(issue #82)、現状は汎用の観点でレビューされる。**Draft PRを開いただけでは自動発火しない**(PR #113で確認済み)。`@codex review`と手動コメントすれば即座に投稿されることも確認済み。bot自身の案内文言は発火条件として上記2つに加え「Draftをreadyにする」も挙げているが、**PR #113ではReady化後8分以上経っても自動投稿は無く、この条件は未確認のまま**(下記「Ready化」参照)。Draft中に投稿が欲しい場合は、PRコメント欄でcodexへメンションして手動リクエストする(誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は現状維持(残すか削除するかはissue #82で検討)
 - **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。ただしFreeプランはGitHub連携のPRレビューが**1回/時/開発者**に制限されている(PR #35で実際にレート制限を確認済み。詳細は`docs/roadmap.md`「CodeRabbitの導入」参照)。Draftで短時間に何度もpushしても2回目以降はスキップされうる。反復の主力はClaude/Codexで、CodeRabbitは取れたときに追加の視点が入る、という位置づけで期待値を持つこと
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
 
@@ -113,6 +113,8 @@ Draftで指摘がなくなるまで反復する。
 ## Ready化
 
 指摘が尽きたら`gh pr ready`でReady for reviewに変える。このタイミングでCopilotの最終レビューが1回走る(`review_draft_pull_requests: false`、Ready化がトリガー)。
+
+**Codex Cloudの案内文言は「Draftをreadyにする」も発火条件の1つとして挙げているが、PR #113での実測では、Ready化(2026-08-09T16:19:47Z)から8分以上経過しても自動投稿は無かった。**確認できたのはDraft作成だけでは発火しないことと、`@codex review`の手動コメントで投稿されることの2点のみで、Ready化そのものが発火条件になっているかは未確認のまま残る。指摘が尽きるまでDraftを反復する運用では自然発火を待たず、必要なら手動リクエストを使うこと。
 
 ## Ready後の運用
 
