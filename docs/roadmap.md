@@ -10,9 +10,9 @@
 (Codexが一次担当。プロバイダの振り分けは `docs/model-routing.md`「既定はCodex優先」を参照)。
 Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haiku` のいずれかに置き換える。
 モデルの使い分けとエスカレーション基準は `CLAUDE.md`「タスク管理とモデルの使い分け」を参照。
-**Issue 1件の粒度(含める判断の数)とPR差分サイズの目安は同節「Issueの粒度と、Issue内での
-モデル階層の分担」、その裏付けは `docs/task-management.md` にある。
-フェーズのチェックリストをIssueへ落とすときに読む。**
+**Issue 1件の粒度(含める判断の数)とPR差分サイズの目安は、
+同節「Issueの粒度と、Issue内でのモデル階層の分担」にある。
+その裏付けは `docs/task-management.md`。フェーズのチェックリストをIssueへ落とすときに読む。**
 
 ## この順序にした理由
 
