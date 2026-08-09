@@ -27,7 +27,7 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Codexレビューは見送り(確定)のため常にスキップします。OPENAI_API_KEYはChatGPT Plusの利用枠ではなくOpenAI Platformの従量課金であり、取得しない方針です。詳細はdocs/roadmap.mdの「保留: 外部アカウント待ち」を参照してください。"
+            echo "::notice::Codexレビュー(GitHub Actions版)は見送り(確定)のため常にスキップします。OPENAI_API_KEYはChatGPT Plusの利用枠ではなくOpenAI Platformの従量課金であり、取得しない方針です。Codex CloudのPR自動レビュー(Automatic reviews)は別途有効化済みです。詳細はdocs/roadmap.mdの「保留: 外部アカウント待ち」を参照してください。"
           fi
 
       - uses: actions/checkout@v4
