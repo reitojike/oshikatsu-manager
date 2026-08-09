@@ -15,8 +15,11 @@
 - **テストの書き方とカバーすべきパターン → `docs/testing.md`。テストを書く/直す前に必ず読む**
 - **成果物間で記述が矛盾している/判断が割れたときの止まり方 → `docs/decision-policy.md`。
   「何を選ぶか」を含む実装に着手する前に必ず読む**
-- **Claude / Codex どちらのプロバイダに振るか、上限到達時の引き継ぎ → `docs/model-routing.md`。
+- **Claude / Codex どちらのプロバイダに振るか → `docs/model-routing.md`。
   タスクの担当を決める前に必ず読む**
+- **併用の根拠と、上限到達時のフェイルオーバー手順 → `docs/model-routing-details.md`。
+  配分の方針を見直すときと、Codexがエラーを返して切り替えを検討するときに読む
+  (振り分けを決めるだけなら読まなくてよい)**
 - **Issueの粒度の目安とその根拠、Issue内で下位モデルへ渡す手順 → `docs/task-management.md`。
   Issueを起票・分割する前と、Issue内で下位モデルに渡す前に必ず読む**
 - **worktree/ブランチの畳み方とローカル`main`の扱い → `docs/worktree-policy.md`。
@@ -89,7 +92,8 @@ worktreeを片付ける。**自分の**worktreeがlock済みなら `git worktree
 **このリポジトリは Claude Code と Codex CLI を併用する。**下記はClaude側の階層の決め方であり、
 **そもそもどちらのプロバイダに振るかは `docs/model-routing.md` が決める**(既定はCodex優先)。
 Codex側の Sol / Terra / Luna は下記の Opus / Sonnet / Haiku と同じ基準線で分かれるので、
-**この節の判定はそのままCodex側にも使える。**上限到達時の横移動の手順も同文書にある。
+**この節の判定はそのままCodex側にも使える。**上限到達時の横移動の手順は
+`docs/model-routing-details.md`「上限到達時に読む手順」。
 
 - **設計・方針決定はOpus、実装はSonnet、機械的な作業はHaiku。**
   データモデルの変更、権限マトリクスの変更、フェーズ分割、ドキュメント間の矛盾の解消など
