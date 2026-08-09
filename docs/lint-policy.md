@@ -252,6 +252,43 @@ ESLint v9のコアからスタイル系ルールは削除済みで、`@stylistic
 導入時点(issue #65)でTSファイルは11個のみで違反が無かったため、drainを挟まず
 **最初からerrorで入れた**(`prettier --write .` を1回かけただけ)。
 
+#### 改行コード
+
+**`.gitattributes` の `* text=auto eol=lf` で作業ツリーをLFに固定する。**Prettierの
+`endOfLine` は既定値(`lf`)のまま動かさない。
+
+Prettierは改行コードもフォーマットの一部として見る。Windowsで `core.autocrlf=true` だと
+作業ツリーがCRLFになるため、**1行も編集していないファイルまで `prettier --check` が全滅する**
+一方、CI(ubuntu、LF)は緑のままになる(issue #98。実測27ファイル)。
+`AGENTS.md`「コミット前に `yarn lint && yarn typecheck && yarn test` を通す」が
+その環境では原理的に実行できなくなる。
+
+`.gitattributes` を選ぶのは、**ローカルとCIの判定基準を1つに保ったまま直せる唯一の案**だからである。
+
+| 案 | 差分 | 判定基準 |
+| --- | --- | --- |
+| `.gitattributes` に `* text=auto eol=lf` | ファイル1つ | ローカル=CI。両方ともLFだけを通す |
+| `.prettierrc` に `"endOfLine": "auto"` | 1行 | **CIもCRLFを通すようになる。**判定そのものが消える |
+| `core.autocrlf` を各自ローカルで `input` | コミット不能 | 環境ごとに揺れる。設定を消せば再発する |
+
+- **`endOfLine: "auto"` は判定を弱める側の変更である。**ファイルの多数派の改行に合わせるので、
+  CRLFのまま入ったファイルをCIも通す。「壊れたらCIが赤くなる」の逆方向であり、
+  上記「オプションは `printWidth: 100` のみ設定する」とも衝突する
+- **`core.autocrlf` はリポジトリにコミットできない。**issue #98 の起票後、この設定がローカルで
+  `false` にされていたため症状は一時的に見えなくなっていたが、**設定が消えれば戻る。**
+  再発を機械が検出しないので、これは修正ではない
+- **`.gitattributes` は `core.autocrlf` より優先される。**各環境で手を動かす必要が無くなる。
+  さらに `text=auto` がindex側もLFに正規化するので、**CRLFがリポジトリに入る経路自体が閉じる**
+
+**バイナリを拡張子で列挙しない。**列挙するとその一覧が検出の上限になり、形式が1つ増えるたびに
+穴が開く(層の境界の設定と同じ失敗の形。上記「設定を書くときの落とし穴」)。
+`text=auto` はNUL検出で自動的に外すので、上限が無い。誤検出する形式が出てきたら、
+そのときに `binary` を明示する。
+
+導入時点(issue #98)で index にCRLFのblobは**0件**、作業ツリーも全ファイルがLFだったため、
+再チェックアウトも `git add --renormalize` も差分を生まなかった。
+`git ls-files --eol` でバイナリと判定されたのは `app/favicon.ico` の1件のみ。
+
 ## 型の出どころ
 
 **同じ型を二重に定義しない。**出どころは3つだけ。

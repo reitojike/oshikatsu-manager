@@ -1,0 +1,4 @@
+# 改行コードをLFに固定する(理由と経緯: docs/lint-policy.md「改行コード」)。
+# 各環境の core.autocrlf の値によらず、indexも作業ツリーもLFになる。
+# バイナリは拡張子で列挙せず text=auto の自動判定に任せる(列挙はその一覧が検出の上限になる)。
+* text=auto eol=lf
