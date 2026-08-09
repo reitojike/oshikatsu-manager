@@ -59,8 +59,8 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
   - [ ] db test(フェーズ1でSupabaseが入るまでは空で通る)
   - [ ] supabase型検証(`yarn gen:types` して差分があれば失敗)
   - [x] 自動コードレビュー: Claude(`claude-review.yml`)本稼働。実際にPRへ総評+インライン
-        コメントを投稿することを確認済み。Codex(`codex-review.yml`)はOPENAI_API_KEY未設定の
-        間シークレット未設定の間は自動でスキップされる(下記「保留: 外部アカウント待ち」参照)
+        コメントを投稿することを確認済み。Codex(`codex-review.yml`)は `OPENAI_API_KEY` を
+        設定しない方針のため、常に自動スキップされる(恒久。下記「保留: 外部アカウント待ち」参照)
   - [x] 自動コードレビュー: GitHub Copilotの自動レビュー。Ruleset(`copilot_code_review`)で
         有効化済み。PR作成時・push毎に自動でレビューコメントを投稿することを確認済み
   - [ ] keep-alive(日次。向き先は本番ができるフェーズ6で設定)
@@ -91,7 +91,7 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
 | --- | --- |
 | Claudeレビューの本稼働化 | **完了。** `CLAUDE_CODE_OAUTH_TOKEN` シークレット追加 + GitHub App([github.com/apps/claude](https://github.com/apps/claude))インストール済み。PRへの総評+インラインコメント投稿を実PRで確認済み |
 | Copilot自動レビューの有効化 | **完了。** Copilot Proに加入し、Rulesetに `copilot_code_review` ルールを追加。実PRでのコメント投稿を確認済み |
-| Codexレビューの本稼働化 | **保留(意図的)。** OpenAI APIキーを取得しない方針のため、`codex-review.yml` はシークレット未設定のまま自動スキップし続ける。将来キーを取得したら `OPENAI_API_KEY` をリポジトリシークレットに追加するだけで動き出す |
+| Codexレビューの本稼働化 | **見送り(確定)。** `codex-review.yml` はシークレット未設定のまま自動スキップし続ける。**理由: `OPENAI_API_KEY` はChatGPT Plusの利用枠ではなく、OpenAI Platformの従量課金(トークン単位)である。**Plusの契約にAPIキーもAPIクレジットも含まれず、`openai/codex-action` はサブスクリプションでのログインを受け付けない(認証系のinputは `openai-api-key` のみ)。従量課金を採らないとPOが判断した(2026-08-09)。**「まだ決めていない」ではなく「採らないと決めた」である。**なおCodexの視点は、Draft PR作成前のローカルセルフレビュー(#81で全PR必須化)で入れる。将来この判断を覆す場合、`codex-action` はPRへコメントを投稿する機能を持たない(`github-token` 相当のinputが無い)ため、有効化の前に投稿stepの追加が要る点に注意 |
 | CodeRabbitの導入 | **完了。** PR #18〜#32の実績分析でClaude/Copilotの指摘重複率と、Copilotのクレジット消費(実測で1レビューあたりプレミアムリクエスト13回相当。公式の固定値ではなく実績値)を踏まえ、無料の3人目のレビュアーとして追加。GitHub Appをインストール済み。`.coderabbit.yaml`で`drafts: true`を設定し、Draft PRでも反復レビューされることをPR #35で確認済み(Copilotがdraft中は走らずReady化後に走るという挙動は、PR #35で実地確認済み。Draft中の7回のpushではCopilotのレビューは一度も付かず、`gh pr ready`実行後に`copilot-pull-request-reviewer`が動いた。ただし1回目はプレミアムリクエストのquota上限で失敗し、quota追加後に再リクエストして2回成功した。「1回だけ」という想定に反し、quota切れ時は失敗レビューがノーカウントで残る点は注意)。Freeプランのレート制限はGitHub連携のPRレビューが**1回/時/開発者**(IDE/CLIは3回/時)で、当初調べていた「200ファイル/時・4レビュー/時」は誤り(CodeRabbit自身のレビューコメントで訂正された。参照: [docs.coderabbit.ai/management/plans](https://docs.coderabbit.ai/management/plans))。短時間の連続pushでは2回目以降のレビューがスキップされうる前提で運用する。**注記:** PR #35のレビュー実行結果は毎回`Plan: Pro Plus`と表示されていたが、7コミット目のpush以降はレビューが自動発火せず、`@coderabbitai review`を手動実行すると「Review rate limited」と返ってきた(2026-08-07T00:55 UTC時点)。「レビューがpauseされている」旨の案内ではなかったため、`auto_pause_after_reviewed_commits: 0`は意図通り機能しており、止まった原因はレート制限だと判断できる。GitHub App導入直後のPro Plusトライアル期間が既に終了した可能性が高い。以降はFreeプランのレート制限(1回/時/開発者)を前提に運用する |
 
 > シークレットは `gh secret set <NAME>` などリポジトリの設定画面から**あなた自身が追加すること**。
@@ -323,3 +323,4 @@ MVPのスコープ外。**利用者を家族・友人に広げるタイミング
 | v0.3 | GitHub Issues/Projectsによるタスク管理を追加。フェーズ0のチェックリストをIssue化し、Project「推し活管理アプリ 開発」に登録 |
 | v0.4 | mainブランチをRulesetで保護(PR必須・force push禁止・削除禁止・管理者バイパス可)。Claude/Codexの自動レビューworkflow骨格を導入(シークレット未設定時は自動スキップ)。「保留: 外部アカウント待ち」を新設し、Copilot自動レビューの有効化とシークレット設定の作業を記載 |
 | v0.5 | Claude自動レビューを本稼働化(id-token権限とコメント投稿手段の指示が不足していた不具合を修正し、実PRで動作確認)。Copilot自動レビューをRulesetで有効化し動作確認。Codexレビューは意図的に保留(APIキーを取得しない方針) |
+| v0.6 | Codexレビューのシークレット設定を「保留」から「見送り(確定)」に変更。ChatGPT Plusの契約にAPIキーは含まれず、OpenAI Platformの従量課金である点を理由として明記(v0.5の「取得しない方針」の撤回ではなく、理由の追記と確定) |
