@@ -304,7 +304,7 @@ CRLFのチェックアウトが手元にある場合は下記「既存のチェ�
 
 **`.gitattributes` を消しても、Ubuntu上のCIは既存blobがLFなので `prettier --check` は緑のまま通る。**
 つまりこの設定自体は「壊れたらCIが赤くなる」の外側にある。そこで `yarn lint` の先頭で
-`node .github/scripts/check-eol.mjs` を実行し、3つを確かめる。
+`node .github/scripts/check-eol.mjs` を実行し、4つを確かめる。
 
 1. **追跡されている全ファイルに `text=auto eol=lf` が適用されているか**(`git check-attr`)。
    `.gitattributes` の削除やパターンの弱体化がここで落ちる。
@@ -312,11 +312,22 @@ CRLFのチェックアウトが手元にある場合は下記「既存のチェ�
    `text` が無効になり、**変換自体が止まって `core.autocrlf` の挙動に戻る。**
    `binary` を明示したファイルは正当な例外なので、indexのblobにNULがあるか
    (本当にバイナリか)を確かめたうえで許す
-2. **indexにCRLFのblobが入っていないか**(`git ls-files --eol` の `i/crlf` `i/mixed`)。
+2. **indexにLF以外の改行のblobが入っていないか**(`git ls-files --eol` の `i/crlf` `i/mixed`)。
    1が通っていても、attributeが付く前にコミットされたblobは残りうる
-3. **作業ツリーにCRLFのファイルが残っていないか**(同じく `w/crlf` `w/mixed`)。
+3. **作業ツリーにLF以外の改行のファイルが残っていないか**(同じく `w/crlf` `w/mixed`)。
    下記のとおり `.gitattributes` の追加は既存のチェックアウトを書き換えないので、
    **indexがLFでも作業ツリーがCRLFのままなら `prettier --check` は落ちたまま**になる
+4. **indexの `-text` のうち、本当はテキストのものが混ざっていないか。**
+   **単独CR(旧Mac改行)のテキストはGitがバイナリと判定する**ので、`crlf` にも `mixed` にも
+   現れないまま変換の対象外になる。NULが無いのに `-text` になっているものはこれなので落とす
+   (`*.md` はPrettierの対象外なので、これを見ないとlintの列を素通りする)。
+   **作業ツリー側で単独CRを見ないのは意図的。**作業ツリーがLFなのに単独CRになる経路はGitの
+   変換には無く(LF→CRの変換は存在しない)、ローカルで書いた場合も `git add` した瞬間に
+   indexの判定で落ちる。ここで見るとファイルを直接読むことになり、
+   捕まえられるものが同じ割にI/Oが増える
+
+`check-attr` の結果が取れなかったファイルも失敗として扱う。
+**検査できなかったものを「検査済み」に数えると、この仕組み自体が静かに無効になる。**
 
 **`yarn lint` に入れる(CI専用のジョブにしない)。**このIssueで直したのは
 「ローカルとCIで判定基準が割れていたこと」なので、その再発を見る仕組みを片方だけに置くと

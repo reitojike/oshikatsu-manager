@@ -16,6 +16,11 @@ const splitNul = (buffer) =>
     .split("\0")
     .filter((entry) => entry !== "");
 
+// Gitがバイナリと判定する条件のうち、ここで区別したいのはNULの有無。
+// NULが無いのに `-text` 扱いになっているものは、単独CR(旧Mac改行)を含むテキストである。
+const containsNul = (buffer) => buffer.includes(0);
+const indexBlob = (path) => git(["show", `:${path}`]);
+
 const errors = [];
 
 // 1. 追跡されている全ファイルに `text=auto eol=lf` が適用されているか。
@@ -40,19 +45,33 @@ for (let cursor = 0; cursor + 3 <= attrFields.length; cursor += 3) {
 // 「誤検出する形式が出てきたら、そのときに `binary` を明示する」を機械側でも受け止める。
 // 全体を `-text` にする書き方はテキストファイルがここで落ちるので通らない。
 const TEXT_ENABLED = new Set(["auto", "set"]);
-const isBinaryInIndex = (path) => git(["show", `:${path}`]).includes(0);
 
 const missingAttr = [];
 const disabledText = [];
-for (const [path, attrs] of attrsByPath) {
+const uncovered = [];
+// `attrsByPath` ではなく `paths` を回す。`check-attr` の出力が欠けたファイルを
+// 「検査済み」と数えないため(欠けたら uncovered として落とす)。
+for (const path of paths) {
+  const attrs = attrsByPath.get(path);
+  if (attrs === undefined || !attrs.has("text") || !attrs.has("eol")) {
+    uncovered.push(path);
+    continue;
+  }
   const eol = attrs.get("eol");
   if (eol !== "lf") {
     missingAttr.push(`${path} (eol=${eol})`);
   }
   const text = attrs.get("text");
-  if (!TEXT_ENABLED.has(text) && !isBinaryInIndex(path)) {
+  if (!TEXT_ENABLED.has(text) && !containsNul(indexBlob(path))) {
     disabledText.push(`${path} (text=${text})`);
   }
+}
+if (uncovered.length > 0) {
+  errors.push(
+    `git check-attr の結果を取得できなかったファイルがあります (${uncovered.length}件):\n  ` +
+      uncovered.join("\n  ") +
+      "\n  検査対象から漏れているため、成功として扱わない",
+  );
 }
 if (missingAttr.length > 0) {
   errors.push(
@@ -68,14 +87,20 @@ if (disabledText.length > 0) {
   );
 }
 
-// 2. indexと作業ツリーの双方にCRLFが残っていないか。
+// 2. indexと作業ツリーの双方に、LF以外の改行が残っていないか。
 //    index側: attributeが付く前にコミットされたblobは 1 が通っても残りうる。
 //    作業ツリー側: `.gitattributes` の追加は既存チェックアウトを書き換えない。
 //    indexがLFでも作業ツリーがCRLFのままなら `prettier --check` は落ちたままになる
-//    (issue #98 の症状そのもの)。バイナリ(`-text`)と改行を持たないファイル(`none`)は対象外。
+//    (issue #98 の症状そのもの)。
+//    index側では `-text` も見る。単独CR(旧Mac改行)のテキストはGitがバイナリと判定して
+//    `-text` になり、`crlf` にも `mixed` にも出てこないまま変換の対象外になる。
+//    **作業ツリー側で単独CRを見ないのは意図的。**作業ツリーがLFなのに単独CRになる経路は
+//    Gitの変換には無く(LF→CRの変換は存在しない)、ローカルで書いた場合も `git add` した
+//    瞬間にindex側の判定で落ちる。ここで見るとファイルを直接読むことになり、
+//    パスがリテラルでないI/Oを1つ増やす割に、捕まえられるのは同じものである。
 const NON_LF = new Set(["crlf", "mixed"]);
-const crlfInIndex = [];
-const crlfInWorktree = [];
+const nonLfInIndex = [];
+const nonLfInWorktree = [];
 for (const row of splitNul(git(["ls-files", "--eol", "-z"]))) {
   const tabIndex = row.indexOf("\t");
   if (tabIndex === -1) continue;
@@ -83,20 +108,25 @@ for (const row of splitNul(git(["ls-files", "--eol", "-z"]))) {
   const path = row.slice(tabIndex + 1);
   const indexEol = info.match(/(?:^|\s)i\/(\S+)/)?.[1];
   const worktreeEol = info.match(/(?:^|\s)w\/(\S+)/)?.[1];
-  if (NON_LF.has(indexEol)) crlfInIndex.push(`${path} (i/${indexEol})`);
-  if (NON_LF.has(worktreeEol)) crlfInWorktree.push(`${path} (w/${worktreeEol})`);
+
+  if (NON_LF.has(indexEol)) nonLfInIndex.push(`${path} (i/${indexEol})`);
+  else if (indexEol === "-text" && !containsNul(indexBlob(path))) {
+    nonLfInIndex.push(`${path} (i/-text。NULが無いので単独CRを含むテキスト)`);
+  }
+
+  if (NON_LF.has(worktreeEol)) nonLfInWorktree.push(`${path} (w/${worktreeEol})`);
 }
-if (crlfInIndex.length > 0) {
+if (nonLfInIndex.length > 0) {
   errors.push(
-    `indexにCRLFを含むファイルがあります (${crlfInIndex.length}件):\n  ` +
-      crlfInIndex.join("\n  ") +
-      "\n  修正: git add --renormalize . を実行してコミットする",
+    `indexにLF以外の改行を含むファイルがあります (${nonLfInIndex.length}件):\n  ` +
+      nonLfInIndex.join("\n  ") +
+      "\n  修正: git add --renormalize . を実行してコミットする(単独CRは手で直す)",
   );
 }
-if (crlfInWorktree.length > 0) {
+if (nonLfInWorktree.length > 0) {
   errors.push(
-    `作業ツリーにCRLFのファイルがあります (${crlfInWorktree.length}件):\n  ` +
-      crlfInWorktree.join("\n  ") +
+    `作業ツリーにLF以外の改行のファイルがあります (${nonLfInWorktree.length}件):\n  ` +
+      nonLfInWorktree.join("\n  ") +
       "\n  修正: docs/lint-policy.md「既存のチェックアウトを移行する」の手順を実行する" +
       "\n  (git add --renormalize . や git checkout -- . では書き換わらない)",
   );
@@ -107,8 +137,6 @@ if (errors.length > 0) {
   // process.exit(1) は stderr がパイプの場合に出力を切り捨てうるので使わない。
   process.exitCode = 1;
 } else {
-  // バイナリ判定されたファイルは 2 の対象外なので、「全ファイルがLF」とは言わない
-  // (docs/lint-policy.md「改行コード」の「Gitがテキストと判定したファイル」に合わせる)。
   console.log(
     `OK: 追跡ファイル${paths.length}件への text=auto eol=lf の適用と、index・作業ツリーのLFを確認しました。`,
   );
