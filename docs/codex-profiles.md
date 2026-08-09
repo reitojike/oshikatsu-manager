@@ -32,12 +32,21 @@ codex-cli 0.147.0 の `codex exec --help` は `-p, --profile` を
 **リポジトリには置かない。**バージョン付きのモデルslugを含むため。
 新しい環境ではこの3ファイルを手で作り直す(下記テンプレート)。
 
-**プロジェクト直下の `.codex/config.toml` には書かない。効かない。**
-codex-cli 0.147.0 での実測: プロジェクト直下の `.codex/config.toml` はCodex CLIの設定として
-読まれていない。未知のキーを入れて `codex exec --strict-config` を実行してもエラーにならず、
-一方で同じキーを `$CODEX_HOME` 側のプロファイルに入れると
-`unknown configuration field` で失敗する。`model` を書いても使用モデルは変わらない。
-なお `.codex/` は `.gitignore` 済みである(issue #90)。
+**プロジェクト直下の `.codex/config.toml` に `model` を書かない。プロファイルより優先される。**
+codex-cli 0.147.0 での実測:
+
+- `$CODEX_HOME/config.toml` の `[projects.<絶対パス>] trust_level = "trusted"` に**入っている**
+  プロジェクトでは、`.codex/config.toml` が読まれる。`model` を書くと、
+  **`-p` でプロファイルを指定してもそちらが勝つ**(`-p terra` を付けても
+  `.codex/config.toml` の `model` が使われた)。**階層指定が黙って無効になる**
+- 信頼済みに**入っていない**プロジェクトでは `.codex/config.toml` は読まれない。
+  未知のキーを入れて `codex exec --strict-config` を実行してもエラーにならない
+  (信頼済みなら同じキーで `unknown configuration field` になる)
+
+**「今は効いていない」を根拠にしない。**信頼済みかどうかで挙動が変わり、
+信頼済みへの昇格は `.codex/config.toml` を触らなくても起きる。
+`.codex/` は `.gitignore` 済み(issue #90)でCIからも見えないので、
+**この取り違えを機械が検出する経路は無い。**下記「効いていることの確認」で毎回見る。
 
 ## テンプレート
 
@@ -48,7 +57,11 @@ model = "TERRA_MODEL_SLUG"
 ```
 
 `TERRA_MODEL_SLUG` の部分に、その階層に対応する現行のモデルslugを入れる。
-`sol` / `luna` も同じ形で、コメントの階層名だけ差し替える。
+
+`sol` / `luna` も同じ形で作る。**差し替えるのは階層名だけではない。
+カッコ内の役割の説明も、その階層のものに書き換える**(`docs/model-routing.md`「階層の対応」の
+「責任」列をそのまま使う)。階層名だけ替えると、Terraの役割説明が
+`sol.config.toml` に残って表と食い違う。
 
 **slugの一覧は `codex debug models` の出力(JSON)から取る。**codex-cli 0.147.0 で確認。
 `debug` はサブコマンドが版によって入れ替わりうるので、通らなければ
@@ -61,10 +74,11 @@ model = "TERRA_MODEL_SLUG"
 各モデル固有の既定に任せる(`docs/model-routing.md`「モデル名を文書に固定しない」の
 「既定を上げない」)。
 
-**ただしこれには前提条件がある。`$CODEX_HOME/config.toml`(ベース設定)に
-`model_reasoning_effort` を書かないこと。**プロファイルはベース設定に**重ねる**方式なので、
-ベース側にeffortが書かれているとプロファイルで省略しても継承され、
-「モデル固有の既定に任せる」が成立しない。この前提が守られているかは下記の確認手順で見る。
+**ただしこれには前提条件がある。プロファイル以外のどこにも `model_reasoning_effort` を
+書かないこと**(`$CODEX_HOME/config.toml` のベース設定、および信頼済みプロジェクトの
+`.codex/config.toml`)。プロファイルはベース設定に**重ねる**方式なので、
+省略しても他所に書かれた値が残り、「モデル固有の既定に任せる」が成立しない。
+この前提が守られているかは下記の確認手順で見る。
 
 ## 呼び出し方
 
@@ -95,7 +109,10 @@ codex exec -p terra "Reply with exactly OK. Do not use any tools."
 - `payload.model` が、意図した階層に対応するモデルslugになっていること
 - `payload.collaboration_mode.settings.reasoning_effort` が `null` であること。
   `null` でなければ、上記「reasoning effort は書かない」の前提条件が破れている
-  (ベース設定かプロファイルにeffortが書かれている)
+
+どちらかが期待と違ったら、**上書きしている側を先に探す。**
+プロファイルより優先されうるのは、そのプロジェクトが信頼済みのときの
+`.codex/config.toml`(上記「置き場所」)である。
 
 3階層とも一度ずつ実行して、3つとも意図どおりのモデルになることを確認する。
 1つだけ確かめて残りを推測しない。
