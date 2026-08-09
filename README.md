@@ -35,8 +35,9 @@
 ## ブランチ運用
 
 mainブランチは保護されており、直接pushできない。ブランチを作成しPR経由でマージする。
-PR作成時にClaudeによる自動レビューが走る。Codexは`OPENAI_API_KEY`を設定しない方針のため
-常にスキップされる(恒久的な決定。詳細は`docs/roadmap.md`「保留: 外部アカウント待ち」を参照)。
+PR作成時にClaudeによる自動レビューが走る。CodexはCodex CloudのPR自動レビュー
+(Automatic reviews)で入る。GitHub Actions版(`codex-review.yml`)は`OPENAI_API_KEY`を
+設定しない方針のため常にスキップされる(詳細は`docs/roadmap.md`「保留: 外部アカウント待ち」を参照)。
 
 ## セットアップ
 
