@@ -48,8 +48,17 @@ PR #18〜#32の実績分析(Claude/Copilotの指摘重複率、Copilotのクレ�
 **Codexへ渡す最低限のコンテキスト:**
 
 - レビュー対象リビジョン(base branchと対象HEADのSHA、`git diff <base>...<HEAD>`の内容)
-- PR種別: `code` / `governance-docs` / `automation-config`のいずれか(issue #95の3分類。
-  当てる観点がこれで決まる)
+- PR種別(issue #95の3分類。当てる観点がこれで決まる。新規セッションのCodexはGitHub Issue
+  スレッドを読めないため、渡す側が下表の定義を要約して伝える):
+
+  | 種別 | 対象パス | 当てる観点 |
+  | --- | --- | --- |
+  | `code` | `**/*.{ts,tsx,mjs}`、`supabase/migrations/**` | `as`キャスト・`any`・`eslint-disable`/`@ts-ignore`の黙殺禁止、`common/`の層越え禁止、否定側テスト、型の二重定義禁止 |
+  | `governance-docs` | `docs/**`、`CLAUDE.md`、`.claude/skills/**`、PRテンプレート | 成果物間の整合性(矛盾・重複・無確認の判断) |
+  | `automation-config` | `.github/workflows/**`、`package.json`/lockfile、`supabase/config.toml`、`.coderabbit.yaml`、Vercel/ESLint/TS/Vitest設定 | 権限の拡大・secret未設定によるskipのsuccess偽装・イベント種別と再実行条件・required checkの永続pending・fork PRでのsecretの挙動・actionのSHA固定・設定変更と関連ドキュメント/テストの整合 |
+
+  複数の分類にまたがるPRは該当する観点をすべて当てる。`.github/review-prompts/`に
+  共通prompt断片が実装されたら(issue #82)、この表はそちらへの参照に置き換える。
 - GitHub上のコンテキスト(PRコメント・CI結果・レビュー履歴)がまだ存在しないことの明示
   (Codexが「見えないだけ」なのか「無い」のかを区別できないため)
 

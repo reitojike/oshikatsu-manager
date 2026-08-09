@@ -36,12 +36,12 @@ const flush = () => {
 
 for (const line of section.split("\n")) {
   const bulletBodyMatch = line.match(/^-(.*)$/);
-  const rest = bulletBodyMatch?.[1]?.trimStart();
+  // "**実施主体**:" "**実施主体：**" のいずれもMarkdown強調装飾を剥がしてから照合する。
+  // 装飾はラベルの周囲にしか現れない前提で、行全体から "**" を除去してから分割する。
+  const rest = bulletBodyMatch?.[1]?.replaceAll("**", "").trimStart();
   if (rest !== undefined) {
     const colonIndex = rest.search(/[:：]/);
-    const rawLabel = (colonIndex === -1 ? rest : rest.slice(0, colonIndex)).trim();
-    // "**実施主体**" のようなMarkdown強調装飾を剥がしてから照合する。
-    const label = rawLabel.replace(/^\*\*(.*)\*\*$/, "$1");
+    const label = (colonIndex === -1 ? rest : rest.slice(0, colonIndex)).trim();
     if (REQUIRED_LABELS.includes(label)) {
       flush();
       currentLabel = label;
