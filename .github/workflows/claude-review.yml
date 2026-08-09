@@ -41,6 +41,13 @@ jobs:
         if: steps.check.outputs.enabled == 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # claude-code-actionはenableAllProjectMcpServersを常にtrueにする仕様のため、
+          # .mcp.jsonのcodexサーバー(ローカル専用。codex CLI未インストール・未ログインのCI環境では
+          # 起動に失敗する)をdisabledMcpjsonServersで個別にブロックする。
+          settings: |
+            {
+              "disabledMcpjsonServers": ["codex"]
+            }
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
