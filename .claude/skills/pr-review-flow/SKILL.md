@@ -53,16 +53,16 @@ CIのrequired checkとしての強制状況を確認する必要がある場合�
 
 - レビュー対象リビジョン(base branchと対象HEADのSHA、`git diff <base>...<HEAD>`の内容)
 - PR種別(issue #95の3分類。当てる観点がこれで決まる。新規セッションのCodexはGitHub Issue
-  スレッドを読めないため、渡す側が下表の定義を要約して伝える):
+  スレッドを読めないため、渡す側が対象パスから該当する分類名を伝える):
 
-  | 種別 | 対象パス | 当てる観点 |
-  | --- | --- | --- |
-  | `code` | `**/*.{ts,tsx,mjs}`、`supabase/migrations/**` | `as`キャスト・`any`・`eslint-disable`/`@ts-ignore`の黙殺禁止、`common/`の層越え禁止、否定側テスト、型の二重定義禁止 |
-  | `governance-docs` | `docs/**`、`AGENTS.md`、`CLAUDE.md`、`.claude/skills/**`、PRテンプレート | 成果物間の整合性(矛盾・重複・無確認の判断) |
-  | `automation-config` | `.github/workflows/**`、`package.json`/lockfile、`supabase/config.toml`、`.coderabbit.yaml`、Vercel/ESLint/TS/Vitest設定 | 権限の拡大・secret未設定によるskipのsuccess偽装・イベント種別と再実行条件・required checkの永続pending・fork PRでのsecretの挙動・actionのSHA固定・設定変更と関連ドキュメント/テストの整合 |
+  | 種別 | 対象パス |
+  | --- | --- |
+  | `code` | `**/*.{ts,tsx,mjs}`、`supabase/migrations/**` |
+  | `governance-docs` | `docs/**`、`AGENTS.md`、`CLAUDE.md`、`.claude/skills/**`、`.github/pull_request_template.md` |
+  | `automation-config` | `.github/workflows/**`、`.github/actions/**`、`.github/scripts/**`、`package.json`/lockfile、`supabase/config.toml`、`.coderabbit.yaml`、Vercel/ESLint/TS/Vitest設定、および他分類に一致しないファイル |
 
-  複数の分類にまたがるPRは該当する観点をすべて当てる。`.github/review-prompts/`に
-  共通prompt断片が実装されたら(issue #82)、この表はそちらへの参照に置き換える。
+  複数の分類にまたがるPRは該当する観点をすべて当てる。各分類の観点とP0/P1定義の正本は
+  `AGENTS.md`の`## Code Review Rules`節を参照する。
 - GitHub上のコンテキスト(PRコメント・CI結果・レビュー履歴)がまだ存在しないことの明示
   (Codexが「見えないだけ」なのか「無い」のかを区別できないため)
 
@@ -93,7 +93,7 @@ CIのrequired checkとしての強制状況を確認する必要がある場合�
 PRはまず`gh pr create --draft`でDraft作成する。
 
 - **Claude**(`claude-review.yml`): `CLAUDE_CODE_OAUTH_TOKEN`設定時にdraftのpushごとに走る。未設定時はスキップ。`claude-review.yml`自体を変更するPRでのスキップ判定は`docs/pr-review-flow-details.md`「Claude Review」を参照
-- **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10 JST、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点を`AGENTS.md`で指定する仕組み(`## Code Review Rules`節)はまだ無く(issue #82)、現状は汎用の観点でレビューされる。**Draft PRへのpushでは自動発火しない**(PR #113で複数回のpushで確認済み)。`@codex review`と手動コメントすれば即座に投稿されることも確認済み。Draft中に投稿が欲しい場合は、PRコメント欄でcodexへメンションして手動リクエストする(誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は現状維持(残すか削除するかはissue #82で検討)
+- **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10 JST、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点とP0/P1定義の正本は`AGENTS.md`の`## Code Review Rules`節にある。**Draft PRへのpushでは自動発火しない**(PR #113で複数回のpushで確認済み)。`@codex review`と手動コメントすれば即座に投稿されることも確認済み。Draft中に投稿が欲しい場合は、PRコメント欄でcodexへメンションして手動リクエストする(誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は現状維持(残すか削除するかはissue #82で検討)
 - **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。反復の主力はClaude/Codexで、CodeRabbitは取れたときに追加の視点が入る、という位置づけで期待値を持つこと。レート制限は`docs/pr-review-flow-details.md`「CodeRabbit」を参照
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
 
