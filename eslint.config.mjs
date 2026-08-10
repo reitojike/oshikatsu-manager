@@ -24,17 +24,13 @@ const exceptions = [
   {
     // git / gh CLIを絶対パスで指定できない。実行場所がローカル(Windows)とCI(ubuntu)で異なり、
     // どちらでも動く固定パスが存在しないため、PATH経由の解決が構造的に必要になる。
-    files: [
-      ".github/scripts/check-eol.mjs",
-      ".github/scripts/build-review-prompt.mjs",
-      ".github/scripts/check-claude-review.mjs",
-    ],
+    files: [".github/scripts/check-eol.mjs", ".github/scripts/build-review-prompt.mjs"],
     rules: { "sonarjs/no-os-command-from-path": "off" },
   },
   {
     // GitHub Actionsが実行時に渡す出力・診断ファイルのパスはリテラルにできない。
     // Actionsが実行時パスを渡さない構造に変わればこのエントリを消す。
-    files: [".github/scripts/build-review-prompt.mjs", ".github/scripts/check-claude-review.mjs"],
+    files: [".github/scripts/build-review-prompt.mjs"],
     rules: { "security/detect-non-literal-fs-filename": "off" },
   },
 ];

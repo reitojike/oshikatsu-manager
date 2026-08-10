@@ -10,6 +10,13 @@ export const CLAUDE_ENABLED_ERROR =
 export const MISSING_CLAUDE_POSTS_ERROR =
   "Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です";
 
+// 「レビューが走っていない」と「走ったがマーカーが無い」を区別する。
+// 総評コメントには commit_id が無く本文マーカーだけが根拠なので、モデルが指示を落とすと
+// 投稿があっても0件と判定される。どちらも赤にする(fail-closed)が、原因が読めないと
+// 再実行すべきか prompt を直すべきかが判断できない。
+export const MARKER_MISSING_ERROR =
+  "Claude actionは実行され、対象head以降にclaude[bot]の投稿がありますが、head SHAマーカーに一致する投稿が0件です。promptのマーカー指示が守られていない可能性があります";
+
 export const headShaMarker = (headSha) => `<!-- claude-review-head-sha:${headSha} -->`;
 
 // 文字列前提で trim() を呼ぶと、非文字列が来たときTypeErrorになって「空です」に化ける。
@@ -19,15 +26,36 @@ const environment = (value, name) => {
   return value;
 };
 
-export const countClaudePosts = ({ issueComments, reviews, reviewComments, headSha, since }) => {
-  const isBot = (entry) => entry.user?.login === BOT_LOGIN;
+const isBot = (entry) => entry.user?.login === BOT_LOGIN;
+
+const afterStarted = (entry, sinceEpoch) => {
+  const created = entry.created_at ?? entry.submitted_at;
+  if (typeof created !== "string") return false;
+  return Date.parse(created) >= sinceEpoch;
+};
+
+// マーカーとcommit_idを一切見ず、そのrunの開始以降にclaude[bot]が何か投稿したかだけを数える。
+// 判定には使わない。投稿0件のときに「走っていない」と「マーカーが無い」を切り分けるためだけの値。
+export const countBotPostsSince = ({ issueComments, reviews, reviewComments, since }) => {
   const sinceEpoch = Date.parse(since);
-  const afterActionStarted = (entry) => {
-    const created = entry.created_at ?? entry.submitted_at;
-    if (typeof created !== "string") return false;
-    return Date.parse(created) >= sinceEpoch;
-  };
+  return [issueComments, reviews, reviewComments].reduce(
+    (total, entries) =>
+      total + entries.filter((entry) => isBot(entry) && afterStarted(entry, sinceEpoch)).length,
+    0,
+  );
+};
+
+export const countClaudePosts = ({ issueComments, reviews, reviewComments, headSha, since }) => {
+  const sinceEpoch = Date.parse(since);
+  const afterActionStarted = (entry) => afterStarted(entry, sinceEpoch);
+  // reviewの commit_id は提出時のheadのまま動かない。
   const isHeadReview = (entry) => entry.commit_id === headSha;
+  // review commentの commit_id は、コメントがoutdatedにならない限りGitHubが最新headへ
+  // 書き換える。実測(PR #151): 11:48:31Zに作成されたclaude[bot]のreview commentが
+  // original_commit_id=b61052c8 のまま commit_id=98b206fe(当時の最新head)を返した。
+  // commit_id で固定すると「outdatedでない」しか意味せず、head固定が実質無効になる。
+  // 安定しているのは original_commit_id。
+  const isHeadReviewComment = (entry) => (entry.original_commit_id ?? entry.commit_id) === headSha;
   const isHeadIssueComment = (entry) =>
     typeof entry.body === "string" && entry.body.includes(headShaMarker(headSha));
   return [
@@ -36,7 +64,7 @@ export const countClaudePosts = ({ issueComments, reviews, reviewComments, headS
     ),
     reviews.filter((entry) => isBot(entry) && isHeadReview(entry) && afterActionStarted(entry)),
     reviewComments.filter(
-      (entry) => isBot(entry) && isHeadReview(entry) && afterActionStarted(entry),
+      (entry) => isBot(entry) && isHeadReviewComment(entry) && afterActionStarted(entry),
     ),
   ].reduce((total, entries) => total + entries.length, 0);
 };
@@ -75,6 +103,25 @@ const claudeEnabled = (value) => {
   if (value === "true") return true;
   if (value === "false") return false;
   throw new Error(CLAUDE_ENABLED_ERROR);
+};
+
+// 形式を検証しないと、配線を間違えて head_ref(ブランチ名)やPR番号でない値を渡しても
+// 「投稿0件」または「マーカー不一致」として赤くなり、原因が入力側だと読めない。
+// ACTION_STARTED_AT に regex + Date.parse ガードを置いたのと同じ理由。
+const headShaEnvironment = (value) => {
+  const headSha = environment(value, "HEAD_SHA");
+  if (!/^[0-9a-f]{40}$/.test(headSha)) {
+    throw new Error("HEAD_SHA は40桁の小文字16進数である必要があります");
+  }
+  return headSha;
+};
+
+const prNumberEnvironment = (value) => {
+  const prNumber = environment(value, "PR_NUMBER");
+  if (!/^[1-9]\d*$/.test(prNumber)) {
+    throw new Error("PR_NUMBER は正の整数である必要があります");
+  }
+  return prNumber;
 };
 
 const actionStartedAt = (value) => {
@@ -170,18 +217,22 @@ const getGhPostsOrThrow = (getPosts, path) => {
   }
 };
 
-const getClaudePostCount = (getPosts, repository, prNumber, headSha, since) => {
+// 取得は1回だけ行い、厳格な件数と切り分け用の件数の両方を同じ応答から出す。
+// 2回取得すると、その間に投稿が増えて2つの値が食い違う。
+const getClaudePostCounts = (getPosts, repository, prNumber, headSha, since) => {
   const base = `repos/${repository}/pulls/${prNumber}`;
   const issueCommentsPath = `repos/${repository}/issues/${prNumber}/comments?since=${encodeURIComponent(since)}`;
   const reviewsPath = `${base}/reviews`;
   const reviewCommentsPath = `${base}/comments?since=${encodeURIComponent(since)}`;
-  return countClaudePosts({
+  const posts = {
     issueComments: getGhPostsOrThrow(getPosts, issueCommentsPath),
     reviews: getGhPostsOrThrow(getPosts, reviewsPath),
     reviewComments: getGhPostsOrThrow(getPosts, reviewCommentsPath),
-    headSha,
-    since,
-  });
+  };
+  return {
+    matched: countClaudePosts({ ...posts, headSha, since }),
+    botPostsSince: countBotPostsSince({ ...posts, since }),
+  };
 };
 
 const executionDiagnostics = (read, executionFile) => {
@@ -205,6 +256,32 @@ const executionDiagnostics = (read, executionFile) => {
   } catch {
     return "実行診断ファイルを読めませんでした。";
   }
+};
+
+// 取得・件数summary・失敗判定をmainから切り出す。判定の順序は変えない。
+const verifyPosts = ({ outcome, enabled, conclusion, executionFile, target, io }) => {
+  const { repository, prNumber, headSha, since } = target;
+  const { getGhPosts, append, read, outputNotice, summaryPath } = io;
+  let counts;
+  try {
+    counts = getClaudePostCounts(getGhPosts, repository, prNumber, headSha, since);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "GitHub API取得に失敗したため投稿件数を判定できない";
+    report(append, summaryPath, outputNotice, message);
+    throw error;
+  }
+  summary(append, summaryPath, `- Claude投稿件数: ${counts.matched}`);
+  summary(append, summaryPath, `- 診断: ${executionDiagnostics(read, executionFile)}`);
+  if (
+    reviewCheckDecision({ outcome, enabled, conclusion, postCount: counts.matched }) !==
+    "missing-posts"
+  )
+    return;
+  // 判定は厳格側のまま。切り分け用の件数で原因表示だけを変える。
+  const failure = counts.botPostsSince > 0 ? MARKER_MISSING_ERROR : MISSING_CLAUDE_POSTS_ERROR;
+  report(append, summaryPath, outputNotice, failure);
+  throw new Error(failure);
 };
 
 export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
@@ -244,28 +321,20 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   let since;
   try {
     repository = environment(REPOSITORY, "REPOSITORY");
-    prNumber = environment(PR_NUMBER, "PR_NUMBER");
-    headSha = environment(HEAD_SHA, "HEAD_SHA");
+    prNumber = prNumberEnvironment(PR_NUMBER);
+    headSha = headShaEnvironment(HEAD_SHA);
     since = actionStartedAt(ACTION_STARTED_AT);
   } catch (error) {
     reportValidationError(append, summaryPath, outputNotice, error);
   }
-  let count;
-  try {
-    count = getClaudePostCount(getGhPosts, repository, prNumber, headSha, since);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "GitHub API取得に失敗したため投稿件数を判定できない";
-    report(append, summaryPath, outputNotice, message);
-    throw error;
-  }
-  summary(append, summaryPath, `- Claude投稿件数: ${count}`);
-  summary(append, summaryPath, `- 診断: ${executionDiagnostics(read, EXECUTION_FILE)}`);
-  if (
-    reviewCheckDecision({ outcome, enabled, conclusion: CLAUDE_CONCLUSION, postCount: count }) ===
-    "missing-posts"
-  )
-    throw new Error(MISSING_CLAUDE_POSTS_ERROR);
+  verifyPosts({
+    outcome,
+    enabled,
+    conclusion: CLAUDE_CONCLUSION,
+    executionFile: EXECUTION_FILE,
+    target: { repository, prNumber, headSha, since },
+    io: { getGhPosts, append, read, outputNotice, summaryPath },
+  });
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
