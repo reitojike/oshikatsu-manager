@@ -20,6 +20,8 @@ const MODEL_NAMES = new Map([
   ["terra", "Terra"],
   ["luna", "Luna"],
 ]);
+// execFileSyncにPATH経由の裸のコマンド名を渡すとESLint(sonarjs/no-os-command-from-path)に
+// 抵触するため、固定パスを使う(実測: このgh CLIの既定インストール先)。
 const GH_PATH =
   process.platform === "win32" ? "C:\\Program Files\\GitHub CLI\\gh.exe" : "/usr/bin/gh";
 
