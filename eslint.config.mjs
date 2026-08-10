@@ -24,13 +24,7 @@ const exceptions = [
   {
     // git を絶対パスで指定できない。実行場所がローカル(Windows)とCI(ubuntu)で異なり、
     // どちらでも動く固定パスが存在しないため、PATH経由の解決が構造的に必要になる。
-    files: [".github/scripts/check-eol.mjs"],
-    rules: { "sonarjs/no-os-command-from-path": "off" },
-  },
-  {
-    // git と gh はローカル(Windows)とCI(ubuntu)の双方で解決する必要があり、
-    // 固定パスを指定できないためPATH経由の実行が構造的に必要になる。
-    files: [".github/scripts/build-review-prompt.mjs"],
+    files: [".github/scripts/check-eol.mjs", ".github/scripts/build-review-prompt.mjs"],
     rules: { "sonarjs/no-os-command-from-path": "off" },
   },
   {
