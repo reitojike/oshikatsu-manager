@@ -35,7 +35,7 @@ Claude/Codex/CodeRabbitはDraft中に何度反復してもプレミアムリク�
 「推奨」は守られたか誰にも観測できないため必須にする。軽微な変更にも例外を設けないのは、
 「これは軽微か」という判定コストが免除で浮くコストを上回るため。
 
-この必須化をCIがどこまで強制しているかは
+CIのrequired checkとしての強制状況を確認する必要がある場合だけ、
 `docs/pr-review-flow-details.md`「Draft前セルフレビューの強制範囲」を参照。
 
 1. **前提確認。**`pwd`で今どのworktreeにいるかを確認し、ローカル`main`が`origin/main`に
@@ -46,7 +46,7 @@ Claude/Codex/CodeRabbitはDraft中に何度反復してもプレミアムリク�
    そのまま引き継ぐと、前提そのものの誤りを見落とすため(issue #102)。
 3. **`/code-review`スキルを使うのは、`common/`・権限/RLS・`supabase/migrations/**`のいずれかに
    触れるPRのみ。**それ以外は既定のCodexで足りる。levelは`medium`を既定とし、上記に該当する
-   PRのみ`high`に上げる。`ultra`は使わない。levelを具体値で記す理由は
+   PRのみ`high`に上げる。`ultra`は使わない。levelを具体値で記す理由を確認する必要がある場合だけ、
    `docs/pr-review-flow-details.md`「セルフレビューのlevelを具体値で記す理由」を参照。
 
 **Codexへ渡す最低限のコンテキスト:**
