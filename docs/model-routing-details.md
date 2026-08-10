@@ -67,12 +67,12 @@ Codexの残量確認手段は、対話セッション内の `/status` と
 [使用量ダッシュボード](https://chatgpt.com/codex/settings/usage) の2つだけで、
 **`codex mcp-server` 経由の非対話呼び出しではどちらも使えない**
 ([Codex Pricing](https://learn.chatgpt.com/docs/pricing))。
+上限は「呼んで失敗して初めて分かる」。
 
 > **プロファイルによる階層指定はCLIの機能で、MCP経由の呼び出しでは解決されない。**
 > MCP経由は実モデルIDを要求するため、役割名で呼び分けるには別途ルーター層が要る
 > (#114 では作らないと判断した)。**階層を確実に効かせたいときは
 > `codex exec -p <階層名>` のCLI直接呼び出しを使う**(`docs/codex-profiles.md`)。
-上限は「呼んで失敗して初めて分かる」。
 
 事前に軽い1往復を投げて生存確認する運用は**採らない。**ping成功の直後に本命のturnで
 上限に達しうるので可用性を保証せず、ping自体が枠と時間を消費する(Solの見解、issue #67)。
