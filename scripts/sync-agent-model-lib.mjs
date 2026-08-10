@@ -162,10 +162,12 @@ const verify = (runGh, options, expectedLabel, expectedModel) => {
 
 const errorMessage = (error) => (error instanceof Error ? error.message : String(error));
 
-const rollbackLabels = (runGh, options, originalLabels, attemptedLabel) => {
+const sameLabels = (left, right) =>
+  left.length === right.length && left.every((label) => right.includes(label));
+
+const rollbackLabels = (runGh, options, currentLabels, originalLabels, attemptedLabel) => {
   try {
-    const current = agentLabels(getIssue(runGh, options.repo, options.issue).labels);
-    editAgentLabels(runGh, options, current, originalLabels);
+    editAgentLabels(runGh, options, currentLabels, originalLabels);
   } catch (rollbackError) {
     throw new Error(
       `label rollback failed: original=${JSON.stringify(originalLabels)}, attempted=${attemptedLabel}; ${errorMessage(rollbackError)}`,
@@ -195,12 +197,24 @@ const rollbackModel = (runGh, itemId, originalModel, attemptedModel) => {
 const rollbackChanges = (runGh, options, item, originalLabels, attemptedLabel, attemptedModel) => {
   const failures = [];
   try {
-    rollbackModel(runGh, item.id, item.model, attemptedModel);
+    const currentItem = getProjectItem(runGh, options.repo, options.issue);
+    if (currentItem.model === attemptedModel)
+      rollbackModel(runGh, item.id, item.model, attemptedModel);
+    else if (currentItem.model !== item.model)
+      throw new Error(
+        `Model rollback conflict: current=${JSON.stringify(currentItem.model)}, attempted=${attemptedModel}`,
+      );
   } catch (error) {
     failures.push(errorMessage(error));
   }
   try {
-    rollbackLabels(runGh, options, originalLabels, attemptedLabel);
+    const currentLabels = agentLabels(getIssue(runGh, options.repo, options.issue).labels);
+    if (sameLabels(currentLabels, [attemptedLabel]))
+      rollbackLabels(runGh, options, currentLabels, originalLabels, attemptedLabel);
+    else if (!sameLabels(currentLabels, originalLabels))
+      throw new Error(
+        `label rollback conflict: current=${JSON.stringify(currentLabels)}, attempted=${attemptedLabel}`,
+      );
   } catch (error) {
     failures.push(errorMessage(error));
   }

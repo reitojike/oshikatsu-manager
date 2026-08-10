@@ -156,7 +156,7 @@ describe("syncAgentModel", () => {
     expect(state.labels).toEqual(["agent:terra"]);
   });
 
-  it("reports original and attempted labels when rollback fails", () => {
+  it("reports a label read failure during rollback", () => {
     const state = { labels: ["agent:terra"], model: "Terra", failModelUpdate: true };
     const baseRunGh = createRunGh(state);
     let issueViews = 0;
@@ -166,7 +166,7 @@ describe("syncAgentModel", () => {
       return baseRunGh(args);
     });
     expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
-      'label rollback failed: original=["agent:terra"], attempted=agent:sol',
+      "model update failed; rollback read failed",
     );
   });
 });
@@ -179,13 +179,25 @@ describe("syncAgentModel verification", () => {
     const state = { labels: ["agent:terra"], model: "Terra" };
     const runGh = createRunGh(state);
     let issueViews = 0;
+    let projectReads = 0;
     runGh.mockImplementation((args) => {
-      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) {
-        state.labels = [...labels];
-      }
-      if (args[0] === "project" && args[1] === "item-list" && state.model === "Sol") {
-        state.model = model;
-      }
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
+        return JSON.stringify({ labels: labels.map((name) => ({ name })) });
+      if (
+        args[0] === "project" &&
+        args[1] === "item-list" &&
+        ++projectReads === 2 &&
+        state.model === "Sol"
+      )
+        return JSON.stringify({
+          items: [
+            {
+              id: "item-id",
+              model,
+              content: { number: 118, repository: options.repo },
+            },
+          ],
+        });
       return createRunGh(state)(args);
     });
     expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(expected);
@@ -198,13 +210,20 @@ describe("syncAgentModel verification", () => {
     const runGh = createRunGh(state);
     let projectReads = 0;
     runGh.mockImplementation((args) => {
-      if (args[0] === "project" && args[1] === "item-list" && ++projectReads === 2) {
-        state.model = "Unexpected";
-      }
+      if (args[0] === "project" && args[1] === "item-list" && ++projectReads === 2)
+        return JSON.stringify({
+          items: [
+            {
+              id: "item-id",
+              model: "Unexpected",
+              content: { number: 118, repository: options.repo },
+            },
+          ],
+        });
       return createRunGh(state)(args);
     });
     expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
-      "Project Model verification failed",
+      new Error("Project Model verification failed"),
     );
     expect(state.labels).toEqual(["agent:terra"]);
     expect(state.model).toBe("Terra");
@@ -218,11 +237,11 @@ describe("syncAgentModel Model rollback failures", () => {
     let issueViews = 0;
     runGh.mockImplementation((args) => {
       if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
-        state.labels = ["agent:sol", "agent:terra"];
+        return JSON.stringify({ labels: [{ name: "agent:sol" }, { name: "agent:terra" }] });
       return createRunGh(state)(args);
     });
     expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
-      "agent label verification failed",
+      new Error("agent label verification failed"),
     );
     expect(state.labels).toEqual(["agent:terra"]);
     expect(state.model).toBeUndefined();
@@ -238,7 +257,7 @@ describe("syncAgentModel Model rollback failures", () => {
     let issueViews = 0;
     runGh.mockImplementation((args) => {
       if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
-        state.labels = ["agent:sol", "agent:terra"];
+        return JSON.stringify({ labels: [{ name: "agent:sol" }, { name: "agent:terra" }] });
       return createRunGh(state)(args);
     });
     expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
@@ -253,7 +272,7 @@ describe("syncAgentModel Model rollback failures", () => {
     let issueViews = 0;
     runGh.mockImplementation((args) => {
       if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
-        state.labels = ["agent:sol", "agent:terra"];
+        return JSON.stringify({ labels: [{ name: "agent:sol" }, { name: "agent:terra" }] });
       return createRunGh(state)(args);
     });
     expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
@@ -261,6 +280,97 @@ describe("syncAgentModel Model rollback failures", () => {
     );
     expect(state.labels).toEqual(["agent:terra"]);
     expect(state.model).toBe("Sol");
+  });
+});
+
+describe("syncAgentModel Model rollback conflicts", () => {
+  it("does not overwrite a Model changed by another actor before rollback", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) {
+        state.labels = ["agent:luna"];
+        state.model = "Luna";
+      }
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'Model rollback conflict: current="Luna", attempted=Sol',
+    );
+    expect(state.labels).toEqual(["agent:luna"]);
+    expect(state.model).toBe("Luna");
+  });
+
+  it("rolls labels back when only the Model has a rollback conflict", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) {
+        state.model = "Luna";
+        return JSON.stringify({ labels: [{ name: "agent:sol" }, { name: "agent:terra" }] });
+      }
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'Model rollback conflict: current="Luna", attempted=Sol',
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Luna");
+  });
+});
+
+describe("syncAgentModel rollback conflicts", () => {
+  it("does not overwrite values changed by another actor before rollback", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) {
+        state.labels = ["agent:luna"];
+        state.model = "Terra";
+      }
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'label rollback conflict: current=["agent:luna"], attempted=agent:sol',
+    );
+    expect(state.labels).toEqual(["agent:luna"]);
+    expect(state.model).toBe("Terra");
+  });
+
+  it("does not report a conflict when the Model is already at its original value", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) state.model = "Terra";
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      new Error("Project Model verification failed"),
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Terra");
+  });
+
+  it("does not report a conflict when labels are already at their original value", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) {
+        state.labels = ["agent:terra"];
+        return JSON.stringify({ labels: [{ name: "agent:terra" }] });
+      }
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      new Error("agent label verification failed"),
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Terra");
   });
 });
 
