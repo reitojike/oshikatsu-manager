@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   countClaudePosts,
   flattenGhPages,
+  getGhPosts,
   headShaMarker,
   main,
   reviewCheckDecision,
@@ -25,10 +26,14 @@ const createDependencies = ({
   env = baseEnv,
   posts = new Map<string, unknown[]>(),
   ghError,
+  readError,
+  readResult = JSON.stringify({ num_turns: 1 }),
 }: {
   env?: Record<string, string | undefined>;
   posts?: Map<string, unknown[]>;
   ghError?: Error;
+  readError?: Error;
+  readResult?: string;
 } = {}) => {
   const ghPaths: string[] = [];
   const summaries: string[] = [];
@@ -45,7 +50,8 @@ const createDependencies = ({
       append: (_path: string, message: string) => summaries.push(message),
       read: (path: string) => {
         reads.push(path);
-        return JSON.stringify({ num_turns: 1 });
+        if (readError !== undefined) throw readError;
+        return readResult;
       },
       outputNotice: (message: string) => notices.push(message),
     },
@@ -114,14 +120,58 @@ test.each([
   expect(summaries).toEqual([`- ${message}\n`]);
 });
 
-test("main: successのAPI取得失敗をそのまま伝播し、summaryを書かない", () => {
+test("main: その他のAPI取得失敗は対象path付きで通知し、件数summaryを書かない", () => {
   const error = new Error("gh failed");
-  const { dependencies, ghPaths, reads, summaries } = createDependencies({ ghError: error });
+  const { dependencies, ghPaths, notices, reads, summaries } = createDependencies({
+    ghError: error,
+  });
 
-  expect(() => main(dependencies)).toThrow(error);
+  expect(() => main(dependencies)).toThrow(
+    `GitHub API取得に失敗したため投稿件数を判定できない: ${apiPaths()[0]}`,
+  );
   expect(ghPaths).toEqual([apiPaths()[0]]);
   expect(reads).toEqual([]);
-  expect(summaries).toEqual([]);
+  expect(notices).toEqual([`GitHub API取得に失敗したため投稿件数を判定できない: ${apiPaths()[0]}`]);
+  expect(summaries).toEqual([
+    `- GitHub API取得に失敗したため投稿件数を判定できない: ${apiPaths()[0]}\n`,
+  ]);
+});
+
+test("getGhPosts: gh実行にはUTF-8、64MiB、60秒を指定する", () => {
+  const calls: { command: string; arguments_: string[]; options: object }[] = [];
+  const execute = (command: string, arguments_: string[], options: object) => {
+    calls.push({ command, arguments_, options });
+    return "[[]]";
+  };
+
+  expect(getGhPosts("repos/owner/repository/pulls/42/reviews", execute)).toEqual([]);
+  expect(calls).toEqual([
+    {
+      command: "gh",
+      arguments_: ["api", "--paginate", "--slurp", "repos/owner/repository/pulls/42/reviews"],
+      options: { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 60_000 },
+    },
+  ]);
+});
+
+test("main: ENOBUFSは容量超過として通知し、0件扱いにしない", () => {
+  const error = Object.assign(new Error("buffer full"), { code: "ENOBUFS" });
+  const { dependencies, notices, summaries } = createDependencies({ ghError: error });
+  const message = `GitHub API応答が64MiB上限を超えたため投稿件数を判定できない: ${apiPaths()[0]}`;
+
+  expect(() => main(dependencies)).toThrow(message);
+  expect(notices).toEqual([message]);
+  expect(summaries).toEqual([`- ${message}\n`]);
+});
+
+test("main: timeout固有情報は60秒タイムアウトとして通知し、0件扱いにしない", () => {
+  const error = Object.assign(new Error("timed out"), { code: "ETIMEDOUT" });
+  const { dependencies, notices, summaries } = createDependencies({ ghError: error });
+  const message = `GitHub API取得が60秒でタイムアウトしたため投稿件数を判定できない: ${apiPaths()[0]}`;
+
+  expect(() => main(dependencies)).toThrow(message);
+  expect(notices).toEqual([message]);
+  expect(summaries).toEqual([`- ${message}\n`]);
 });
 
 test.each([
@@ -140,6 +190,68 @@ test.each([
   expect(ghPaths).toEqual([]);
   expect(summaries).toEqual([]);
 });
+
+test("main: 正規表現を通る不可能な開始時刻をAPI取得前に拒否する", () => {
+  const env = { ...baseEnv, ACTION_STARTED_AT: "2026-13-45T00:00:00Z" };
+  const { dependencies, ghPaths, summaries } = createDependencies({ env });
+
+  expect(() => main(dependencies)).toThrow("ACTION_STARTED_AT は有効な時刻である必要があります");
+  expect(ghPaths).toEqual([]);
+  expect(summaries).toEqual([]);
+});
+
+test.each([undefined, ""])(
+  "main: 診断ファイルが%pならreadせずファイルなしと書く",
+  (executionFile) => {
+    const env = { ...baseEnv, EXECUTION_FILE: executionFile };
+    const { dependencies, reads, summaries } = createDependencies({ env });
+
+    expect(() => main(dependencies)).toThrow(
+      "Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です",
+    );
+
+    expect(reads).toEqual([]);
+    expect(summaries).toEqual([
+      "- Claude投稿件数: 0\n",
+      "- 診断: 実行診断ファイルはありません。\n",
+    ]);
+  },
+);
+
+test.each([
+  ["read例外", undefined, new Error("read failed")],
+  ["不正JSON", "{", undefined],
+])("main: 診断%sは読めないと書く", (_caseName, readResult, readError) => {
+  const { dependencies, summaries } = createDependencies({ readError, readResult });
+
+  expect(() => main(dependencies)).toThrow();
+  expect(summaries).toEqual([
+    "- Claude投稿件数: 0\n",
+    "- 診断: 実行診断ファイルを読めませんでした。\n",
+  ]);
+});
+
+test("main: 診断配列は末尾から診断要素を探し、後方の非診断要素を飛ばす", () => {
+  const diagnostics = JSON.stringify([
+    { num_turns: 1 },
+    { permission_denials_count: 2 },
+    { ignored: true },
+  ]);
+  const { dependencies, summaries } = createDependencies({ readResult: diagnostics });
+
+  expect(() => main(dependencies)).toThrow();
+  expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: permission_denials_count: 2\n"]);
+});
+
+test.each(["{}", JSON.stringify([{ ignored: true }])])(
+  "main: 診断値がない入力は値なしと書く",
+  (readResult) => {
+    const { dependencies, summaries } = createDependencies({ readResult });
+
+    expect(() => main(dependencies)).toThrow();
+    expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: 実行診断値はありません。\n"]);
+  },
+);
 
 test("main: headと開始時刻を投稿フィルタに渡し、別headと開始前だけなら0件で失敗する", () => {
   const [issuePath, reviewPath, commentPath] = apiPaths();
@@ -264,6 +376,14 @@ describe("countClaudePosts", () => {
     const issueComments = [{ user, body: headShaMarker(headSha), created_at: since }];
     const reviews = [{ user, commit_id: headSha, submitted_at: since }];
     const reviewComments = [{ user, commit_id: headSha, created_at: since }];
+
+    expect(countClaudePosts({ issueComments, reviews, reviewComments, headSha, since })).toBe(0);
+  });
+
+  test("3種類ともuser未定義の投稿を数えない", () => {
+    const issueComments = [{ body: headShaMarker(headSha), created_at: since }];
+    const reviews = [{ commit_id: headSha, submitted_at: since }];
+    const reviewComments = [{ commit_id: headSha, created_at: since }];
 
     expect(countClaudePosts({ issueComments, reviews, reviewComments, headSha, since })).toBe(0);
   });

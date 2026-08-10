@@ -62,11 +62,59 @@ export const flattenGhPages = (pages) => {
   return pages.flat();
 };
 
-const gh = (path) => {
-  const pages = JSON.parse(
-    execFileSync("gh", ["api", "--paginate", "--slurp", path], { encoding: "utf8" }),
-  );
+const GH_OPTIONS = { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 60_000 };
+
+/** @typedef {(file: string, args: string[], options: typeof GH_OPTIONS) => string} GhExecutor */
+
+/** @param {string} path @param {GhExecutor} execute */
+export const getGhPosts = (path, execute = execFileSync) => {
+  const pages = JSON.parse(execute("gh", ["api", "--paginate", "--slurp", path], GH_OPTIONS));
   return flattenGhPages(pages);
+};
+
+const hasProperty = (value, property) =>
+  typeof value === "object" && value !== null && Object.hasOwn(value, property);
+
+const isBufferError = (error) => hasProperty(error, "code") && error.code === "ENOBUFS";
+
+const isTimeoutError = (error) =>
+  (hasProperty(error, "code") && error.code === "ETIMEDOUT") ||
+  (hasProperty(error, "killed") &&
+    error.killed === true &&
+    hasProperty(error, "signal") &&
+    error.signal === "SIGTERM");
+
+const ghFailureReason = (error) => {
+  if (isBufferError(error)) return "GitHub API応答が64MiB上限を超えたため投稿件数を判定できない";
+  if (isTimeoutError(error))
+    return "GitHub API取得が60秒でタイムアウトしたため投稿件数を判定できない";
+  return "GitHub API取得に失敗したため投稿件数を判定できない";
+};
+
+const ghRetrievalError = (error, path) => {
+  return new Error(`${ghFailureReason(error)}: ${path}`, { cause: error });
+};
+
+const getGhPostsOrThrow = (getPosts, path) => {
+  try {
+    return getPosts(path);
+  } catch (error) {
+    throw ghRetrievalError(error, path);
+  }
+};
+
+const getClaudePostCount = (getPosts, repository, prNumber, headSha, since) => {
+  const base = `repos/${repository}/pulls/${prNumber}`;
+  const issueCommentsPath = `repos/${repository}/issues/${prNumber}/comments?since=${encodeURIComponent(since)}`;
+  const reviewsPath = `${base}/reviews`;
+  const reviewCommentsPath = `${base}/comments?since=${encodeURIComponent(since)}`;
+  return countClaudePosts({
+    issueComments: getGhPostsOrThrow(getPosts, issueCommentsPath),
+    reviews: getGhPostsOrThrow(getPosts, reviewsPath),
+    reviewComments: getGhPostsOrThrow(getPosts, reviewCommentsPath),
+    headSha,
+    since,
+  });
 };
 
 const executionDiagnostics = (read, executionFile) => {
@@ -130,16 +178,16 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   const prNumber = environment(PR_NUMBER, "PR_NUMBER");
   const headSha = environment(HEAD_SHA, "HEAD_SHA");
   const since = actionStartedAt(ACTION_STARTED_AT);
-  const base = `repos/${repository}/pulls/${prNumber}`;
-  const count = countClaudePosts({
-    issueComments: getGhPosts(
-      `repos/${repository}/issues/${prNumber}/comments?since=${encodeURIComponent(since)}`,
-    ),
-    reviews: getGhPosts(`${base}/reviews`),
-    reviewComments: getGhPosts(`${base}/comments?since=${encodeURIComponent(since)}`),
-    headSha,
-    since,
-  });
+  let count;
+  try {
+    count = getClaudePostCount(getGhPosts, repository, prNumber, headSha, since);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "GitHub API取得に失敗したため投稿件数を判定できない";
+    summary(append, summaryPath, `- ${message}`);
+    outputNotice(message);
+    throw error;
+  }
   summary(append, summaryPath, `- Claude投稿件数: ${count}`);
   summary(append, summaryPath, `- 診断: ${executionDiagnostics(read, EXECUTION_FILE)}`);
   if (
@@ -153,7 +201,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
     main({
       env: process.env,
-      getGhPosts: gh,
+      getGhPosts,
       append: appendFileSync,
       read: readFileSync,
       outputNotice: notice,
