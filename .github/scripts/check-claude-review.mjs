@@ -4,6 +4,12 @@ import { fileURLToPath } from "node:url";
 
 const BOT_LOGIN = "claude[bot]";
 
+export const CLAUDE_ENABLED_ERROR =
+  'CLAUDE_ENABLED は "true" または "false" である必要があります。workflow の check step と検知stepの配線を確認してください。';
+
+export const MISSING_CLAUDE_POSTS_ERROR =
+  "Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です";
+
 export const headShaMarker = (headSha) => `<!-- claude-review-head-sha:${headSha} -->`;
 
 const environment = (value, name) => {
@@ -50,9 +56,7 @@ export const reviewCheckDecision = ({ outcome, enabled, conclusion, postCount })
 const claudeEnabled = (value) => {
   if (value === "true") return true;
   if (value === "false") return false;
-  throw new Error(
-    'CLAUDE_ENABLED は "true" または "false" である必要があります。workflow の check step と検知stepの配線を確認してください。',
-  );
+  throw new Error(CLAUDE_ENABLED_ERROR);
 };
 
 const actionStartedAt = (value) => {
@@ -71,6 +75,11 @@ const notice = (message) => console.log(`::notice::${message}`);
 const report = (append, path, outputNotice, message) => {
   summary(append, path, `- ${message}`);
   outputNotice(message);
+};
+
+const reportValidationError = (append, summaryPath, outputNotice, error) => {
+  if (error instanceof Error) report(append, summaryPath, outputNotice, error.message);
+  throw error;
 };
 
 const earlyDecisionMessage = (decision) => {
@@ -190,11 +199,7 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   try {
     enabled = claudeEnabled(CLAUDE_ENABLED);
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'CLAUDE_ENABLED は "true" または "false" である必要があります。workflow の check step と検知stepの配線を確認してください。';
-    report(append, summaryPath, outputNotice, message);
+    report(append, summaryPath, outputNotice, CLAUDE_ENABLED_ERROR);
     throw error;
   }
   const decision = reviewCheckDecision({ outcome, enabled, conclusion: CLAUDE_CONCLUSION });
@@ -204,10 +209,18 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
     if (decision === "token-unavailable") throw new Error(message);
     return;
   }
-  const repository = environment(REPOSITORY, "REPOSITORY");
-  const prNumber = environment(PR_NUMBER, "PR_NUMBER");
-  const headSha = environment(HEAD_SHA, "HEAD_SHA");
-  const since = actionStartedAt(ACTION_STARTED_AT);
+  let repository;
+  let prNumber;
+  let headSha;
+  let since;
+  try {
+    repository = environment(REPOSITORY, "REPOSITORY");
+    prNumber = environment(PR_NUMBER, "PR_NUMBER");
+    headSha = environment(HEAD_SHA, "HEAD_SHA");
+    since = actionStartedAt(ACTION_STARTED_AT);
+  } catch (error) {
+    reportValidationError(append, summaryPath, outputNotice, error);
+  }
   let count;
   try {
     count = getClaudePostCount(getGhPosts, repository, prNumber, headSha, since);
@@ -223,7 +236,7 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
     reviewCheckDecision({ outcome, enabled, conclusion: CLAUDE_CONCLUSION, postCount: count }) ===
     "missing-posts"
   )
-    throw new Error("Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です");
+    throw new Error(MISSING_CLAUDE_POSTS_ERROR);
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

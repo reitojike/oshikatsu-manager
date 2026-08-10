@@ -1,10 +1,12 @@
 import { describe, expect, test } from "vitest";
 import {
+  CLAUDE_ENABLED_ERROR,
   countClaudePosts,
   flattenGhPages,
   getGhPosts,
   headShaMarker,
   main,
+  MISSING_CLAUDE_POSTS_ERROR,
   reviewCheckDecision,
 } from "../../.github/scripts/check-claude-review.mjs";
 
@@ -89,9 +91,7 @@ test("main: success時は正しい3 APIを各1回読み、投稿と診断をsumm
 test("main: 投稿が0件なら件数summaryの後に例外を伝播する", () => {
   const { dependencies, ghPaths, reads, summaries } = createDependencies();
 
-  expect(() => main(dependencies)).toThrow(
-    "Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です",
-  );
+  expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
   expect(ghPaths).toEqual(apiPaths());
   expect(reads).toEqual(["execution-path"]);
   expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: num_turns: 1\n"]);
@@ -209,29 +209,47 @@ test("main: timeout固有情報は60秒タイムアウトとして通知し、0�
 });
 
 test.each([
-  ["CLAUDE_OUTCOME", ""],
-  ["GITHUB_STEP_SUMMARY", ""],
-  ["REPOSITORY", ""],
-  ["PR_NUMBER", ""],
-  ["HEAD_SHA", ""],
-  ["ACTION_STARTED_AT", ""],
-  ["ACTION_STARTED_AT", "not-a-timestamp"],
-])("main: 必須環境値 %s の不正をAPI取得前に拒否する", (name, value) => {
+  ["CLAUDE_OUTCOME", "", "CLAUDE_OUTCOME が空です"],
+  ["GITHUB_STEP_SUMMARY", "", "GITHUB_STEP_SUMMARY が空です"],
+])("main: 必須環境値 %s の不正をAPI取得前に拒否する", (name, value, message) => {
   const env = { ...baseEnv, [name]: value };
-  const { dependencies, ghPaths, summaries } = createDependencies({ env });
+  const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
 
-  expect(() => main(dependencies)).toThrow();
+  expect(() => main(dependencies)).toThrow(message);
   expect(ghPaths).toEqual([]);
+  expect(notices).toEqual([]);
   expect(summaries).toEqual([]);
 });
+
+test.each([
+  ["REPOSITORY", "", "REPOSITORY が空です"],
+  ["PR_NUMBER", "", "PR_NUMBER が空です"],
+  ["HEAD_SHA", "", "HEAD_SHA が空です"],
+  ["ACTION_STARTED_AT", "", "ACTION_STARTED_AT が空です"],
+  [
+    "ACTION_STARTED_AT",
+    "not-a-timestamp",
+    "ACTION_STARTED_AT はUTCのRFC 3339時刻である必要があります",
+  ],
+])(
+  "main: summary出力先確定後の必須環境値 %s の不正をAPI取得前に記録して拒否する",
+  (name, value, message) => {
+    const env = { ...baseEnv, [name]: value };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    expect(() => main(dependencies)).toThrow(message);
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([message]);
+    expect(summaries).toEqual([`- ${message}\n`]);
+  },
+);
 
 test.each([undefined, "", "unexpected"])(
   "main: CLAUDE_ENABLEDが%pならAPI取得前に通知して拒否する",
   (enabled) => {
     const env = { ...baseEnv, CLAUDE_ENABLED: enabled };
     const { dependencies, ghPaths, notices, reads, summaries } = createDependencies({ env });
-    const message =
-      'CLAUDE_ENABLED は "true" または "false" である必要があります。workflow の check step と検知stepの配線を確認してください。';
+    const message = CLAUDE_ENABLED_ERROR;
 
     expect(() => main(dependencies)).toThrow(message);
     expect(ghPaths).toEqual([]);
@@ -247,20 +265,20 @@ test.each(["success", "failure", "cancelled", "skipped"])(
     const env = { ...baseEnv, CLAUDE_OUTCOME: outcome, CLAUDE_ENABLED: undefined };
     const { dependencies, ghPaths } = createDependencies({ env });
 
-    expect(() => main(dependencies)).toThrow(
-      'CLAUDE_ENABLED は "true" または "false" である必要があります。workflow の check step と検知stepの配線を確認してください。',
-    );
+    expect(() => main(dependencies)).toThrow(CLAUDE_ENABLED_ERROR);
     expect(ghPaths).toEqual([]);
   },
 );
 
-test("main: 正規表現を通る不可能な開始時刻をAPI取得前に拒否する", () => {
+test("main: 正規表現を通る不可能な開始時刻をAPI取得前に記録して拒否する", () => {
   const env = { ...baseEnv, ACTION_STARTED_AT: "2026-13-45T00:00:00Z" };
-  const { dependencies, ghPaths, summaries } = createDependencies({ env });
+  const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+  const message = "ACTION_STARTED_AT は有効な時刻である必要があります";
 
-  expect(() => main(dependencies)).toThrow("ACTION_STARTED_AT は有効な時刻である必要があります");
+  expect(() => main(dependencies)).toThrow(message);
   expect(ghPaths).toEqual([]);
-  expect(summaries).toEqual([]);
+  expect(notices).toEqual([message]);
+  expect(summaries).toEqual([`- ${message}\n`]);
 });
 
 test.each([undefined, ""])(
@@ -269,9 +287,7 @@ test.each([undefined, ""])(
     const env = { ...baseEnv, EXECUTION_FILE: executionFile };
     const { dependencies, reads, summaries } = createDependencies({ env });
 
-    expect(() => main(dependencies)).toThrow(
-      "Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です",
-    );
+    expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
 
     expect(reads).toEqual([]);
     expect(summaries).toEqual([
@@ -287,7 +303,7 @@ test.each([
 ])("main: 診断%sは読めないと書く", (_caseName, readResult, readError) => {
   const { dependencies, summaries } = createDependencies({ readError, readResult });
 
-  expect(() => main(dependencies)).toThrow();
+  expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
   expect(summaries).toEqual([
     "- Claude投稿件数: 0\n",
     "- 診断: 実行診断ファイルを読めませんでした。\n",
@@ -302,7 +318,7 @@ test("main: 診断配列は末尾から診断要素を探し、後方の非診�
   ]);
   const { dependencies, summaries } = createDependencies({ readResult: diagnostics });
 
-  expect(() => main(dependencies)).toThrow();
+  expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
   expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: permission_denials_count: 2\n"]);
 });
 
@@ -311,7 +327,7 @@ test.each(["{}", JSON.stringify([{ ignored: true }])])(
   (readResult) => {
     const { dependencies, summaries } = createDependencies({ readResult });
 
-    expect(() => main(dependencies)).toThrow();
+    expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
     expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: 実行診断値はありません。\n"]);
   },
 );
@@ -325,9 +341,7 @@ test("main: headと開始時刻を投稿フィルタに渡し、別headと開始
   ]);
   const { dependencies, summaries } = createDependencies({ posts });
 
-  expect(() => main(dependencies)).toThrow(
-    "Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です",
-  );
+  expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
   expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: num_turns: 1\n"]);
 });
 
