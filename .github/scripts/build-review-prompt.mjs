@@ -144,14 +144,22 @@ export const outputEntry = (name, value, createUuid = createDefaultUuid) => {
 const escapeHtml = (value) =>
   value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
+const escapeSummaryFileName = (file) =>
+  escapeHtml(file)
+    .replaceAll("`", "&#96;")
+    .replaceAll("\r\n", "⏎")
+    .replaceAll("\r", "⏎")
+    .replaceAll("\n", "⏎");
+
 export const buildSummary = ({ baseSha, headSha, files, classifications, prompt }) => {
-  const displayFiles = files.map((file) => `\`${escapeHtml(file)}\``).join(", ");
+  const displayFiles = files.map(escapeSummaryFileName).join("\n");
   return [
     "## Claude Review prompt",
     "",
     `- Base SHA: \`${baseSha}\``,
     `- Head SHA: \`${headSha}\``,
-    `- Changed files: ${displayFiles}`,
+    "- Changed files:",
+    `<pre>${displayFiles}</pre>`,
     `- Classifications: ${classifications.join(", ")}`,
     "",
     "<details><summary>組み立てたprompt</summary>",

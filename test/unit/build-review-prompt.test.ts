@@ -106,14 +106,19 @@ test("heredoc区切りが本文と衝突したときは再生成する", () => {
   );
 });
 
-test("summary内の変更ファイル名をHTMLエスケープする", () => {
+test("summary内の悪意ある変更ファイル名がMarkdownまたはHTML構造を作れない", () => {
   const summary = buildSummary({
     baseSha: "base",
     headSha: "head",
-    files: ["<script>&`\n- 偽の項目"],
+    files: ["<script>&`\n## 偽の見出し\n- 偽の項目"],
     classifications: ["automation-config"],
     prompt: "prompt",
   });
 
-  expect(summary).toContain("`&lt;script&gt;&amp;`\n- 偽の項目`");
+  expect(summary).toContain(
+    "- Changed files:\n<pre>&lt;script&gt;&amp;&#96;⏎## 偽の見出し⏎- 偽の項目</pre>",
+  );
+  expect(summary).not.toContain("<script>");
+  expect(summary).not.toContain("`\n## 偽の見出し");
+  expect(summary).not.toContain("\n- 偽の項目");
 });
