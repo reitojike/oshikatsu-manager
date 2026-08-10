@@ -48,7 +48,14 @@ export const countBotPostsSince = ({ issueComments, reviews, reviewComments, sin
 export const countClaudePosts = ({ issueComments, reviews, reviewComments, headSha, since }) => {
   const sinceEpoch = Date.parse(since);
   const afterActionStarted = (entry) => afterStarted(entry, sinceEpoch);
+  // reviewの commit_id は提出時のheadのまま動かない。
   const isHeadReview = (entry) => entry.commit_id === headSha;
+  // review commentの commit_id は、コメントがoutdatedにならない限りGitHubが最新headへ
+  // 書き換える。実測(PR #151): 11:48:31Zに作成されたclaude[bot]のreview commentが
+  // original_commit_id=b61052c8 のまま commit_id=98b206fe(当時の最新head)を返した。
+  // commit_id で固定すると「outdatedでない」しか意味せず、head固定が実質無効になる。
+  // 安定しているのは original_commit_id。
+  const isHeadReviewComment = (entry) => (entry.original_commit_id ?? entry.commit_id) === headSha;
   const isHeadIssueComment = (entry) =>
     typeof entry.body === "string" && entry.body.includes(headShaMarker(headSha));
   return [
@@ -57,7 +64,7 @@ export const countClaudePosts = ({ issueComments, reviews, reviewComments, headS
     ),
     reviews.filter((entry) => isBot(entry) && isHeadReview(entry) && afterActionStarted(entry)),
     reviewComments.filter(
-      (entry) => isBot(entry) && isHeadReview(entry) && afterActionStarted(entry),
+      (entry) => isBot(entry) && isHeadReviewComment(entry) && afterActionStarted(entry),
     ),
   ].reduce((total, entries) => total + entries.length, 0);
 };
@@ -96,6 +103,25 @@ const claudeEnabled = (value) => {
   if (value === "true") return true;
   if (value === "false") return false;
   throw new Error(CLAUDE_ENABLED_ERROR);
+};
+
+// 形式を検証しないと、配線を間違えて head_ref(ブランチ名)やPR番号でない値を渡しても
+// 「投稿0件」または「マーカー不一致」として赤くなり、原因が入力側だと読めない。
+// ACTION_STARTED_AT に regex + Date.parse ガードを置いたのと同じ理由。
+const headShaEnvironment = (value) => {
+  const headSha = environment(value, "HEAD_SHA");
+  if (!/^[0-9a-f]{40}$/.test(headSha)) {
+    throw new Error("HEAD_SHA は40桁の小文字16進数である必要があります");
+  }
+  return headSha;
+};
+
+const prNumberEnvironment = (value) => {
+  const prNumber = environment(value, "PR_NUMBER");
+  if (!/^[1-9]\d*$/.test(prNumber)) {
+    throw new Error("PR_NUMBER は正の整数である必要があります");
+  }
+  return prNumber;
 };
 
 const actionStartedAt = (value) => {
@@ -295,8 +321,8 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   let since;
   try {
     repository = environment(REPOSITORY, "REPOSITORY");
-    prNumber = environment(PR_NUMBER, "PR_NUMBER");
-    headSha = environment(HEAD_SHA, "HEAD_SHA");
+    prNumber = prNumberEnvironment(PR_NUMBER);
+    headSha = headShaEnvironment(HEAD_SHA);
     since = actionStartedAt(ACTION_STARTED_AT);
   } catch (error) {
     reportValidationError(append, summaryPath, outputNotice, error);

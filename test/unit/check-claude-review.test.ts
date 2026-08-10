@@ -12,7 +12,8 @@ import {
   reviewCheckDecision,
 } from "../../.github/scripts/check-claude-review.mjs";
 
-const headSha = "abc123";
+const headSha = "abc1230000000000000000000000000000000000";
+const otherHead = "def4560000000000000000000000000000000000";
 const since = "2026-08-10T01:00:00Z";
 const bot = { login: "claude[bot]" };
 const baseEnv = {
@@ -245,6 +246,15 @@ test.each([
     "not-a-timestamp",
     "ACTION_STARTED_AT はUTCのRFC 3339時刻である必要があります",
   ],
+  // 配線を間違えて head_ref(ブランチ名)やPR番号でない値を渡したとき、
+  // 「投稿0件」や「マーカー不一致」ではなく入力の不正として落とす
+  ["HEAD_SHA", "main", "HEAD_SHA は40桁の小文字16進数である必要があります"],
+  ["HEAD_SHA", ` ${headSha}`, "HEAD_SHA は40桁の小文字16進数である必要があります"],
+  ["HEAD_SHA", headSha.toUpperCase(), "HEAD_SHA は40桁の小文字16進数である必要があります"],
+  ["HEAD_SHA", headSha.slice(0, 7), "HEAD_SHA は40桁の小文字16進数である必要があります"],
+  ["PR_NUMBER", "abc", "PR_NUMBER は正の整数である必要があります"],
+  ["PR_NUMBER", "0", "PR_NUMBER は正の整数である必要があります"],
+  ["PR_NUMBER", "-1", "PR_NUMBER は正の整数である必要があります"],
 ])(
   "main: summary出力先確定後の必須環境値 %s の不正をAPI取得前に記録して拒否する",
   (name, value, message) => {
@@ -405,6 +415,64 @@ test("main: bot投稿が1件も無いときはマーカー不一致ではなく�
   expect(notices).toEqual([MISSING_CLAUDE_POSTS_ERROR]);
 });
 
+describe("review commentのhead固定", () => {
+  // GitHubはoutdatedでないreview commentの commit_id を最新headへ書き換える。
+  // 実測(PR #151): original_commit_id=b61052c8 のまま commit_id=98b206fe を返した。
+  test("commit_idが最新headへ書き換えられた過去runのコメントを数えない", () => {
+    expect(
+      countClaudePosts({
+        issueComments: [],
+        reviews: [],
+        // 書き換え後の姿。commit_id だけ見ると一致してしまう
+        reviewComments: [
+          { user: bot, commit_id: headSha, original_commit_id: otherHead, created_at: since },
+        ],
+        headSha,
+        since,
+      }),
+    ).toBe(0);
+  });
+
+  test("original_commit_idが対象headなら、commit_idが先へ進んでいても数える", () => {
+    expect(
+      countClaudePosts({
+        issueComments: [],
+        reviews: [],
+        reviewComments: [
+          { user: bot, commit_id: otherHead, original_commit_id: headSha, created_at: since },
+        ],
+        headSha,
+        since,
+      }),
+    ).toBe(1);
+  });
+
+  test("original_commit_idが無い応答では commit_id へフォールバックする", () => {
+    expect(
+      countClaudePosts({
+        issueComments: [],
+        reviews: [],
+        reviewComments: [{ user: bot, commit_id: headSha, created_at: since }],
+        headSha,
+        since,
+      }),
+    ).toBe(1);
+  });
+
+  test("reviewは commit_id が動かないので original_commit_id を見ない", () => {
+    expect(
+      countClaudePosts({
+        issueComments: [],
+        // reviewに original_commit_id は無い。commit_id 一致だけで数える
+        reviews: [{ user: bot, commit_id: headSha, submitted_at: since }],
+        reviewComments: [],
+        headSha,
+        since,
+      }),
+    ).toBe(1);
+  });
+});
+
 describe("countBotPostsSince", () => {
   test("マーカーとcommit_idを見ず、開始時刻以降のbot投稿を3種類とも数える", () => {
     expect(
@@ -443,15 +511,12 @@ describe("countBotPostsSince", () => {
 test("main: 可変headと開始時刻の対象投稿を数える", () => {
   const env = {
     ...baseEnv,
-    HEAD_SHA: "new-head",
+    HEAD_SHA: otherHead,
     ACTION_STARTED_AT: "2026-08-10T02:00:00Z",
   };
   const issuePath = "repos/owner/repository/issues/42/comments?since=2026-08-10T02%3A00%3A00Z";
   const posts = new Map([
-    [
-      issuePath,
-      [{ user: bot, body: headShaMarker("new-head"), created_at: env.ACTION_STARTED_AT }],
-    ],
+    [issuePath, [{ user: bot, body: headShaMarker(otherHead), created_at: env.ACTION_STARTED_AT }]],
   ]);
   const { dependencies, summaries } = createDependencies({ env, posts });
 
