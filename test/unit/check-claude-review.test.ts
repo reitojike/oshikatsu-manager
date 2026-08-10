@@ -1,11 +1,13 @@
 import { describe, expect, test } from "vitest";
 import {
   CLAUDE_ENABLED_ERROR,
+  countBotPostsSince,
   countClaudePosts,
   flattenGhPages,
   getGhPosts,
   headShaMarker,
   main,
+  MARKER_MISSING_ERROR,
   MISSING_CLAUDE_POSTS_ERROR,
   reviewCheckDecision,
 } from "../../.github/scripts/check-claude-review.mjs";
@@ -96,7 +98,11 @@ test("main: 投稿が0件なら件数summaryの後に例外を伝播する", () 
   expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
   expect(ghPaths).toEqual(apiPaths());
   expect(reads).toEqual(["execution-path"]);
-  expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: num_turns: 1\n"]);
+  expect(summaries).toEqual([
+    "- Claude投稿件数: 0\n",
+    "- 診断: num_turns: 1\n",
+    `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
+  ]);
 });
 
 test.each([
@@ -301,6 +307,7 @@ test.each([undefined, ""])(
     expect(summaries).toEqual([
       "- Claude投稿件数: 0\n",
       "- 診断: 実行診断ファイルはありません。\n",
+      `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
     ]);
   },
 );
@@ -315,6 +322,7 @@ test.each([
   expect(summaries).toEqual([
     "- Claude投稿件数: 0\n",
     "- 診断: 実行診断ファイルを読めませんでした。\n",
+    `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
   ]);
 });
 
@@ -327,7 +335,11 @@ test("main: 診断配列は末尾から診断要素を探し、後方の非診�
   const { dependencies, summaries } = createDependencies({ readResult: diagnostics });
 
   expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
-  expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: permission_denials_count: 2\n"]);
+  expect(summaries).toEqual([
+    "- Claude投稿件数: 0\n",
+    "- 診断: permission_denials_count: 2\n",
+    `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
+  ]);
 });
 
 test.each(["{}", JSON.stringify([{ ignored: true }])])(
@@ -336,7 +348,11 @@ test.each(["{}", JSON.stringify([{ ignored: true }])])(
     const { dependencies, summaries } = createDependencies({ readResult });
 
     expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
-    expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: 実行診断値はありません。\n"]);
+    expect(summaries).toEqual([
+      "- Claude投稿件数: 0\n",
+      "- 診断: 実行診断値はありません。\n",
+      `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
+    ]);
   },
 );
 
@@ -349,8 +365,79 @@ test("main: headと開始時刻を投稿フィルタに渡し、別headと開始
   ]);
   const { dependencies, summaries } = createDependencies({ posts });
 
+  // 開始時刻以降のbot投稿は存在する(別head向け)ので、原因はマーカー不一致側になる
+  expect(() => main(dependencies)).toThrow(MARKER_MISSING_ERROR);
+  expect(summaries).toEqual([
+    "- Claude投稿件数: 0\n",
+    "- 診断: num_turns: 1\n",
+    `- ${MARKER_MISSING_ERROR}\n`,
+  ]);
+});
+
+test("main: マーカーだけが無い投稿は、無投稿ではなくマーカー不一致として失敗する", () => {
+  const [issuePath] = apiPaths();
+  const posts = new Map([
+    [issuePath, [{ user: bot, body: "総評(マーカー無し)", created_at: since }]],
+  ]);
+  const { dependencies, notices, summaries } = createDependencies({ posts });
+
+  expect(() => main(dependencies)).toThrow(MARKER_MISSING_ERROR);
+  expect(notices).toEqual([MARKER_MISSING_ERROR]);
+  expect(summaries).toEqual([
+    "- Claude投稿件数: 0\n",
+    "- 診断: num_turns: 1\n",
+    `- ${MARKER_MISSING_ERROR}\n`,
+  ]);
+});
+
+test("main: bot投稿が1件も無いときはマーカー不一致ではなく無投稿として失敗する", () => {
+  const [issuePath] = apiPaths();
+  // 開始時刻以降の投稿はあるが、bot以外なので切り分け用の件数にも入らない
+  const posts = new Map([
+    [
+      issuePath,
+      [{ user: { login: "reitojike" }, body: headShaMarker(headSha), created_at: since }],
+    ],
+  ]);
+  const { dependencies, notices } = createDependencies({ posts });
+
   expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
-  expect(summaries).toEqual(["- Claude投稿件数: 0\n", "- 診断: num_turns: 1\n"]);
+  expect(notices).toEqual([MISSING_CLAUDE_POSTS_ERROR]);
+});
+
+describe("countBotPostsSince", () => {
+  test("マーカーとcommit_idを見ず、開始時刻以降のbot投稿を3種類とも数える", () => {
+    expect(
+      countBotPostsSince({
+        issueComments: [{ user: bot, body: "マーカー無し", created_at: since }],
+        reviews: [{ user: bot, commit_id: "other", submitted_at: since }],
+        reviewComments: [{ user: bot, created_at: since }],
+        since,
+      }),
+    ).toBe(3);
+  });
+
+  test("開始時刻より前・bot以外・user未定義は数えない", () => {
+    expect(
+      countBotPostsSince({
+        issueComments: [{ user: bot, created_at: "2026-08-10T00:59:59Z" }],
+        reviews: [{ user: { login: "coderabbitai[bot]" }, submitted_at: since }],
+        reviewComments: [{ created_at: since }],
+        since,
+      }),
+    ).toBe(0);
+  });
+
+  test("日時が文字列でない投稿は数えない", () => {
+    expect(
+      countBotPostsSince({
+        issueComments: [{ user: bot, created_at: 20260810 }],
+        reviews: [],
+        reviewComments: [],
+        since,
+      }),
+    ).toBe(0);
+  });
 });
 
 test("main: 可変headと開始時刻の対象投稿を数える", () => {
