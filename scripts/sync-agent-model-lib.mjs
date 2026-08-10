@@ -1,4 +1,4 @@
-import { isAbsolute } from "node:path";
+import { posix, win32 } from "node:path";
 
 const PROJECT_ID = "PVT_kwHOAzvh3c4BfeaM";
 const PROJECT_OWNER = "reitojike";
@@ -20,6 +20,9 @@ const ghCandidates = (platform) => {
   if (platform === "linux") return ["/usr/bin/gh", "/usr/local/bin/gh"];
   return [];
 };
+
+const isAbsolutePath = (platform, path) =>
+  platform === "win32" ? win32.isAbsolute(path) : posix.isAbsolute(path);
 
 const optionValue = (options, argument, value) => {
   if (argument === "--issue") return { ...options, issue: value };
@@ -50,7 +53,7 @@ export const parseArguments = (args) => {
 
 export const resolveGhPath = ({ configuredPath, platform, exists }) => {
   if (configuredPath !== undefined) {
-    if (!isAbsolute(configuredPath) || !exists(configuredPath))
+    if (!isAbsolutePath(platform, configuredPath) || !exists(configuredPath))
       throw new Error("STAGE_TRACKER_GH_PATH must be an existing absolute path to gh");
     return configuredPath;
   }

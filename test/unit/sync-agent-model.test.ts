@@ -84,6 +84,16 @@ describe("resolveGhPath", () => {
     ).toBe("C:\\tools\\gh.exe");
   });
 
+  it("rejects a Windows configured path for Linux", () => {
+    expect(() =>
+      resolveGhPath({
+        configuredPath: "C:\\tools\\gh.exe",
+        platform: "linux",
+        exists: () => true,
+      }),
+    ).toThrow("STAGE_TRACKER_GH_PATH must be an existing absolute path to gh");
+  });
+
   it("checks platform candidates in order", () => {
     const exists = vi.fn((path: string) => path === "/opt/homebrew/bin/gh");
     expect(resolveGhPath({ configuredPath: undefined, platform: "darwin", exists })).toBe(
