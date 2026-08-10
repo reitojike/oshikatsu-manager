@@ -172,26 +172,26 @@ export const buildSummary = ({ baseSha, headSha, files, classifications, prompt 
 
 const git = (args) => execFileSync("git", args, { maxBuffer: 64 * 1024 * 1024 });
 
-const main = () => {
-  const { BASE_SHA, HEAD_SHA, REVIEW_FULL, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY } = process.env;
+export const main = ({ environment, runGit, appendFile }) => {
+  const { BASE_SHA, HEAD_SHA, REVIEW_FULL, GITHUB_OUTPUT, GITHUB_STEP_SUMMARY } = environment;
   const baseSha = nonEmptyEnvironment(BASE_SHA, "BASE_SHA");
   const headSha = nonEmptyEnvironment(HEAD_SHA, "HEAD_SHA");
   const outputPath = nonEmptyEnvironment(GITHUB_OUTPUT, "GITHUB_OUTPUT");
   const summaryPath = nonEmptyEnvironment(GITHUB_STEP_SUMMARY, "GITHUB_STEP_SUMMARY");
-  const files = splitNul(git(["diff", "--name-only", "--no-renames", "-z", baseSha, headSha]));
+  const files = splitNul(runGit(["diff", "--name-only", "--no-renames", "-z", baseSha, headSha]));
   const classifications = classifyChangedFiles(files, REVIEW_FULL === "true");
-  const agents = git(["show", `${baseSha}:AGENTS.md`]).toString("utf8");
+  const agents = runGit(["show", `${baseSha}:AGENTS.md`]).toString("utf8");
   const prompt = buildPrompt(agents, classifications);
-  appendFileSync(
+  appendFile(
     outputPath,
     outputEntry("prompt", prompt) + outputEntry("classifications", classifications.join(",")),
   );
-  appendFileSync(summaryPath, buildSummary({ baseSha, headSha, files, classifications, prompt }));
+  appendFile(summaryPath, buildSummary({ baseSha, headSha, files, classifications, prompt }));
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    main();
+    main({ environment: process.env, runGit: git, appendFile: appendFileSync });
   } catch (error) {
     console.error(error instanceof Error ? error.message : "Build review prompt: 不明なエラーです");
     process.exitCode = 1;

@@ -3,6 +3,7 @@ import {
   buildPrompt,
   buildSummary,
   classifyChangedFiles,
+  main,
   outputEntry,
 } from "../../.github/scripts/build-review-prompt.mjs";
 
@@ -95,6 +96,46 @@ describe("buildPrompt", () => {
       "共通部分が空です",
     );
   });
+});
+
+test("mainはbase SHAのAGENTS.mdとbaseからheadへの差分を使う", () => {
+  const gitCalls: string[][] = [];
+  const appended: Array<{ path: string; value: string }> = [];
+  const baseSha = "base-sha";
+  const headSha = "head-sha";
+  const runGit = (arguments_: string[]) => {
+    gitCalls.push(arguments_);
+    if (arguments_[0] === "diff") return Buffer.from("docs/prd.md\0", "utf8");
+    return Buffer.from(agents, "utf8");
+  };
+  const appendFile = (path: string, value: string) => {
+    appended.push({ path, value });
+  };
+
+  main({
+    environment: {
+      BASE_SHA: baseSha,
+      HEAD_SHA: headSha,
+      REVIEW_FULL: "true",
+      GITHUB_OUTPUT: "test-output",
+      GITHUB_STEP_SUMMARY: "test-summary",
+    },
+    runGit,
+    appendFile,
+  });
+
+  expect(gitCalls).toContainEqual(["show", "base-sha:AGENTS.md"]);
+  expect(gitCalls).not.toContainEqual(["show", "head-sha:AGENTS.md"]);
+  expect(gitCalls).toContainEqual([
+    "diff",
+    "--name-only",
+    "--no-renames",
+    "-z",
+    "base-sha",
+    "head-sha",
+  ]);
+  expect(appended).toHaveLength(2);
+  expect(appended.map(({ path }) => path)).toEqual(["test-output", "test-summary"]);
 });
 
 test("heredoc区切りが本文と衝突したときは再生成する", () => {
