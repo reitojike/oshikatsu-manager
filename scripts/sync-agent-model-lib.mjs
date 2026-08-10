@@ -132,6 +132,26 @@ const updateModelField = (runGh, itemId, optionId) => {
   ]);
 };
 
+const clearModelField = (runGh, itemId) => {
+  const query = `mutation($project:ID!,$item:ID!,$field:ID!){
+    clearProjectV2ItemFieldValue(input:{projectId:$project,itemId:$item,fieldId:$field}){
+      projectV2Item{id}
+    }
+  }`;
+  runGh([
+    "api",
+    "graphql",
+    "-f",
+    `query=${query}`,
+    "-f",
+    `project=${PROJECT_ID}`,
+    "-f",
+    `item=${itemId}`,
+    "-f",
+    `field=${MODEL_FIELD_ID}`,
+  ]);
+};
+
 const verify = (runGh, options, expectedLabel, expectedModel) => {
   const labels = agentLabels(getIssue(runGh, options.repo, options.issue).labels);
   if (labels.length !== 1 || labels[0] !== expectedLabel)
@@ -153,6 +173,40 @@ const rollbackLabels = (runGh, options, originalLabels, attemptedLabel) => {
   }
 };
 
+const optionForModelName = (modelName) =>
+  [...MODEL_OPTIONS.values()].find((option) => option.name === modelName);
+
+const rollbackModel = (runGh, itemId, originalModel, attemptedModel) => {
+  try {
+    if (originalModel === undefined || originalModel === "") {
+      clearModelField(runGh, itemId);
+      return;
+    }
+    const originalOption = optionForModelName(originalModel);
+    if (originalOption === undefined) throw new Error("original Model option is unknown");
+    updateModelField(runGh, itemId, originalOption.id);
+  } catch (rollbackError) {
+    throw new Error(
+      `Model rollback failed: original=${JSON.stringify(originalModel)}, attempted=${attemptedModel}; ${errorMessage(rollbackError)}`,
+    );
+  }
+};
+
+const rollbackChanges = (runGh, options, item, originalLabels, attemptedLabel, attemptedModel) => {
+  const failures = [];
+  try {
+    rollbackModel(runGh, item.id, item.model, attemptedModel);
+  } catch (error) {
+    failures.push(errorMessage(error));
+  }
+  try {
+    rollbackLabels(runGh, options, originalLabels, attemptedLabel);
+  } catch (error) {
+    failures.push(errorMessage(error));
+  }
+  return failures;
+};
+
 export const syncAgentModel = (options, { runGh, log }) => {
   const label = `agent:${options.agent}`;
   const modelOption = MODEL_OPTIONS.get(options.agent);
@@ -170,7 +224,16 @@ export const syncAgentModel = (options, { runGh, log }) => {
     updateModelField(runGh, item.id, modelOption.id);
     verify(runGh, options, label, modelOption.name);
   } catch (error) {
-    rollbackLabels(runGh, options, originalLabels, label);
+    const rollbackFailures = rollbackChanges(
+      runGh,
+      options,
+      item,
+      originalLabels,
+      label,
+      modelOption.name,
+    );
+    if (rollbackFailures.length > 0)
+      throw new Error(`${errorMessage(error)}; ${rollbackFailures.join("; ")}`);
     throw error;
   }
   log(

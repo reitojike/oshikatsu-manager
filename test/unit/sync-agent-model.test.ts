@@ -15,13 +15,34 @@ const options = {
 
 type MockState = {
   labels: string[];
-  model: string;
+  model?: string;
   registered?: boolean;
   failModelUpdate?: boolean;
+  failModelRollback?: boolean;
 };
+
+const modelNames = new Map([
+  ["8e1daf94", "Sol"],
+  ["c992ffb2", "Terra"],
+]);
 
 const valuesAfter = (args: string[], flag: string) =>
   args.flatMap((argument, index) => (args[index - 1] === flag ? [argument] : []));
+
+const updateMockModel = (state: MockState, args: string[]) => {
+  const query = args.find((argument) => argument.startsWith("query="));
+  const optionArgument = args.find((argument) => argument.startsWith("option="));
+  const optionId = optionArgument?.slice("option=".length);
+  if (query?.includes("clearProjectV2ItemFieldValue") === true) {
+    if (state.failModelRollback === true) throw new Error("model rollback mutation failed");
+    state.model = undefined;
+    return;
+  }
+  if (state.failModelUpdate === true) throw new Error("model update failed");
+  if (state.failModelRollback === true && state.model === "Sol")
+    throw new Error("model rollback mutation failed");
+  state.model = optionId === undefined ? "Sol" : modelNames.get(optionId);
+};
 
 const createRunGh = (state: MockState) =>
   vi.fn((args: string[]) => {
@@ -47,8 +68,7 @@ const createRunGh = (state: MockState) =>
       return "";
     }
     if (args[0] === "api") {
-      if (state.failModelUpdate === true) throw new Error("model update failed");
-      state.model = "Sol";
+      updateMockModel(state, args);
       return "";
     }
     throw new Error(`unexpected command: ${args.join(" ")}`);
@@ -170,8 +190,81 @@ describe("syncAgentModel verification", () => {
     });
     expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(expected);
     expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Terra");
   });
 
+  it("rolls both values back after the Model update succeeds and verification fails", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let projectReads = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "project" && args[1] === "item-list" && ++projectReads === 2) {
+        state.model = "Unexpected";
+      }
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      "Project Model verification failed",
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Terra");
+  });
+});
+
+describe("syncAgentModel Model rollback failures", () => {
+  it("clears the Model during rollback when it was originally unset", () => {
+    const state: MockState = { labels: ["agent:terra"], model: undefined };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
+        state.labels = ["agent:sol", "agent:terra"];
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      "agent label verification failed",
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBeUndefined();
+  });
+
+  it("reports both the original error and Model rollback details when rollback fails", () => {
+    const state = {
+      labels: ["agent:terra"],
+      model: "Terra",
+      failModelRollback: true,
+    };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
+        state.labels = ["agent:sol", "agent:terra"];
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'agent label verification failed; Model rollback failed: original="Terra", attempted=Sol; model rollback mutation failed',
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+  });
+
+  it("reports an unknown original Model without guessing a replacement", () => {
+    const state = { labels: ["agent:terra"], model: "Custom" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
+        state.labels = ["agent:sol", "agent:terra"];
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'agent label verification failed; Model rollback failed: original="Custom", attempted=Sol; original Model option is unknown',
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Sol");
+  });
+});
+
+describe("syncAgentModel dry-run", () => {
   it("does not run update commands in dry-run mode", () => {
     const runGh = createRunGh({ labels: [], model: "" });
     const log = vi.fn();
