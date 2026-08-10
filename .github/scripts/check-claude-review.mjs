@@ -12,17 +12,20 @@ export const MISSING_CLAUDE_POSTS_ERROR =
 
 export const headShaMarker = (headSha) => `<!-- claude-review-head-sha:${headSha} -->`;
 
+// 文字列前提で trim() を呼ぶと、非文字列が来たときTypeErrorになって「空です」に化ける。
+// 赤くはなるが原因が読めないので、型ごと明示的に弾く。
 const environment = (value, name) => {
-  if (value === undefined || value.trim() === "") throw new Error(`${name} が空です`);
+  if (typeof value !== "string" || value.trim() === "") throw new Error(`${name} が空です`);
   return value;
 };
 
 export const countClaudePosts = ({ issueComments, reviews, reviewComments, headSha, since }) => {
   const isBot = (entry) => entry.user?.login === BOT_LOGIN;
+  const sinceEpoch = Date.parse(since);
   const afterActionStarted = (entry) => {
     const created = entry.created_at ?? entry.submitted_at;
     if (typeof created !== "string") return false;
-    return Date.parse(created) >= Date.parse(since);
+    return Date.parse(created) >= sinceEpoch;
   };
   const isHeadReview = (entry) => entry.commit_id === headSha;
   const isHeadIssueComment = (entry) =>

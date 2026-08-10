@@ -32,7 +32,9 @@ const createDependencies = ({
   readError,
   readResult = JSON.stringify({ num_turns: 1 }),
 }: {
-  env?: Record<string, string | undefined>;
+  // 非文字列を渡す否定側テストがあるため unknown にする(process.env は文字列だけだが、
+  // 依存注入の境界に非文字列が来たときに「空です」へ化けないことを固定する)
+  env?: Record<string, unknown>;
   posts?: Map<string, unknown[]>;
   ghError?: Error;
   readError?: Error;
@@ -214,6 +216,9 @@ test("main: timeout固有情報は60秒タイムアウトとして通知し、0�
 test.each([
   ["CLAUDE_OUTCOME", "", "CLAUDE_OUTCOME が空です"],
   ["GITHUB_STEP_SUMMARY", "", "GITHUB_STEP_SUMMARY が空です"],
+  // 非文字列。trim() のTypeErrorへ化けず、所定のメッセージで落ちることを固定する
+  ["CLAUDE_OUTCOME", 123, "CLAUDE_OUTCOME が空です"],
+  ["GITHUB_STEP_SUMMARY", {}, "GITHUB_STEP_SUMMARY が空です"],
 ])("main: 必須環境値 %s の不正をAPI取得前に拒否する", (name, value, message) => {
   const env = { ...baseEnv, [name]: value };
   const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
