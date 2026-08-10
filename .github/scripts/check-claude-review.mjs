@@ -32,13 +32,27 @@ export const countClaudePosts = ({ issueComments, reviews, reviewComments, headS
   ].reduce((total, entries) => total + entries.length, 0);
 };
 
-export const reviewCheckDecision = ({ outcome, conclusion, postCount }) => {
-  if (outcome === "skipped") return "skipped";
+export const reviewCheckDecision = ({ outcome, enabled, conclusion, postCount }) => {
+  if (typeof enabled !== "boolean") {
+    throw new Error(
+      "reviewCheckDecision の enabled 引数は boolean である必要があります。呼び出し元で環境値を boolean に正規化してください。",
+    );
+  }
+  if (outcome === "skipped") return enabled === true ? "skipped-cancelled" : "token-unavailable";
   if (outcome === "failure") return "failure";
+  if (outcome === "cancelled") return "cancelled";
   if (outcome !== "success") throw new Error(`未知のCLAUDE_OUTCOMEです: ${outcome}`);
   if (conclusion === undefined || conclusion === "") return "validation-skipped";
   if (postCount === undefined) return "check-posts";
   return postCount === 0 ? "missing-posts" : "posts-found";
+};
+
+const claudeEnabled = (value) => {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(
+    'CLAUDE_ENABLED は "true" または "false" である必要があります。workflow の check step と検知stepの配線を確認してください。',
+  );
 };
 
 const actionStartedAt = (value) => {
@@ -54,6 +68,24 @@ const actionStartedAt = (value) => {
 
 const summary = (append, path, message) => append(path, `${message}\n`);
 const notice = (message) => console.log(`::notice::${message}`);
+const report = (append, path, outputNotice, message) => {
+  summary(append, path, `- ${message}`);
+  outputNotice(message);
+};
+
+const earlyDecisionMessage = (decision) => {
+  if (decision === "skipped-cancelled")
+    return "Claude actionは実行制御上キャンセル相当でスキップされたため、投稿件数判定は行わず、既存のキャンセル状態を維持します。";
+  if (decision === "token-unavailable")
+    return "CLAUDE_CODE_OAUTH_TOKEN が利用できないため Claude action は実行されませんでした。claude setup-token でトークンを発行し、リポジトリシークレット CLAUDE_CODE_OAUTH_TOKEN に追加してください。";
+  if (decision === "failure")
+    return "Claude actionが失敗したため投稿件数判定は対象外です。元stepの失敗を維持します。";
+  if (decision === "cancelled")
+    return "Claude actionがキャンセルされたため投稿件数判定は行わず、既存のキャンセル状態を維持します。";
+  if (decision === "validation-skipped")
+    return "Claude actionはworkflow validation skipでした。投稿件数判定は機械では行えません。";
+  return undefined;
+};
 
 export const flattenGhPages = (pages) => {
   if (!Array.isArray(pages)) {
@@ -143,6 +175,7 @@ const executionDiagnostics = (read, executionFile) => {
 export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   const {
     CLAUDE_OUTCOME,
+    CLAUDE_ENABLED,
     CLAUDE_CONCLUSION,
     REPOSITORY,
     PR_NUMBER,
@@ -153,25 +186,22 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   } = env;
   const outcome = environment(CLAUDE_OUTCOME, "CLAUDE_OUTCOME");
   const summaryPath = environment(GITHUB_STEP_SUMMARY, "GITHUB_STEP_SUMMARY");
-  const decision = reviewCheckDecision({ outcome, conclusion: CLAUDE_CONCLUSION });
-  if (decision === "skipped") {
-    const message = "Claude actionは未実行です。投稿件数判定は行いません。";
-    summary(append, summaryPath, `- ${message}`);
-    outputNotice(message);
-    return;
-  }
-  if (decision === "failure") {
+  let enabled;
+  try {
+    enabled = claudeEnabled(CLAUDE_ENABLED);
+  } catch (error) {
     const message =
-      "Claude actionが失敗したため投稿件数判定は対象外です。元stepの失敗を維持します。";
-    summary(append, summaryPath, `- ${message}`);
-    outputNotice(message);
-    return;
+      error instanceof Error
+        ? error.message
+        : 'CLAUDE_ENABLED は "true" または "false" である必要があります。workflow の check step と検知stepの配線を確認してください。';
+    report(append, summaryPath, outputNotice, message);
+    throw error;
   }
-  if (decision === "validation-skipped") {
-    const message =
-      "Claude actionはworkflow validation skipでした。投稿件数判定は機械では行えません。";
-    summary(append, summaryPath, `- ${message}`);
-    outputNotice(message);
+  const decision = reviewCheckDecision({ outcome, enabled, conclusion: CLAUDE_CONCLUSION });
+  const message = earlyDecisionMessage(decision);
+  if (message !== undefined) {
+    report(append, summaryPath, outputNotice, message);
+    if (decision === "token-unavailable") throw new Error(message);
     return;
   }
   const repository = environment(REPOSITORY, "REPOSITORY");
@@ -184,14 +214,13 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "GitHub API取得に失敗したため投稿件数を判定できない";
-    summary(append, summaryPath, `- ${message}`);
-    outputNotice(message);
+    report(append, summaryPath, outputNotice, message);
     throw error;
   }
   summary(append, summaryPath, `- Claude投稿件数: ${count}`);
   summary(append, summaryPath, `- 診断: ${executionDiagnostics(read, EXECUTION_FILE)}`);
   if (
-    reviewCheckDecision({ outcome, conclusion: CLAUDE_CONCLUSION, postCount: count }) ===
+    reviewCheckDecision({ outcome, enabled, conclusion: CLAUDE_CONCLUSION, postCount: count }) ===
     "missing-posts"
   )
     throw new Error("Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です");

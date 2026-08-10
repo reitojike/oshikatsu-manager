@@ -13,6 +13,7 @@ const since = "2026-08-10T01:00:00Z";
 const bot = { login: "claude[bot]" };
 const baseEnv = {
   CLAUDE_OUTCOME: "success",
+  CLAUDE_ENABLED: "true",
   CLAUDE_CONCLUSION: "success",
   REPOSITORY: "owner/repository",
   PR_NUMBER: "42",
@@ -97,7 +98,6 @@ test("main: 投稿が0件なら件数summaryの後に例外を伝播する", () 
 });
 
 test.each([
-  ["skipped", undefined, "Claude actionは未実行です。投稿件数判定は行いません。"],
   [
     "failure",
     undefined,
@@ -114,6 +114,40 @@ test.each([
 
   main(dependencies);
 
+  expect(ghPaths).toEqual([]);
+  expect(reads).toEqual([]);
+  expect(notices).toEqual([message]);
+  expect(summaries).toEqual([`- ${message}\n`]);
+});
+
+test.each([
+  [
+    "cancelled",
+    "Claude actionがキャンセルされたため投稿件数判定は行わず、既存のキャンセル状態を維持します。",
+  ],
+  [
+    "skipped",
+    "Claude actionは実行制御上キャンセル相当でスキップされたため、投稿件数判定は行わず、既存のキャンセル状態を維持します。",
+  ],
+])("main: %sは専用のキャンセル注記を書き、APIと診断readを行わない", (outcome, message) => {
+  const env = { ...baseEnv, CLAUDE_OUTCOME: outcome, CLAUDE_ENABLED: "true" };
+  const { dependencies, ghPaths, notices, reads, summaries } = createDependencies({ env });
+
+  main(dependencies);
+
+  expect(ghPaths).toEqual([]);
+  expect(reads).toEqual([]);
+  expect(notices).toEqual([message]);
+  expect(summaries).toEqual([`- ${message}\n`]);
+});
+
+test("main: skippedかつCLAUDE_ENABLED=falseはトークン未設定を通知して失敗する", () => {
+  const env = { ...baseEnv, CLAUDE_OUTCOME: "skipped", CLAUDE_ENABLED: "false" };
+  const { dependencies, ghPaths, notices, reads, summaries } = createDependencies({ env });
+  const message =
+    "CLAUDE_CODE_OAUTH_TOKEN が利用できないため Claude action は実行されませんでした。claude setup-token でトークンを発行し、リポジトリシークレット CLAUDE_CODE_OAUTH_TOKEN に追加してください。";
+
+  expect(() => main(dependencies)).toThrow(message);
   expect(ghPaths).toEqual([]);
   expect(reads).toEqual([]);
   expect(notices).toEqual([message]);
@@ -190,6 +224,35 @@ test.each([
   expect(ghPaths).toEqual([]);
   expect(summaries).toEqual([]);
 });
+
+test.each([undefined, "", "unexpected"])(
+  "main: CLAUDE_ENABLEDが%pならAPI取得前に通知して拒否する",
+  (enabled) => {
+    const env = { ...baseEnv, CLAUDE_ENABLED: enabled };
+    const { dependencies, ghPaths, notices, reads, summaries } = createDependencies({ env });
+    const message =
+      'CLAUDE_ENABLED は "true" または "false" である必要があります。workflow の check step と検知stepの配線を確認してください。';
+
+    expect(() => main(dependencies)).toThrow(message);
+    expect(ghPaths).toEqual([]);
+    expect(reads).toEqual([]);
+    expect(notices).toEqual([message]);
+    expect(summaries).toEqual([`- ${message}\n`]);
+  },
+);
+
+test.each(["success", "failure", "cancelled", "skipped"])(
+  "main: %sでもCLAUDE_ENABLEDの欠落を許容しない",
+  (outcome) => {
+    const env = { ...baseEnv, CLAUDE_OUTCOME: outcome, CLAUDE_ENABLED: undefined };
+    const { dependencies, ghPaths } = createDependencies({ env });
+
+    expect(() => main(dependencies)).toThrow(
+      'CLAUDE_ENABLED は "true" または "false" である必要があります。workflow の check step と検知stepの配線を確認してください。',
+    );
+    expect(ghPaths).toEqual([]);
+  },
+);
 
 test("main: 正規表現を通る不可能な開始時刻をAPI取得前に拒否する", () => {
   const env = { ...baseEnv, ACTION_STARTED_AT: "2026-13-45T00:00:00Z" };
@@ -288,45 +351,143 @@ test("main: 可変headと開始時刻の対象投稿を数える", () => {
   expect(summaries).toEqual(["- Claude投稿件数: 1\n", "- 診断: num_turns: 1\n"]);
 });
 
-describe("reviewCheckDecision", () => {
-  test("action未実行と失敗をそのまま判定する", () => {
-    expect(
-      reviewCheckDecision({ outcome: "skipped", conclusion: undefined, postCount: undefined }),
-    ).toBe("skipped");
-    expect(
-      reviewCheckDecision({ outcome: "failure", conclusion: undefined, postCount: undefined }),
-    ).toBe("failure");
-  });
+test("reviewCheckDecision: 公式の4 outcomeを判定する", () => {
+  expect(
+    reviewCheckDecision({
+      outcome: "skipped",
+      enabled: true,
+      conclusion: undefined,
+      postCount: undefined,
+    }),
+  ).toBe("skipped-cancelled");
+  expect(
+    reviewCheckDecision({
+      outcome: "skipped",
+      enabled: false,
+      conclusion: undefined,
+      postCount: undefined,
+    }),
+  ).toBe("token-unavailable");
+  expect(
+    reviewCheckDecision({
+      outcome: "failure",
+      enabled: true,
+      conclusion: undefined,
+      postCount: undefined,
+    }),
+  ).toBe("failure");
+  expect(
+    reviewCheckDecision({
+      outcome: "cancelled",
+      enabled: false,
+      conclusion: "success",
+      postCount: 1,
+    }),
+  ).toBe("cancelled");
+});
 
-  test("未知のoutcomeを説明付きで拒否する", () => {
+test("reviewCheckDecision: enabled に文字列 false を渡すと入力契約違反として拒否する", () => {
+  expect(() =>
+    reviewCheckDecision({
+      outcome: "skipped",
+      enabled: "false",
+      conclusion: undefined,
+      postCount: undefined,
+    }),
+  ).toThrow("reviewCheckDecision の enabled 引数は boolean である必要があります");
+});
+
+test.each(["true", "yes", 1, undefined, null, 0])(
+  "reviewCheckDecision: enabled に boolean 以外の %s を渡すと入力契約違反として拒否する",
+  (enabled) => {
     expect(() =>
-      reviewCheckDecision({ outcome: "cancelled", conclusion: undefined, postCount: undefined }),
-    ).toThrow("未知のCLAUDE_OUTCOMEです: cancelled");
-  });
+      reviewCheckDecision({
+        outcome: "skipped",
+        enabled,
+        conclusion: undefined,
+        postCount: undefined,
+      }),
+    ).toThrow("reviewCheckDecision の enabled 引数は boolean である必要があります");
+  },
+);
 
-  test("successの検証段階を判定する", () => {
-    expect(reviewCheckDecision({ outcome: "success", conclusion: "", postCount: undefined })).toBe(
-      "validation-skipped",
-    );
-    expect(
-      reviewCheckDecision({ outcome: "success", conclusion: undefined, postCount: undefined }),
-    ).toBe("validation-skipped");
-    expect(
-      reviewCheckDecision({ outcome: "success", conclusion: "success", postCount: undefined }),
-    ).toBe("check-posts");
-  });
+test.each(["success", "failure", "cancelled"])(
+  "reviewCheckDecision: %s でも enabled の入力契約を先に検証する",
+  (outcome) => {
+    expect(() =>
+      reviewCheckDecision({
+        outcome,
+        enabled: "false",
+        conclusion: "success",
+        postCount: 1,
+      }),
+    ).toThrow("reviewCheckDecision の enabled 引数は boolean である必要があります");
+  },
+);
 
-  test("投稿件数の有無を判定する", () => {
-    expect(reviewCheckDecision({ outcome: "success", conclusion: "success", postCount: 0 })).toBe(
-      "missing-posts",
-    );
-    expect(reviewCheckDecision({ outcome: "success", conclusion: "success", postCount: 1 })).toBe(
-      "posts-found",
-    );
-    expect(reviewCheckDecision({ outcome: "success", conclusion: "success", postCount: 2 })).toBe(
-      "posts-found",
-    );
-  });
+test("reviewCheckDecision: 未知のoutcomeを説明付きで拒否する", () => {
+  expect(() =>
+    reviewCheckDecision({
+      outcome: "unexpected",
+      enabled: true,
+      conclusion: undefined,
+      postCount: undefined,
+    }),
+  ).toThrow("未知のCLAUDE_OUTCOMEです: unexpected");
+});
+
+test("reviewCheckDecision: successの検証段階を判定する", () => {
+  expect(
+    reviewCheckDecision({
+      outcome: "success",
+      enabled: true,
+      conclusion: "",
+      postCount: undefined,
+    }),
+  ).toBe("validation-skipped");
+  expect(
+    reviewCheckDecision({
+      outcome: "success",
+      enabled: true,
+      conclusion: undefined,
+      postCount: undefined,
+    }),
+  ).toBe("validation-skipped");
+  expect(
+    reviewCheckDecision({
+      outcome: "success",
+      enabled: true,
+      conclusion: "success",
+      postCount: undefined,
+    }),
+  ).toBe("check-posts");
+});
+
+test("reviewCheckDecision: 投稿件数の有無を判定する", () => {
+  expect(
+    reviewCheckDecision({
+      outcome: "success",
+      enabled: true,
+      conclusion: "success",
+      postCount: 0,
+    }),
+  ).toBe("missing-posts");
+  expect(
+    reviewCheckDecision({
+      outcome: "success",
+      enabled: true,
+      conclusion: "success",
+      postCount: 1,
+    }),
+  ).toBe("posts-found");
+  expect(
+    reviewCheckDecision({
+      outcome: "success",
+      enabled: true,
+      conclusion: "success",
+      postCount: 2,
+    }),
+  ).toBe("posts-found");
 });
 
 describe("countClaudePosts", () => {
