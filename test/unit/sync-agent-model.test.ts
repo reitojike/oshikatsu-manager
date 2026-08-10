@@ -1,0 +1,446 @@
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  parseArguments,
+  PROJECT_ITEM_LIMIT,
+  resolveGhPath,
+  runSyncAgentModelCommand,
+  syncAgentModel,
+} from "../../scripts/sync-agent-model-lib.mjs";
+
+const options = {
+  issue: "118",
+  agent: "sol",
+  repo: "reitojike/stage-tracker",
+  dryRun: false,
+};
+
+type MockState = {
+  labels: string[];
+  model?: string;
+  registered?: boolean;
+  failModelUpdate?: boolean;
+  failModelRollback?: boolean;
+  projectItems?: number;
+};
+
+const modelNames = new Map([
+  ["8e1daf94", "Sol"],
+  ["c992ffb2", "Terra"],
+]);
+
+const valuesAfter = (args: string[], flag: string) =>
+  args.flatMap((argument, index) => (args[index - 1] === flag ? [argument] : []));
+
+const updateMockModel = (state: MockState, args: string[]) => {
+  const query = args.find((argument) => argument.startsWith("query="));
+  const optionArgument = args.find((argument) => argument.startsWith("option="));
+  const optionId = optionArgument?.slice("option=".length);
+  if (query?.includes("clearProjectV2ItemFieldValue") === true) {
+    if (state.failModelRollback === true) throw new Error("model rollback mutation failed");
+    state.model = undefined;
+    return;
+  }
+  if (state.failModelUpdate === true) throw new Error("model update failed");
+  if (state.failModelRollback === true && state.model === "Sol")
+    throw new Error("model rollback mutation failed");
+  state.model = optionId === undefined ? "Sol" : modelNames.get(optionId);
+};
+
+const createRunGh = (state: MockState) =>
+  vi.fn((args: string[]) => {
+    if (args[0] === "issue" && args[1] === "view")
+      return JSON.stringify({ labels: state.labels.map((name) => ({ name })) });
+    if (args[0] === "project") {
+      const items: object[] =
+        state.registered === false
+          ? []
+          : [
+              {
+                id: "item-id",
+                model: state.model,
+                content: { number: 118, repository: options.repo },
+              },
+            ];
+      while (items.length < (state.projectItems ?? items.length))
+        items.push({ id: `unrelated-${items.length}`, content: { number: items.length } });
+      return JSON.stringify({ items });
+    }
+    if (args[0] === "issue" && args[1] === "edit") {
+      const removed = valuesAfter(args, "--remove-label");
+      const added = valuesAfter(args, "--add-label");
+      state.labels = [...state.labels.filter((label) => !removed.includes(label)), ...added];
+      return "";
+    }
+    if (args[0] === "api") {
+      updateMockModel(state, args);
+      return "";
+    }
+    throw new Error(`unexpected command: ${args.join(" ")}`);
+  });
+
+describe("parseArguments", () => {
+  it.each([
+    { args: ["--wat"], message: "unknown argument" },
+    { args: ["--issue", "118", "--agent"], message: "--agent requires a value" },
+    { args: ["--issue", "abc", "--agent", "sol"], message: "--issue must be a number" },
+    { args: ["--issue", "118", "--agent", "unknown"], message: "--agent must be" },
+    {
+      args: ["--issue", "118", "--agent", "sol", "--repo", "invalid"],
+      message: "--repo must be owner/name",
+    },
+  ])("rejects invalid arguments: $message", ({ args, message }) => {
+    expect(() => parseArguments(args)).toThrow(message);
+  });
+
+  it("parses valid arguments and defaults", () => {
+    expect(parseArguments(["--issue", "118", "--agent", "sol"])).toEqual(options);
+  });
+});
+
+describe("resolveGhPath", () => {
+  it("uses an existing absolute configured path", () => {
+    expect(
+      resolveGhPath({
+        configuredPath: "C:\\tools\\gh.exe",
+        platform: "win32",
+        exists: (path: string) => path === "C:\\tools\\gh.exe",
+      }),
+    ).toBe("C:\\tools\\gh.exe");
+  });
+
+  it("rejects a Windows configured path for Linux", () => {
+    expect(() =>
+      resolveGhPath({
+        configuredPath: "C:\\tools\\gh.exe",
+        platform: "linux",
+        exists: () => true,
+      }),
+    ).toThrow("STAGE_TRACKER_GH_PATH must be an existing absolute path to gh");
+  });
+
+  it("checks platform candidates in order", () => {
+    const exists = vi.fn((path: string) => path === "/opt/homebrew/bin/gh");
+    expect(resolveGhPath({ configuredPath: undefined, platform: "darwin", exists })).toBe(
+      "/opt/homebrew/bin/gh",
+    );
+    expect(exists.mock.calls).toEqual([["/usr/local/bin/gh"], ["/opt/homebrew/bin/gh"]]);
+  });
+
+  it("prompts for the environment variable when gh is absent", () => {
+    expect(() =>
+      resolveGhPath({ configuredPath: undefined, platform: "linux", exists: () => false }),
+    ).toThrow("set STAGE_TRACKER_GH_PATH");
+  });
+});
+
+describe("syncAgentModel", () => {
+  it("uses one Project item limit for the request, guard, and error message", () => {
+    const state = {
+      labels: ["agent:terra"],
+      registered: false,
+      projectItems: PROJECT_ITEM_LIMIT,
+    };
+    const runGh = createRunGh(state);
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      `Project item list reached the ${PROJECT_ITEM_LIMIT}-item limit`,
+    );
+    expect(runGh).toHaveBeenCalledWith(
+      expect.arrayContaining(["--limit", String(PROJECT_ITEM_LIMIT)]),
+    );
+  });
+
+  it("removes only other agent labels and keeps unrelated labels", () => {
+    const state = { labels: ["bug", "agent:terra", "agent:sol"], model: "Sol" };
+    const runGh = createRunGh(state);
+    syncAgentModel(options, { runGh, log: vi.fn() });
+    expect(state.labels).toEqual(["bug", "agent:sol"]);
+    expect(runGh).toHaveBeenCalledWith(expect.arrayContaining(["--remove-label", "agent:terra"]));
+    expect(runGh).not.toHaveBeenCalledWith(expect.arrayContaining(["--remove-label", "bug"]));
+  });
+
+  it("does not begin changes when the issue is absent from the Project", () => {
+    const state = { labels: ["agent:terra"], model: "Terra", registered: false };
+    const runGh = createRunGh(state);
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      "issue is not registered",
+    );
+    expect(runGh).not.toHaveBeenCalledWith(expect.arrayContaining(["edit"]));
+    expect(runGh).not.toHaveBeenCalledWith(expect.arrayContaining(["api"]));
+  });
+
+  it("rolls the label back when the Model update fails", () => {
+    const state = { labels: ["agent:terra"], model: "Terra", failModelUpdate: true };
+    const runGh = createRunGh(state);
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow("model update failed");
+    expect(state.labels).toEqual(["agent:terra"]);
+  });
+
+  it("reports a label read failure during rollback", () => {
+    const state = { labels: ["agent:terra"], model: "Terra", failModelUpdate: true };
+    const baseRunGh = createRunGh(state);
+    let issueViews = 0;
+    const runGh = vi.fn((args: string[]) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
+        throw new Error("rollback read failed");
+      return baseRunGh(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      "model update failed; rollback read failed",
+    );
+  });
+});
+
+describe("syncAgentModel verification", () => {
+  it.each([
+    { labels: ["agent:sol", "agent:terra"], model: "Sol", expected: "agent label" },
+    { labels: ["agent:sol"], model: "Terra", expected: "Project Model" },
+  ])("fails verification for $expected mismatch", ({ labels, model, expected }) => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    let projectReads = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
+        return JSON.stringify({ labels: labels.map((name) => ({ name })) });
+      if (
+        args[0] === "project" &&
+        args[1] === "item-list" &&
+        ++projectReads === 2 &&
+        state.model === "Sol"
+      )
+        return JSON.stringify({
+          items: [
+            {
+              id: "item-id",
+              model,
+              content: { number: 118, repository: options.repo },
+            },
+          ],
+        });
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(expected);
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Terra");
+  });
+
+  it("rolls both values back after the Model update succeeds and verification fails", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let projectReads = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "project" && args[1] === "item-list" && ++projectReads === 2)
+        return JSON.stringify({
+          items: [
+            {
+              id: "item-id",
+              model: "Unexpected",
+              content: { number: 118, repository: options.repo },
+            },
+          ],
+        });
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      new Error("Project Model verification failed"),
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Terra");
+  });
+});
+
+describe("syncAgentModel Model rollback failures", () => {
+  it("clears the Model during rollback when it was originally unset", () => {
+    const state: MockState = { labels: ["agent:terra"], model: undefined };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
+        return JSON.stringify({ labels: [{ name: "agent:sol" }, { name: "agent:terra" }] });
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      new Error("agent label verification failed"),
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBeUndefined();
+  });
+
+  it("reports both the original error and Model rollback details when rollback fails", () => {
+    const state = {
+      labels: ["agent:terra"],
+      model: "Terra",
+      failModelRollback: true,
+    };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
+        return JSON.stringify({ labels: [{ name: "agent:sol" }, { name: "agent:terra" }] });
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'agent label verification failed; Model rollback failed: original="Terra", attempted=Sol; model rollback mutation failed',
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+  });
+
+  it("reports an unknown original Model without guessing a replacement", () => {
+    const state = { labels: ["agent:terra"], model: "Custom" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2)
+        return JSON.stringify({ labels: [{ name: "agent:sol" }, { name: "agent:terra" }] });
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'agent label verification failed; Model rollback failed: original="Custom", attempted=Sol; original Model option is unknown',
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Sol");
+  });
+});
+
+describe("syncAgentModel Model rollback conflicts", () => {
+  it("does not overwrite a Model changed by another actor before rollback", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) {
+        state.labels = ["agent:luna"];
+        state.model = "Luna";
+      }
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'Model rollback conflict: current="Luna", attempted=Sol',
+    );
+    expect(state.labels).toEqual(["agent:luna"]);
+    expect(state.model).toBe("Luna");
+  });
+
+  it("rolls labels back when only the Model has a rollback conflict", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) {
+        state.model = "Luna";
+        return JSON.stringify({ labels: [{ name: "agent:sol" }, { name: "agent:terra" }] });
+      }
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'Model rollback conflict: current="Luna", attempted=Sol',
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Luna");
+  });
+});
+
+describe("syncAgentModel rollback conflicts", () => {
+  it("does not overwrite values changed by another actor before rollback", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) {
+        state.labels = ["agent:luna"];
+        state.model = "Terra";
+      }
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      'label rollback conflict: current=["agent:luna"], attempted=agent:sol',
+    );
+    expect(state.labels).toEqual(["agent:luna"]);
+    expect(state.model).toBe("Terra");
+  });
+
+  it("does not report a conflict when the Model is already at its original value", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) state.model = "Terra";
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      new Error("Project Model verification failed"),
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Terra");
+  });
+
+  it("does not report a conflict when labels are already at their original value", () => {
+    const state = { labels: ["agent:terra"], model: "Terra" };
+    const runGh = createRunGh(state);
+    let issueViews = 0;
+    runGh.mockImplementation((args) => {
+      if (args[0] === "issue" && args[1] === "view" && ++issueViews === 2) {
+        state.labels = ["agent:terra"];
+        return JSON.stringify({ labels: [{ name: "agent:terra" }] });
+      }
+      return createRunGh(state)(args);
+    });
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      new Error("agent label verification failed"),
+    );
+    expect(state.labels).toEqual(["agent:terra"]);
+    expect(state.model).toBe("Terra");
+  });
+});
+
+describe("syncAgentModel dry-run", () => {
+  it("does not run update commands in dry-run mode", () => {
+    const runGh = createRunGh({ labels: [], model: "" });
+    const log = vi.fn();
+    syncAgentModel({ ...options, dryRun: true }, { runGh, log });
+    expect(runGh).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("[dry-run] Project Model -> Sol (8e1daf94)");
+    expect(log).toHaveBeenCalledWith("[dry-run] no GitHub data was changed");
+  });
+
+  it("rejects an unvalidated agent with a descriptive error", () => {
+    expect(() =>
+      syncAgentModel(
+        { ...options, agent: "unknown", dryRun: true },
+        { runGh: vi.fn(), log: vi.fn() },
+      ),
+    ).toThrow("agent must be opus, sonnet, haiku, sol, terra, or luna");
+  });
+});
+
+describe("runSyncAgentModelCommand", () => {
+  it("does not resolve or execute GitHub CLI for dry-run", () => {
+    const exists = vi.fn(() => false);
+    const execute = vi.fn(() => "");
+    runSyncAgentModelCommand(["--issue", "118", "--agent", "sol", "--dry-run"], {
+      configuredPath: undefined,
+      platform: "linux",
+      exists,
+      execute,
+      log: vi.fn(),
+    });
+    expect(exists).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("logs the displayed Project Model name after synchronization", () => {
+    const state = { labels: ["agent:sol"], model: "Sol" };
+    const log = vi.fn();
+    runSyncAgentModelCommand(["--issue", "118", "--agent", "sol"], {
+      configuredPath: "/usr/bin/gh",
+      platform: "linux",
+      exists: () => true,
+      execute: (_path: string, args: string[]) => createRunGh(state)(args),
+      log,
+    });
+    expect(log).toHaveBeenCalledWith(
+      "OK: reitojike/stage-tracker#118 の agent:sol とProject Model=Sol を同期しました",
+    );
+  });
+});
