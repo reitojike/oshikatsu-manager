@@ -20,6 +20,8 @@
 - **併用の根拠と、上限到達時のフェイルオーバー手順 → `docs/model-routing-details.md`。
   配分の方針を見直すときと、Codexがエラーを返して切り替えを検討するときに読む
   (振り分けを決めるだけなら読まなくてよい)**
+- **Codexのモデル階層をローカル設定で使い分ける手順 → `docs/codex-profiles.md`。
+  Codex CLIを階層別に呼び分ける前に読む**
 - **Issueの粒度の目安とその根拠、Issue内で下位モデルへ渡す手順 → `docs/task-management.md`。
   Issueを起票・分割する前と、Issue内で下位モデルに渡す前に必ず読む**
 - **worktree/ブランチの畳み方とローカル`main`の扱い → `docs/worktree-policy.md`。
