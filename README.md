@@ -22,7 +22,7 @@
 | [`docs/testing.md`](docs/testing.md) | テストの書き方 |
 | [`docs/model-routing.md`](docs/model-routing.md) | Claude/Codex間の作業分担(振り分けの規則) |
 | [`docs/model-routing-details.md`](docs/model-routing-details.md) | Claude/Codex間の作業分担の根拠と、上限到達時のフェイルオーバー手順 |
-| [`docs/pr-review-flow-details.md`](docs/pr-review-flow-details.md) | PRレビューフローの根拠と、問題発生時の対処 |
+| [`docs/pr-review-flow-details.md`](docs/pr-review-flow-details.md) | PRレビューフローの根拠と、quota・レート制限・特殊なスキップの対処 |
 | [`AGENTS.md`](AGENTS.md) | AIエージェント向けの規約(Claude Codeは`CLAUDE.md`が`AGENTS.md`をimportして読む) |
 
 ## タスク管理

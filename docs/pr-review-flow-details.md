@@ -1,7 +1,7 @@
 # PRレビューフローの根拠と、問題発生時の対処
 
 `.claude/skills/pr-review-flow/SKILL.md` の手順がなぜそうなっているかと、quota・
-レート制限・レビューボットが投稿しない場合など、問題に遭遇したときだけ使う対処。
+レート制限・`claude-review.yml`変更時のスキップなど、問題に遭遇したときだけ使う対処。
 通常のPR作業ではこの文書を読まなくてよい。
 
 規則そのものは `.claude/skills/pr-review-flow/SKILL.md` にある。ここには書き写さない。

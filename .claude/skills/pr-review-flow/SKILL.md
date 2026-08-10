@@ -11,7 +11,7 @@ Draft先行の目的は、**Copilotのプレミアムリクエスト消費を「
 (ただしquota失敗時・実装変更時は、後述の「Ready後の運用」の条件でマージ直前に手動再リクエストを最大1回まで許容する)。
 Claude/Codex/CodeRabbitはDraft中に何度反復してもプレミアムリクエストを消費しない。
 
-この手順の根拠と、quota・レート制限・レビューボットが投稿しない場合など、問題に遭遇した
+この手順の根拠と、quota・レート制限・`claude-review.yml`変更時のスキップなど、問題に遭遇した
 ときだけ使う対処は `docs/pr-review-flow-details.md` にある。通常のPR作業ではこのskillだけを読む。
 
 ## PRを出す前に
@@ -92,7 +92,7 @@ Claude/Codex/CodeRabbitはDraft中に何度反復してもプレミアムリク�
 
 PRはまず`gh pr create --draft`でDraft作成する。
 
-- **Claude**(`claude-review.yml`): `CLAUDE_CODE_OAUTH_TOKEN`設定時にdraftのpushごとに走る。未設定時はスキップ。投稿がない場合や`claude-review.yml`自体を変更するPRでの判定は`docs/pr-review-flow-details.md`「Claude Review」を参照
+- **Claude**(`claude-review.yml`): `CLAUDE_CODE_OAUTH_TOKEN`設定時にdraftのpushごとに走る。未設定時はスキップ。`claude-review.yml`自体を変更するPRでのスキップ判定は`docs/pr-review-flow-details.md`「Claude Review」を参照
 - **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10 JST、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点を`AGENTS.md`で指定する仕組み(`## Code Review Rules`節)はまだ無く(issue #82)、現状は汎用の観点でレビューされる。**Draft PRへのpushでは自動発火しない**(PR #113で複数回のpushで確認済み)。`@codex review`と手動コメントすれば即座に投稿されることも確認済み。Draft中に投稿が欲しい場合は、PRコメント欄でcodexへメンションして手動リクエストする(誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は現状維持(残すか削除するかはissue #82で検討)
 - **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。反復の主力はClaude/Codexで、CodeRabbitは取れたときに追加の視点が入る、という位置づけで期待値を持つこと。レート制限は`docs/pr-review-flow-details.md`「CodeRabbit」を参照
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
