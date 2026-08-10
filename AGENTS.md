@@ -83,8 +83,9 @@ worktreeを片付ける。**自分の**worktreeがlock済みなら `git worktree
 
 **PRはまずDraftで作成する。**Draftでレビューボットと反復し、指摘が尽きてから
 `gh pr ready`でReady化してGitHub Copilotの最終レビューを1回だけ受ける。
-**手順の詳細(ボットの発火条件、レート制限、quota失敗時の対処、Ready後の運用、
-指摘の分類とマージ)は `pr-review-flow` skillを読む。PR作業の前に必ず呼ぶこと。**
+**通常のPR手順(ボットの発火条件、Ready後の運用、指摘の分類とマージ)は `pr-review-flow` skillを読む。
+quota失敗・レート制限・無投稿など問題発生時の対処は、skillから `docs/pr-review-flow-details.md` を参照する。
+PR作業の前にskillを必ず呼ぶこと。**
 
 ## タスク管理とモデルの使い分け
 
