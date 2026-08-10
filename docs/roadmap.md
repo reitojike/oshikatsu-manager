@@ -93,6 +93,7 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
 
 | タスク | 状態 |
 | --- | --- |
+| **Claudeレビューをrequired status checkへ配線** | **未完了(POの手作業)。** issue #95 で無投稿検知を実装したが、Rulesetの「Require status checks to pass」に `Claude Review / claude-review` と `PR Template Check / check` を追加するまで、**赤はマージを止めない。「実装した = 効いている」と見なさない。**「Require branches to be up to date before merging」はOFFのまま、`codex-review` は追加しない(workflowごと削除済み)。赤くなる条件は`docs/pr-review-flow-details.md`「Claude Review」を参照 |
 | Claudeレビューの本稼働化 | **完了。** `CLAUDE_CODE_OAUTH_TOKEN` シークレット追加 + GitHub App([github.com/apps/claude](https://github.com/apps/claude))インストール済み。PRへの総評+インラインコメント投稿を実PRで確認済み |
 | Copilot自動レビューの有効化 | **完了。** Copilot Proに加入し、Rulesetに `copilot_code_review` ルールを追加。実PRでのコメント投稿を確認済み |
 | Codexレビュー(GitHub Actions版)の本稼働化 | **見送り(確定)。** `codex-review.yml` はIssue #82で削除済み。**理由: ChatGPT Plus/Codexの利用枠とGitHub Actions側のAPI利用は別系統である。**`openai/codex-action` の実行にはOpenAI PlatformのAPIキー(`OPENAI_API_KEY`)と従量課金が必要で、サブスクリプションでのログインを受け付けない(認証系のinputは `openai-api-key` のみ)。このリポジトリではAPIキーを設定せず、従量課金を採らないとPOが判断した(2026-08-09)。**「まだ決めていない」ではなく「採らないと決めた」である。**なおCodexの視点は、Draft PR作成前のローカルセルフレビュー(#81で全PR必須化)と、下記のCodex Cloud自動レビューで入れる。`codex-review.yml` はPRへコメントを投稿する機能自体を持たない(`github-token` 相当のinputが無い)ため、将来復活させる場合はこの欠陥を先に直す必要がある。 |
