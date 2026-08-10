@@ -3,6 +3,7 @@ import { posix, win32 } from "node:path";
 const PROJECT_ID = "PVT_kwHOAzvh3c4BfeaM";
 const PROJECT_OWNER = "reitojike";
 const PROJECT_NUMBER = "1";
+export const PROJECT_ITEM_LIMIT = 1000;
 const MODEL_FIELD_ID = "PVTSSF_lAHOAzvh3c4BfeaMzhZxDK8";
 const MODEL_OPTIONS = new Map([
   ["opus", { id: "d233b8f2", name: "Opus" }],
@@ -84,13 +85,17 @@ const getProjectItem = (runGh, repo, issue) => {
       "--format",
       "json",
       "--limit",
-      "1000",
+      String(PROJECT_ITEM_LIMIT),
     ]),
   );
   const item = result.items.find(
     (candidate) =>
       candidate.content?.number === Number(issue) && candidate.content?.repository === repo,
   );
+  if (item === undefined && result.items.length === PROJECT_ITEM_LIMIT)
+    throw new Error(
+      `GitHub Project item list reached the ${PROJECT_ITEM_LIMIT}-item limit; the issue may be outside the returned results`,
+    );
   if (item?.id === undefined)
     throw new Error("issue is not registered in the expected GitHub Project");
   return item;
@@ -224,9 +229,11 @@ const rollbackChanges = (runGh, options, item, originalLabels, attemptedLabel, a
 export const syncAgentModel = (options, { runGh, log }) => {
   const label = `agent:${options.agent}`;
   const modelOption = MODEL_OPTIONS.get(options.agent);
+  if (modelOption === undefined)
+    throw new Error("agent must be opus, sonnet, haiku, sol, terra, or luna");
   if (options.dryRun) {
     log(`[dry-run] ${options.repo}#${options.issue}: agent:* label -> ${label}`);
-    log(`[dry-run] Project Model -> ${options.agent} (${modelOption.id})`);
+    log(`[dry-run] Project Model -> ${modelOption.name} (${modelOption.id})`);
     log("[dry-run] no GitHub data was changed");
     return;
   }
@@ -251,6 +258,25 @@ export const syncAgentModel = (options, { runGh, log }) => {
     throw error;
   }
   log(
-    `OK: ${options.repo}#${options.issue} の ${label} とProject Model=${options.agent} を同期しました`,
+    `OK: ${options.repo}#${options.issue} の ${label} とProject Model=${modelOption.name} を同期しました`,
   );
+};
+
+export const runSyncAgentModelCommand = (
+  args,
+  { configuredPath, platform, exists, execute, log },
+) => {
+  const options = parseArguments(args);
+  if (options.dryRun) {
+    syncAgentModel(options, {
+      runGh: () => {
+        throw new Error("dry-run must not execute GitHub CLI");
+      },
+      log,
+    });
+    return;
+  }
+  const ghPath = resolveGhPath({ configuredPath, platform, exists });
+  const runGh = (ghArgs) => execute(ghPath, ghArgs);
+  syncAgentModel(options, { runGh, log });
 };

@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
-import { parseArguments, resolveGhPath, syncAgentModel } from "./sync-agent-model-lib.mjs";
+import { runSyncAgentModelCommand } from "./sync-agent-model-lib.mjs";
 
 const usage = () => {
   console.error(
@@ -10,14 +10,14 @@ const usage = () => {
 };
 
 const run = () => {
-  const ghPath = resolveGhPath({
+  runSyncAgentModelCommand(process.argv.slice(2), {
     configuredPath: process.env.STAGE_TRACKER_GH_PATH,
     platform: process.platform,
     exists: existsSync,
+    execute: (path, args) =>
+      execFileSync(path, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }),
+    log: console.log,
   });
-  const runGh = (args) =>
-    execFileSync(ghPath, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  syncAgentModel(parseArguments(process.argv.slice(2)), { runGh, log: console.log });
 };
 
 try {

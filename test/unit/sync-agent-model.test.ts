@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   parseArguments,
+  PROJECT_ITEM_LIMIT,
   resolveGhPath,
+  runSyncAgentModelCommand,
   syncAgentModel,
 } from "../../scripts/sync-agent-model-lib.mjs";
 
@@ -19,6 +21,7 @@ type MockState = {
   registered?: boolean;
   failModelUpdate?: boolean;
   failModelRollback?: boolean;
+  projectItems?: number;
 };
 
 const modelNames = new Map([
@@ -49,7 +52,7 @@ const createRunGh = (state: MockState) =>
     if (args[0] === "issue" && args[1] === "view")
       return JSON.stringify({ labels: state.labels.map((name) => ({ name })) });
     if (args[0] === "project") {
-      const items =
+      const items: object[] =
         state.registered === false
           ? []
           : [
@@ -59,6 +62,8 @@ const createRunGh = (state: MockState) =>
                 content: { number: 118, repository: options.repo },
               },
             ];
+      while (items.length < (state.projectItems ?? items.length))
+        items.push({ id: `unrelated-${items.length}`, content: { number: items.length } });
       return JSON.stringify({ items });
     }
     if (args[0] === "issue" && args[1] === "edit") {
@@ -130,6 +135,21 @@ describe("resolveGhPath", () => {
 });
 
 describe("syncAgentModel", () => {
+  it("uses one Project item limit for the request, guard, and error message", () => {
+    const state = {
+      labels: ["agent:terra"],
+      registered: false,
+      projectItems: PROJECT_ITEM_LIMIT,
+    };
+    const runGh = createRunGh(state);
+    expect(() => syncAgentModel(options, { runGh, log: vi.fn() })).toThrow(
+      `Project item list reached the ${PROJECT_ITEM_LIMIT}-item limit`,
+    );
+    expect(runGh).toHaveBeenCalledWith(
+      expect.arrayContaining(["--limit", String(PROJECT_ITEM_LIMIT)]),
+    );
+  });
+
   it("removes only other agent labels and keeps unrelated labels", () => {
     const state = { labels: ["bug", "agent:terra", "agent:sol"], model: "Sol" };
     const runGh = createRunGh(state);
@@ -380,6 +400,47 @@ describe("syncAgentModel dry-run", () => {
     const log = vi.fn();
     syncAgentModel({ ...options, dryRun: true }, { runGh, log });
     expect(runGh).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("[dry-run] Project Model -> Sol (8e1daf94)");
     expect(log).toHaveBeenCalledWith("[dry-run] no GitHub data was changed");
+  });
+
+  it("rejects an unvalidated agent with a descriptive error", () => {
+    expect(() =>
+      syncAgentModel(
+        { ...options, agent: "unknown", dryRun: true },
+        { runGh: vi.fn(), log: vi.fn() },
+      ),
+    ).toThrow("agent must be opus, sonnet, haiku, sol, terra, or luna");
+  });
+});
+
+describe("runSyncAgentModelCommand", () => {
+  it("does not resolve or execute GitHub CLI for dry-run", () => {
+    const exists = vi.fn(() => false);
+    const execute = vi.fn(() => "");
+    runSyncAgentModelCommand(["--issue", "118", "--agent", "sol", "--dry-run"], {
+      configuredPath: undefined,
+      platform: "linux",
+      exists,
+      execute,
+      log: vi.fn(),
+    });
+    expect(exists).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("logs the displayed Project Model name after synchronization", () => {
+    const state = { labels: ["agent:sol"], model: "Sol" };
+    const log = vi.fn();
+    runSyncAgentModelCommand(["--issue", "118", "--agent", "sol"], {
+      configuredPath: "/usr/bin/gh",
+      platform: "linux",
+      exists: () => true,
+      execute: (_path: string, args: string[]) => createRunGh(state)(args),
+      log,
+    });
+    expect(log).toHaveBeenCalledWith(
+      "OK: reitojike/stage-tracker#118 の agent:sol とProject Model=Sol を同期しました",
+    );
   });
 });
