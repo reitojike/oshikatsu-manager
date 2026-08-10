@@ -125,6 +125,10 @@ jobs:
       - name: Claude Review 投稿確認
         if: always()
         env:
+          # GitHub-hostedランナーの gh は既定の認証情報を持たない。permissions: の宣言だけでは
+          # stepにトークンが渡らないので、明示的に渡さないとscriptの gh api が必ず失敗し、
+          # 正常にレビューできた場合でもcheckが赤くなる(required checkに配線すると全PRが止まる)。
+          GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
           CLAUDE_ENABLED: ${{ steps.check.outputs.enabled }}
