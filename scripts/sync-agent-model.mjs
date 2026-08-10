@@ -122,7 +122,12 @@ const sync = (options) => {
 
   const before = getIssue(options.repo, options.issue);
   const item = getProjectItem(options.repo, options.issue);
-  const removeArguments = agentLabels(before.labels).flatMap((name) => ["--remove-label", name]);
+  // 付け替え先と同じラベルを --remove-label と --add-label に同時に渡すと、
+  // gh issue edit は削除だけが反映され再付与されないことを実機で確認したため、
+  // 対象外の agent:* ラベルだけを削除対象にする(実測はIssue #118へのコメント参照)。
+  const removeArguments = agentLabels(before.labels)
+    .filter((name) => name !== label)
+    .flatMap((name) => ["--remove-label", name]);
   runGh([
     "issue",
     "edit",
@@ -140,7 +145,7 @@ const sync = (options) => {
   if (labels.length !== 1 || labels[0] !== label)
     throw new Error("agent label verification failed");
   const projectItem = getProjectItem(options.repo, options.issue);
-  if (projectItem.Model !== MODEL_NAMES.get(options.agent))
+  if (projectItem.model !== MODEL_NAMES.get(options.agent))
     throw new Error("Project Model verification failed");
   console.log(
     `OK: ${options.repo}#${options.issue} の ${label} とProject Model=${options.agent} を同期しました`,
