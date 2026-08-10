@@ -27,6 +27,18 @@ const exceptions = [
     files: [".github/scripts/check-eol.mjs"],
     rules: { "sonarjs/no-os-command-from-path": "off" },
   },
+  {
+    // git と gh はローカル(Windows)とCI(ubuntu)の双方で解決する必要があり、
+    // 固定パスを指定できないためPATH経由の実行が構造的に必要になる。
+    files: [".github/scripts/build-review-prompt.mjs"],
+    rules: { "sonarjs/no-os-command-from-path": "off" },
+  },
+  {
+    // GitHub Actionsが実行時に渡すGITHUB_OUTPUTとGITHUB_STEP_SUMMARYの書き込み先は、
+    // リテラルにできない。Actionsが実行時パスを渡さない構造に変わればこのエントリを消す。
+    files: [".github/scripts/build-review-prompt.mjs"],
+    rules: { "security/detect-non-literal-fs-filename": "off" },
+  },
 ];
 
 // ---- 層の境界 (docs/lint-policy.md 「層の境界」) ----
