@@ -52,7 +52,7 @@ const actionStartedAt = (value) => {
   return startedAt;
 };
 
-const summary = (path, message) => appendFileSync(path, `${message}\n`);
+const summary = (append, path, message) => append(path, `${message}\n`);
 const notice = (message) => console.log(`::notice::${message}`);
 
 export const flattenGhPages = (pages) => {
@@ -69,11 +69,11 @@ const gh = (path) => {
   return flattenGhPages(pages);
 };
 
-const executionDiagnostics = (executionFile) => {
+const executionDiagnostics = (read, executionFile) => {
   if (executionFile === undefined || executionFile.trim() === "")
     return "実行診断ファイルはありません。";
   try {
-    const parsed = JSON.parse(readFileSync(executionFile, "utf8"));
+    const parsed = JSON.parse(read(executionFile, "utf8"));
     const fields = ["num_turns", "permission_denials_count", "total_cost_usd"];
     const hasDiagnosticField = (value) =>
       typeof value === "object" &&
@@ -92,7 +92,7 @@ const executionDiagnostics = (executionFile) => {
   }
 };
 
-const main = () => {
+export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   const {
     CLAUDE_OUTCOME,
     CLAUDE_CONCLUSION,
@@ -102,28 +102,28 @@ const main = () => {
     ACTION_STARTED_AT,
     GITHUB_STEP_SUMMARY,
     EXECUTION_FILE,
-  } = process.env;
+  } = env;
   const outcome = environment(CLAUDE_OUTCOME, "CLAUDE_OUTCOME");
   const summaryPath = environment(GITHUB_STEP_SUMMARY, "GITHUB_STEP_SUMMARY");
   const decision = reviewCheckDecision({ outcome, conclusion: CLAUDE_CONCLUSION });
   if (decision === "skipped") {
     const message = "Claude actionは未実行です。投稿件数判定は行いません。";
-    summary(summaryPath, `- ${message}`);
-    notice(message);
+    summary(append, summaryPath, `- ${message}`);
+    outputNotice(message);
     return;
   }
   if (decision === "failure") {
     const message =
       "Claude actionが失敗したため投稿件数判定は対象外です。元stepの失敗を維持します。";
-    summary(summaryPath, `- ${message}`);
-    notice(message);
+    summary(append, summaryPath, `- ${message}`);
+    outputNotice(message);
     return;
   }
   if (decision === "validation-skipped") {
     const message =
       "Claude actionはworkflow validation skipでした。投稿件数判定は機械では行えません。";
-    summary(summaryPath, `- ${message}`);
-    notice(message);
+    summary(append, summaryPath, `- ${message}`);
+    outputNotice(message);
     return;
   }
   const repository = environment(REPOSITORY, "REPOSITORY");
@@ -132,16 +132,16 @@ const main = () => {
   const since = actionStartedAt(ACTION_STARTED_AT);
   const base = `repos/${repository}/pulls/${prNumber}`;
   const count = countClaudePosts({
-    issueComments: gh(
+    issueComments: getGhPosts(
       `repos/${repository}/issues/${prNumber}/comments?since=${encodeURIComponent(since)}`,
     ),
-    reviews: gh(`${base}/reviews`),
-    reviewComments: gh(`${base}/comments?since=${encodeURIComponent(since)}`),
+    reviews: getGhPosts(`${base}/reviews`),
+    reviewComments: getGhPosts(`${base}/comments?since=${encodeURIComponent(since)}`),
     headSha,
     since,
   });
-  summary(summaryPath, `- Claude投稿件数: ${count}`);
-  summary(summaryPath, `- 診断: ${executionDiagnostics(EXECUTION_FILE)}`);
+  summary(append, summaryPath, `- Claude投稿件数: ${count}`);
+  summary(append, summaryPath, `- 診断: ${executionDiagnostics(read, EXECUTION_FILE)}`);
   if (
     reviewCheckDecision({ outcome, conclusion: CLAUDE_CONCLUSION, postCount: count }) ===
     "missing-posts"
@@ -151,7 +151,13 @@ const main = () => {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    main();
+    main({
+      env: process.env,
+      getGhPosts: gh,
+      append: appendFileSync,
+      read: readFileSync,
+      outputNotice: notice,
+    });
   } catch (error) {
     console.error(
       error instanceof Error ? error.message : "Claude投稿確認で不明なエラーが発生しました",
