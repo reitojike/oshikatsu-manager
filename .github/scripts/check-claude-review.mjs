@@ -38,21 +38,36 @@ export const countClaudePosts = ({ issueComments, reviews, reviewComments, headS
   ].reduce((total, entries) => total + entries.length, 0);
 };
 
+// 各分岐の根拠の正本はissue #95(決定3とPO確認のコメント)にある。ここには写さない。
+// 判定値ごとの扱いはmain()のearlyDecisionMessageと対応する。
 export const reviewCheckDecision = ({ outcome, enabled, conclusion, postCount }) => {
+  // 環境値は文字列なので、truthy判定にすると "false" が緑側へ倒れる。boolean厳格にして閉じる。
   if (typeof enabled !== "boolean") {
     throw new Error(
       "reviewCheckDecision の enabled 引数は boolean である必要があります。呼び出し元で環境値を boolean に正規化してください。",
     );
   }
+  // skippedの原因は2つある。checkが通ってからのskipは中断であって、トークン欠落ではない。
+  // トークン欠落側をfail-closedにするのはPO決定(issue #95 issuecomment-5242167400)。
   if (outcome === "skipped") return enabled === true ? "skipped-cancelled" : "token-unavailable";
+  // failureは元stepが既に赤い。同じ事象を二重に赤くしない。
   if (outcome === "failure") return "failure";
+  // cancel-in-progressによる世代交代は正常。人工的なfailureを重ねない。
+  // ここでexit 0にしても、先行step・job・runに付いたキャンセル状態は反転しない。
   if (outcome === "cancelled") return "cancelled";
+  // 公式outcomeは success / failure / cancelled / skipped の4つ。未知値は静かに通さない。
   if (outcome !== "success") throw new Error(`未知のCLAUDE_OUTCOMEです: ${outcome}`);
+  // #83のworkflow検証スキップ。注記のみでpassさせるのはissue #95 決定3 (i)の既決
+  // (機械では埋められない。判定は参考であり最終判断は人間 —— docs/prd.md 8.6)。
+  // 残存リスク: .github/workflows/ を変更するPRはここに落ち、Claudeレビューを受けずにcheckが緑になる。
+  // 埋め合わせはセルフレビュー + CodeRabbit / Copilotで、どれで満たしたかをPR本文に書く(#95の不変条件)。
   if (conclusion === undefined || conclusion === "") return "validation-skipped";
   if (postCount === undefined) return "check-posts";
   return postCount === 0 ? "missing-posts" : "posts-found";
 };
 
+// 欠落や不正値を緑へ倒すと、workflowの配線漏れやoutput名の変更がそのままゲート迂回になる。
+// outcomeによらず一律に必須とする。
 const claudeEnabled = (value) => {
   if (value === "true") return true;
   if (value === "false") return false;
@@ -193,6 +208,9 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
     GITHUB_STEP_SUMMARY,
     EXECUTION_FILE,
   } = env;
+  // この2つだけはreport()を通さず直接throwする。summaryの出力先が確定する前なので、
+  // 構造上どこにも書けない。以降の検証失敗はすべてsummaryとnoticeに残す
+  // (required checkに配線された後は、失敗理由をログではなくStep Summaryで追うため)。
   const outcome = environment(CLAUDE_OUTCOME, "CLAUDE_OUTCOME");
   const summaryPath = environment(GITHUB_STEP_SUMMARY, "GITHUB_STEP_SUMMARY");
   let enabled;
