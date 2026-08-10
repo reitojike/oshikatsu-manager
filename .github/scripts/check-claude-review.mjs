@@ -131,7 +131,15 @@ export const getGhPosts = (path, execute = execFileSync) => {
 const hasProperty = (value, property) =>
   typeof value === "object" && value !== null && Object.hasOwn(value, property);
 
-const isBufferError = (error) => hasProperty(error, "code") && error.code === "ENOBUFS";
+// maxBuffer超過時のcodeは呼び出したAPIで変わる。実測(Node v24):
+// 同期(execFileSync)は Error / "ENOBUFS"、非同期(execFile)は RangeError /
+// "ERR_CHILD_PROCESS_STDIO_MAXBUFFER"。本番は同期側だけを通るが、CIのNode版とOSでの
+// 同期側の値は未実測なので、片方に決め打たず両方を容量超過として扱う。
+// 取り違えると容量超過が汎用メッセージへ落ちる(赤くはなるが原因が読めない)。
+const MAX_BUFFER_ERROR_CODES = new Set(["ENOBUFS", "ERR_CHILD_PROCESS_STDIO_MAXBUFFER"]);
+
+const isBufferError = (error) =>
+  hasProperty(error, "code") && MAX_BUFFER_ERROR_CODES.has(error.code);
 
 const isTimeoutError = (error) =>
   (hasProperty(error, "code") && error.code === "ETIMEDOUT") ||

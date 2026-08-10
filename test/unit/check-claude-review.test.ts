@@ -188,8 +188,11 @@ test("getGhPosts: gh実行にはUTF-8、64MiB、60秒を指定する", () => {
   ]);
 });
 
-test("main: ENOBUFSは容量超過として通知し、0件扱いにしない", () => {
-  const error = Object.assign(new Error("buffer full"), { code: "ENOBUFS" });
+test.each([
+  ["ENOBUFS", new Error("buffer full")],
+  ["ERR_CHILD_PROCESS_STDIO_MAXBUFFER", new RangeError("stdout maxBuffer length exceeded")],
+])("main: %sは容量超過として通知し、0件扱いにしない", (code, base) => {
+  const error = Object.assign(base, { code });
   const { dependencies, notices, summaries } = createDependencies({ ghError: error });
   const message = `GitHub API応答が64MiB上限を超えたため投稿件数を判定できない: ${apiPaths()[0]}`;
 
