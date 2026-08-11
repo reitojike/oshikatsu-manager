@@ -139,15 +139,13 @@ describe("resolveTierModel (失敗系)", () => {
   });
 
   it.each([
-    ["missing", "# empty profile\n"],
-    ["empty", 'model = ""\n'],
-    ["whitespace only", 'model = "   "\n'],
-  ])("stops when the model value is %s", (_label, profileText) => {
+    ["missing", "# empty profile\n", "MODEL_KEY_MISSING"],
+    ["empty", 'model = ""\n', "MODEL_KEY_MISSING"],
+    ["whitespace only", 'model = "   "\n', "MODEL_KEY_MISSING"],
+    ["a line break", 'model = "fixture-sol\\nfixture-extra"\n', "MODEL_KEY_INVALID"],
+  ])("stops when the model value is %s", (_label, profileText, code) => {
     const files = fakeFiles({ [profilePath("sol")]: profileText });
-    expectResolutionFailure(
-      () => resolveTierModel("sol", { env: {}, homedir, ...files }),
-      "MODEL_KEY_MISSING",
-    );
+    expectResolutionFailure(() => resolveTierModel("sol", { env: {}, homedir, ...files }), code);
   });
 
   it("stops when the profile has a key beyond the allowed set", () => {
@@ -224,6 +222,22 @@ describe("CLIラッパー(scripts/resolve-codex-tier.mjs)", () => {
         expect(result.status).not.toBe(0);
         expect(result.stdout).toBe("");
         expect(result.stderr).toContain("UNKNOWN_TIER");
+      },
+    );
+  });
+
+  it("prints nothing to stdout and exits non-zero when the model value contains a line break", () => {
+    withTempCodexHome(
+      (codexHome) =>
+        writeFileSync(
+          join(codexHome, "sol.config.toml"),
+          'model = "fixture-sol\\nfixture-extra"\n',
+        ),
+      (codexHome) => {
+        const result = runCli(["sol"], codexHome);
+        expect(result.status).not.toBe(0);
+        expect(result.stdout).toBe("");
+        expect(result.stderr).toContain("MODEL_KEY_INVALID");
       },
     );
   });

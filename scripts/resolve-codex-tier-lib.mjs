@@ -59,6 +59,8 @@ const validateProfile = (profile, path) => {
     );
   if (typeof profile.model !== "string" || profile.model.trim() === "")
     fail("MODEL_KEY_MISSING", `profile is missing a non-empty "model" string: ${path}`);
+  if (/[\r\n]/.test(profile.model))
+    fail("MODEL_KEY_INVALID", `profile "model" must not contain line breaks: ${path}`);
 };
 
 export const resolveTierModel = (tier, { env, homedir, readFileSync }) => {
