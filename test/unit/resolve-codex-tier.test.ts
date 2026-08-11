@@ -20,9 +20,9 @@ const isResolutionError = (value: unknown): value is ResolutionError =>
 const errnoError = (code: string, message: string): NodeJS.ErrnoException =>
   Object.assign(new Error(message), { code });
 
-const FAKE_HOME = process.platform === "win32" ? "C:\\fake-home" : "/fake-home";
-const FAKE_CUSTOM_HOME = process.platform === "win32" ? "C:\\custom\\home" : "/custom/home";
-const homedir = () => FAKE_HOME;
+const fakeHome = () => (process.platform === "win32" ? "C:\\fake-home" : "/fake-home");
+const fakeCustomHome = () => (process.platform === "win32" ? "C:\\custom\\home" : "/custom/home");
+const homedir = () => fakeHome();
 
 const fakeFiles = (files: Record<string, string>) => ({
   readFileSync: (path: string) => {
@@ -49,7 +49,7 @@ const expectResolutionFailure = (run: () => unknown, code: string) => {
   }
 };
 
-const profilePath = (tier: string) => join(FAKE_HOME, ".codex", `${tier}.config.toml`);
+const profilePath = (tier: string) => join(fakeHome(), ".codex", `${tier}.config.toml`);
 
 describe("isValidTier", () => {
   it("accepts only the fixed tier set", () => {
@@ -63,16 +63,16 @@ describe("isValidTier", () => {
 
 describe("resolveCodexHome", () => {
   it("defaults to <home>/.codex when CODEX_HOME is unset", () => {
-    expect(resolveCodexHome({ env: {}, homedir })).toBe(join(FAKE_HOME, ".codex"));
+    expect(resolveCodexHome({ env: {}, homedir })).toBe(join(fakeHome(), ".codex"));
   });
 
   it("defaults to <home>/.codex when CODEX_HOME is empty", () => {
-    expect(resolveCodexHome({ env: { CODEX_HOME: "" }, homedir })).toBe(join(FAKE_HOME, ".codex"));
+    expect(resolveCodexHome({ env: { CODEX_HOME: "" }, homedir })).toBe(join(fakeHome(), ".codex"));
   });
 
   it("uses an absolute CODEX_HOME as-is", () => {
-    expect(resolveCodexHome({ env: { CODEX_HOME: FAKE_CUSTOM_HOME }, homedir })).toBe(
-      FAKE_CUSTOM_HOME,
+    expect(resolveCodexHome({ env: { CODEX_HOME: fakeCustomHome() }, homedir })).toBe(
+      fakeCustomHome(),
     );
   });
 
@@ -136,16 +136,12 @@ describe("resolveTierModel (失敗系)", () => {
     );
   });
 
-  it("stops when the model key is missing", () => {
-    const files = fakeFiles({ [profilePath("sol")]: "# empty profile\n" });
-    expectResolutionFailure(
-      () => resolveTierModel("sol", { env: {}, homedir, ...files }),
-      "MODEL_KEY_MISSING",
-    );
-  });
-
-  it("stops when the model value is empty", () => {
-    const files = fakeFiles({ [profilePath("sol")]: 'model = ""\n' });
+  it.each([
+    ["missing", "# empty profile\n"],
+    ["empty", 'model = ""\n'],
+    ["whitespace only", 'model = "   "\n'],
+  ])("stops when the model value is %s", (_label, profileText) => {
+    const files = fakeFiles({ [profilePath("sol")]: profileText });
     expectResolutionFailure(
       () => resolveTierModel("sol", { env: {}, homedir, ...files }),
       "MODEL_KEY_MISSING",

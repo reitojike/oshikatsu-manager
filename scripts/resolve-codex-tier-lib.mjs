@@ -57,7 +57,7 @@ const validateProfile = (profile, path) => {
       "UNSUPPORTED_PROFILE_KEY",
       `profile has unsupported key(s): ${unsupported.join(", ")} (${path})`,
     );
-  if (typeof profile.model !== "string" || profile.model === "")
+  if (typeof profile.model !== "string" || profile.model.trim() === "")
     fail("MODEL_KEY_MISSING", `profile is missing a non-empty "model" string: ${path}`);
 };
 
