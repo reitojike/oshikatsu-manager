@@ -257,9 +257,12 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
 4. インラインレビューコメント(行に紐づく個別指摘。Codex・CodeRabbit・Copilotが使う):
    `gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate`
 
-**Codexは`Reviewed commit`をissueコメント(面2)ではなく面3(レビュー本文)側に投稿する。**
-実測(PR #182)では、指摘の有無を問わずCodexは常に面3経由で投稿しており、面2への投稿は
-一度も無かった。上記「得た」の判定で`Reviewed commit`を探す際は、面3も対象に含める。
+**Codexは`Reviewed commit`を面2(issueコメント)と面3(レビュー本文)の両方に投稿しうる。**
+指摘0件のときは面2(issue comment、例: PR #173の15:38:54Z)、指摘ありのときは面3
+(review本文にはCodexの生成する定型文のみが入り、指摘の詳細は面4のインラインコメントに
+分離される。例: PR #173の15:46:51Z、`commit_id`フィールドで直接フルSHAが得られる)に
+投稿された実例がある。上記「得た」の判定で`Reviewed commit`を探す際は、面2・面3の両方を
+対象に含める。
 
 **2〜3は`gh pr view`で一括取得できるが、1(CI)は別コマンド、4(インラインコメント)は
 別エンドポイントで、どちらも取得漏れしやすい。**実際にPR #174で4だけ取得漏れし、
