@@ -152,9 +152,10 @@ Sonnetがそこで選んでよいことにはならない。**宛先の決め方
 (実行環境と権限、現在の作業状態、必読資料と読む順序、差し戻し契約)。
 各項目の中身は `docs/model-routing.md`「プロバイダをまたぐ引き継ぎ計画」、
 足す理由は `docs/model-routing-details.md`「引き継ぎに4項目を足す理由」。
-**階層(`agent:sol`/`terra`/`luna`)を指定する引き継ぎはCLI(`codex exec -p <階層名>`)で渡す。**
-`mcp__codex__codex`(MCP)には階層を指定する経路が無いので使わない
-(`docs/codex-profiles.md`「階層を指定できるのはCLIだけ」)。
+**階層(`agent:sol`/`terra`/`luna`)を指定する引き継ぎは `mcp__codex__codex`(MCP)を既定経路とする。**
+プロファイルから解決した `model` と対象worktreeの絶対 `cwd` を明示して渡す。CLIはMCP経路自体が
+失敗したときの限定的なフォールバックに留める(`docs/codex-profiles.md`「階層をCodexへ渡す
+(既定はMCP)」、issue #166)。
 
 **方向は下向きだけではない。**規則は
 `AGENTS.md`「`agent:opus` のIssueに着手するときは、判断フェーズをOpusのサブエージェントに投げる」。

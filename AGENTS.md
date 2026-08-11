@@ -21,7 +21,7 @@
   → `docs/model-routing-details.md`。月次の振り返りを回すとき、配分の方針を見直すとき、
   Codexがエラーを返して切り替えを検討するときに読む(振り分けを決めるだけなら読まなくてよい)**
 - **Codexのモデル階層をローカル設定で使い分ける手順 → `docs/codex-profiles.md`。
-  Codex CLIを階層別に呼び分ける前に読む**
+  Codexへ階層を指定して委譲する前に読む(MCP・CLIのどちらでも)**
 - **Issueの粒度の目安とその根拠、Issue内で下位モデルへ渡す手順 → `docs/task-management.md`。
   Issueを起票・分割する前と、Issue内で下位モデルに渡す前に必ず読む**
 - **worktree/ブランチの畳み方とローカル`main`の扱い → `docs/worktree-policy.md`。
@@ -36,6 +36,11 @@
 - `lib/` — I/O層。Supabaseクライアント、外部通信。ここにルールを書かない。
 - `test/` — Vitest。`test/unit/`(依存なし)と`test/db/`(Supabaseローカル起動が必要)を分ける。
 - `supabase/` — マイグレーションと生成型。
+- `scripts/` — リポジトリ運用スクリプト。**人が必要な時に呼ぶもの**は `package.json` の
+  `yarn` コマンドを公開の入口にする(`docs/worktree-policy.md`「リポジトリ運用スクリプトの
+  置き場所と正本」)。**エージェントが処理のたびに呼ぶ機械消費スクリプト**は、
+  この慣習の対象外であり、呼び出し契約を各スクリプトの利用元文書に持つ
+  (例: `docs/codex-profiles.md`「階層名からslugを解決する」)。
 
 ## 絶対に守ること
 
