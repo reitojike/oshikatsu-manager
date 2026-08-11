@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -167,7 +168,8 @@ describe("resolveTierModel (失敗系)", () => {
   });
 });
 
-const cliScriptPath = join(import.meta.dirname, "..", "..", "scripts", "resolve-codex-tier.mjs");
+const testDirname = dirname(fileURLToPath(import.meta.url));
+const cliScriptPath = join(testDirname, "..", "..", "scripts", "resolve-codex-tier.mjs");
 
 const runCli = (args: string[], codexHome: string) =>
   spawnSync(process.execPath, [cliScriptPath, ...args], {
