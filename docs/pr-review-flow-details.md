@@ -96,17 +96,24 @@ Copilotの最終レビューは「プレミアムリクエストのquota上限�
 gh api repos/{owner}/{repo}/rules/branches/main \
   --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique'
 
-# 2. 列挙された各idについて詳細を取得し、実際に適用されている値を確認する
-RULESET_ID=<1で出たruleset_id>
-gh api repos/{owner}/{repo}/rulesets/$RULESET_ID \
-  --jq '{enforcement, target, conditions, source_type, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}'
+# 2. 列挙された全idについて詳細を取得し、実際に適用されている値を確認する(1件でもループで回す)
+gh api repos/{owner}/{repo}/rules/branches/main \
+  --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique | .[] | "\(.ruleset_id) \(.ruleset_source_type)"' \
+| while read -r RULESET_ID SOURCE_TYPE; do
+    echo "== id=$RULESET_ID source_type=$SOURCE_TYPE =="
+    gh api repos/{owner}/{repo}/rulesets/$RULESET_ID \
+      --jq '{enforcement, target, conditions, source_type, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}'
+  done
 ```
 
 **2の`source_type`は1のフィルタと必ず突き合わせる。**このリポジトリでの実測は
-Repository由来のRuleset 1件のみ(`gh api repos/{owner}/{repo}/rulesets/$RULESET_ID`が
-`source_type: "Repository"`を返すことを確認済み)。Organization / Enterprise由来のRulesetは
-このリポジトリに存在しないため、同じエンドポイントで詳細が引けるかは未検証。
-**2が該当idでエラーを返した場合、それ自体が「Repository由来と同じエンドポイントでは
-引けない」という判別結果として扱う。**成功を前提にせず、そこで初めて`source_type`に応じた
-別のエンドポイントをGitHub REST APIのドキュメントで調べる(このリポジトリでは未遭遇のため、
-具体的なパスをここに書かない)。遭遇したらこの節に実測結果を追記する。
+Repository由来のRuleset 1件のみ(上記ループの出力が`source_type: "Repository"`を
+返すことを確認済み)。Organization / Enterprise由来のRulesetはこのリポジトリに存在しないため、
+同じエンドポイントで詳細が引けるかは未検証。
+
+**2がエラーを返しても、それだけでは「由来別に別エンドポイントが要る」と判断しない。**
+認証・権限エラー(`gh`の再ログインが必要、トークンにスコープが無い)、存在しない`id`
+(1の出力を取り違えた)、一時的な通信エラーをまず除外する。それらのどれにも当たらず、
+かつ`source_type`がRepository以外のときに限って、`source_type`に応じた別のエンドポイントを
+GitHub REST APIのドキュメントで調べる(このリポジトリでは未遭遇のため、具体的なパスは
+ここに書かない)。遭遇したらこの節に実測結果を追記する。
