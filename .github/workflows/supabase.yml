@@ -27,8 +27,8 @@ jobs:
   db-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: yarn
@@ -45,7 +45,7 @@ jobs:
             echo "::notice::supabase/config.toml が無いため supabase start をスキップします(フェーズ1で有効化)。yarn test:db はこのまま実行します。"
           fi
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         if: steps.check.outputs.initialized == 'true'
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -73,8 +73,8 @@ jobs:
   types-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: yarn
@@ -91,7 +91,7 @@ jobs:
             echo "::notice::supabase/config.toml が無いため型検証をスキップします(フェーズ1で有効化)。"
           fi
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         if: steps.check.outputs.initialized == 'true'
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -104,7 +104,7 @@ jobs:
 
       # ローカル開発機にDockerが無く `yarn gen:types --local` を手元で実行できない
       # 場合でも、生成結果をここから取得してコミットできるようにする。
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: steps.check.outputs.initialized == 'true'
         with:
           name: supabase-types

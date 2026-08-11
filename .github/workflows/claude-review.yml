@@ -32,7 +32,7 @@ jobs:
     if: github.event.action != 'labeled' || github.event.label.name == 'review:full'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -71,7 +71,7 @@ jobs:
         if: steps.check.outputs.enabled == 'true'
         run: echo "started_at=$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@5ef2e550a465a721f4f45e4a7d3c340c873e1dcc # v1.0.190
         id: claude
         if: steps.check.outputs.enabled == 'true'
         with:
