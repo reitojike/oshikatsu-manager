@@ -16,7 +16,8 @@
   "dependencies": {
     "next": "16.3.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "smol-toml": "^1.7.1"
   },
   "resolutions": {
     "typescript": "^5"
@@ -34,7 +35,6 @@
     "jsdom": "^30",
     "markdownlint-cli2": "^0.23.2",
     "prettier": "^3",
-    "smol-toml": "^1.7.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "typescript-eslint": "^8",
