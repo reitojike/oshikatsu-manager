@@ -3,7 +3,7 @@ import { isAbsolute, join } from "node:path";
 import { parse } from "smol-toml";
 
 const TIERS = ["sol", "terra", "luna"];
-const BOM = "﻿";
+const BOM = String.fromCharCode(0xfeff);
 const ALLOWED_KEYS = ["model"];
 
 export const CODEX_PROFILE_RESOLUTION_ERROR_NAME = "CodexProfileResolutionError";

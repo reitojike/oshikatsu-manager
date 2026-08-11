@@ -7,6 +7,11 @@ const usage = () => {
   console.error("usage: node scripts/resolve-codex-tier.mjs <sol|terra|luna>");
 };
 
+const errorCode = (error) =>
+  error instanceof Error && typeof error.code === "string" ? error.code : "ERROR";
+
+const errorMessage = (error) => (error instanceof Error ? error.message : String(error));
+
 const tier = process.argv[2];
 
 try {
@@ -14,6 +19,6 @@ try {
   console.log(model);
 } catch (error) {
   usage();
-  console.error(`${error.code ?? "ERROR"}: ${error.message}`);
+  console.error(`${errorCode(error)}: ${errorMessage(error)}`);
   process.exitCode = 1;
 }

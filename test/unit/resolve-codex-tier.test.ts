@@ -98,8 +98,9 @@ describe("resolveTierModel (成功系)", () => {
   });
 
   it("accepts a profile prefixed with a UTF-8 BOM", () => {
+    const bom = String.fromCharCode(0xfeff);
     const files = fakeFiles({
-      [profilePath("sol")]: '﻿# comment\nmodel = "fixture-sol"\n',
+      [profilePath("sol")]: `${bom}# comment\nmodel = "fixture-sol"\n`,
     });
     expect(resolveTierModel("sol", { env: {}, homedir, ...files })).toBe("fixture-sol");
   });
