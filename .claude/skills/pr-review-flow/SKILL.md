@@ -159,11 +159,15 @@ governance-docs側の扱いを適用しない(「複数の分類にまたがるP
 場合(Ready後に追加修正をpushした場合を含む)、その結果は無効になり、新しいHEADに対して
 上記(Ready化後のpushによる自動投稿、または手動コメント)と同じ手段で改めて得る必要がある。
 **「得た」とみなすのは、コメント本文の`Reviewed commit`の値(Codexは10桁程度の短縮形で
-投稿する)を`git rev-parse`でフルSHAに解決し、それがその時点のHEADのフルSHAと完全一致する
-コメントをCodexが投稿している場合に限る。**前方一致(prefix match)だけでは、短縮形が
-複数の実在コミット(例: 過去のCodexコメントの対象コミットと現在のHEAD)の両方に一致しうる
-ケースを排除できない(`git rev-parse`が単一のコミットに解決できない=曖昧な短縮形の場合も
-「得た」と判定しない)。PR #168〜#171(Draft中5巡すべて)の実測では、
+投稿する)を`gh api repos/{owner}/{repo}/commits/<短縮SHA>`でフルSHAに解決し、それがその時点の
+HEADのフルSHAと完全一致するコメントをCodexが投稿している場合に限る。**ローカルのgit管理下の
+コミット情報に依存する手段ではなくこのAPIで解決するのは、対象コミットが手元に無い場合でも
+解決でき、短縮形が現在のHEADのプレフィックスとして誤って一意に解決されることもないためである。
+前方一致(prefix match)だけでは、短縮形が複数の実在コミット(例: 過去のCodexコメントの対象コミット
+と現在のHEAD)の両方に一致しうるケースを排除できない(APIが単一のコミットに解決できない=曖昧な
+短縮形の場合も「得た」と判定しない)。**存在しない短縮SHAを含め解決に失敗した場合
+(存在しない短縮SHAはHTTP 422 `No commit found for SHA`で失敗する)も「得た」と判定しない
+(fail-closed)。**PR #168〜#171(Draft中5巡すべて)の実測では、
 指摘0件のときもCodexは必ず`Codex Review: Didn't find any major issues`等の文言と
 `Reviewed commit: <SHA>`を含むテキストコメントを投稿しており、単独の👍リアクションは
 一度も観測しなかった。GitHubのリアクションはコミットSHAに紐づかないため
@@ -213,6 +217,17 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
   アクションは`docs/lint-policy.md`「レビュー指摘から静的解析を強化する」を参照
 - PRを作成したらCIとレビューボットの結果を待ち、指摘を分類してから自分でマージする。
   mainに直接pushしない
+
+**マージ直前には、次の4面をすべて再取得する。**
+
+1. CI: `gh pr checks {number}`
+2. issueコメント(総評・案内文): `gh pr view {number} --json comments`
+3. レビュー本文(claude-review・Copilotの総評): `gh pr view {number} --json reviews`
+4. インラインレビューコメント(行に紐づく個別指摘。Codex・CodeRabbit・Copilotが使う):
+   `gh api repos/{owner}/{repo}/pulls/{number}/comments`
+
+**1〜3は`gh pr view`で一括取得できるが、4だけ別エンドポイントで取得漏れしやすい。**
+実際にPR #174で4だけ取得漏れし、CodexのP1指摘を見落としたままマージした。
 
 ## マージ後の振り返り
 
