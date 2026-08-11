@@ -253,9 +253,13 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
 
 1. CI: `gh pr checks {number}`
 2. issueコメント(総評・案内文): `gh pr view {number} --json comments`
-3. レビュー本文(claude-review・Copilotの総評): `gh pr view {number} --json reviews`
+3. レビュー本文(claude-review・Copilot・**Codex**の総評): `gh pr view {number} --json reviews`
 4. インラインレビューコメント(行に紐づく個別指摘。Codex・CodeRabbit・Copilotが使う):
    `gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate`
+
+**Codexは`Reviewed commit`をissueコメント(面2)ではなく面3(レビュー本文)側に投稿する。**
+実測(PR #182)では、指摘の有無を問わずCodexは常に面3経由で投稿しており、面2への投稿は
+一度も無かった。上記「得た」の判定で`Reviewed commit`を探す際は、面3も対象に含める。
 
 **2〜3は`gh pr view`で一括取得できるが、1(CI)は別コマンド、4(インラインコメント)は
 別エンドポイントで、どちらも取得漏れしやすい。**実際にPR #174で4だけ取得漏れし、
