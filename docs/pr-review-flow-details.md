@@ -97,12 +97,16 @@ gh api repos/{owner}/{repo}/rules/branches/main \
   --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique'
 
 # 2. 列挙された全idについて詳細を取得し、実際に適用されている値を確認する(1件でもループで回す)
+#    pipefailにより、1のgh apiまたはループ内のgh apiが失敗したらそこで打ち切る
+#    (パイプの終端コマンドの終了ステータスだけを見ると、途中の失敗を見逃す)
+set -o pipefail
 gh api repos/{owner}/{repo}/rules/branches/main \
   --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique | .[] | "\(.ruleset_id) \(.ruleset_source_type)"' \
 | while read -r RULESET_ID SOURCE_TYPE; do
     echo "== id=$RULESET_ID source_type=$SOURCE_TYPE =="
     gh api repos/{owner}/{repo}/rulesets/$RULESET_ID \
-      --jq '{enforcement, target, conditions, source_type, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}'
+      --jq '{enforcement, target, conditions, source_type, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}' \
+      || { echo "id=$RULESET_ID の取得に失敗"; exit 1; }
   done
 ```
 
