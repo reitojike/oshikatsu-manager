@@ -223,7 +223,7 @@ Issueを起票・分割する前と、Issue内で下位モデルに渡す前に�
 
 ```bash
 yarn dev              # 開発サーバー
-yarn lint             # ESLint + markdownlint-cli2
+yarn lint             # 改行コード確認 + lintスコープ確認 + Prettier + ESLint + markdownlint-cli2
 yarn typecheck        # tsc
 yarn test             # Vitest (unit)
 yarn test:db          # Vitest (DB統合。事前に supabase start が必要)

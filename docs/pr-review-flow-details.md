@@ -86,16 +86,24 @@ Copilotの最終レビューは「プレミアムリクエストのquota上限�
 `gh api`でのRuleset書き込みはClaude Codeのauto mode分類器にブロックされるため、
 この設定を変更する場合は人間が手動で行う。適用状況の確認は一覧系エンドポイント
 (`gh api repos/{owner}/{repo}/rulesets`)では`rules`が返らず誤判定するため、
-各Rulesetの`id`を控えたうえで詳細エンドポイントを使う。`id`はブランチ単位のルール一覧
-エンドポイントから取得できる(各ルールに`ruleset_id`が付き、`type`で`copilot_code_review`を
-特定できる)。
+各Rulesetの`id`を控えたうえで詳細エンドポイントを使う。**`main`には複数のRulesetが同時に
+効きうる**(Repository / Organization / Enterprise由来。`ruleset_source_type`で区別できる)ため、
+`id`を1件に決め打ちしない。`{id}`は`gh api`のURLテンプレート展開の対象ではないので、
+シェル変数に入れてから渡す。
 
 ```bash
-# 1. mainに効いているRulesetのidを特定する
+# 1. mainに効いているcopilot_code_reviewのRulesetを列挙する(id・由来とも複数ありうる)
 gh api repos/{owner}/{repo}/rules/branches/main \
-  --jq '.[] | select(.type == "copilot_code_review") | .ruleset_id'
+  --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique'
 
-# 2. そのidで詳細を取得し、実際に適用されている値を確認する
-gh api repos/{owner}/{repo}/rulesets/{id} \
-  --jq '{enforcement, target, conditions, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}'
+# 2. 列挙された各idについて詳細を取得し、実際に適用されている値を確認する
+RULESET_ID=<1で出たruleset_id>
+gh api repos/{owner}/{repo}/rulesets/$RULESET_ID \
+  --jq '{enforcement, target, conditions, source_type, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}'
 ```
+
+**2の`source_type`は1のフィルタと必ず突き合わせる。**このリポジトリでの実測は
+Repository由来のRuleset 1件のみ(`gh api repos/{owner}/{repo}/rulesets/$RULESET_ID`が
+`source_type: "Repository"`を返すことを確認済み)。Organization / Enterprise由来のRulesetは
+このリポジトリに存在しないため、同じエンドポイントで詳細が引けるかは未検証。
+遭遇したらこの節に実測結果を追記する。
