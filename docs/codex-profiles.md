@@ -111,11 +111,13 @@ issue #163では、MCPにプロファイル名を直接渡す経路が無いこ�
 node scripts/resolve-codex-tier.mjs terra
 ```
 
-**`yarn` 経由(`yarn codex:resolve-tier`)で呼ばない。**`yarn run` は既定でバナー行を
-標準出力に混ぜ込むため、値を1行だけ返す契約が壊れる(`yarn --silent` を付ければ回避できるが、
-付け忘れが起きうる呼び方を正式な入口にしない)。**`yarn codex:resolve-tier` は人が手元で
-値を確認する用途に限定し、プログラムからの呼び出しは常に `node scripts/resolve-codex-tier.mjs`
-を直接使う。**
+**`package.json` に `yarn` コマンドを持たない。**`AGENTS.md`「ディレクトリ構成」は
+`scripts/` の公開の入口を `yarn` コマンドとする(`docs/worktree-policy.md`「リポジトリ運用
+スクリプトの置き場所と正本」)が、これは`issue:set-agent`のような**人が必要な時に呼ぶ**
+運用スクリプトを指す。このヘルパーは主にエージェント(Claude/Codex)がCodexへの委譲のたびに
+呼ぶもので、`yarn run` が既定で混ぜ込むバナー行が値を1行だけ返す契約を壊す
+(`yarn --silent` で回避できるが、付け忘れが起きうる呼び方を正式な入口にしない)。
+**そのため `yarn` ラッパーを持たせず、常に `node scripts/resolve-codex-tier.mjs` を直接使う。**
 
 このヘルパーの責務は設定解決だけに限定する。
 

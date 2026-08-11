@@ -11,8 +11,7 @@
     "test": "vitest run --project unit --project component",
     "test:db": "vitest run --project db",
     "gen:types": "supabase gen types typescript --local > supabase/types.ts",
-    "issue:set-agent": "node scripts/sync-agent-model.mjs",
-    "codex:resolve-tier": "node scripts/resolve-codex-tier.mjs"
+    "issue:set-agent": "node scripts/sync-agent-model.mjs"
   },
   "dependencies": {
     "next": "16.3.0",
