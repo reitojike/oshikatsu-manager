@@ -101,15 +101,19 @@ PRはまず`gh pr create --draft`でDraft作成する。
 - **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。反復の主力はClaude/Codexで、CodeRabbitは取れたときに追加の視点が入る、という位置づけで期待値を持つこと。レート制限は`docs/pr-review-flow-details.md`「CodeRabbit」を参照
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
 
-**governance-docs分類のPRに限り、Draftでの反復はP0と、実行者の行動が変わるP1が0になるまで続ける。**
-他の分類(code・automation-config)のPRでは、従来どおり指摘が尽きるまで反復する。
+**governance-docsのみに分類されるPRに限り、Draftでの反復はP0と、実行者の行動が変わる
+P1が0になるまで続ける。**他の分類(code・automation-config)のPRでは、従来どおり
+指摘が尽きるまで反復する。**docsとcode・automation-configにまたがる複数分類のPRは、
+governance-docs側の扱いを適用しない(「複数の分類にまたがるPRは該当する観点をすべて
+当てる」(上記「Draft前セルフレビュー」)と同じく、より厳しい側が優先する)。**
 軽微(言い回し・表記・レンダリングだけの差)をP1から切り分ける基準の正本は
 `AGENTS.md`の`## Code Review Rules`節(`governance-docs`)にある
 (理屈をここに書き写さない。片方だけ古くなる)。
 
-**governance-docs分類のPRでは、巡数の固定上限は設けない。打ち切ってよいのは、
-直前のpushが少なくとも1巡のレビューを受け、そのラウンドの新規指摘が軽微のみ、
-または0件になったときだけ。**行動が変わる修正・コード変更を含むpushでも、
+**governance-docsのみのPRでは、巡数の固定上限は設けない。打ち切ってよいのは、
+直前のpushが少なくとも1巡のレビューを受け、そのラウンドの新規指摘に「本物の修正」が
+0件になったときだけ**(「軽微」「誤検知」(下記「指摘の扱いとマージ」の分類)だけが
+残っている状態を含む)。行動が変わる修正・コード変更を含むpushでも、
 そのレビューがクリーンに返ってくれば同様に打ち切れる
 (push自体の内容が軽微修正のみである必要はない。行動が変わるpushだからといって、
 クリーンな結果を得るためだけにもう1巡待つ必要はない)。
