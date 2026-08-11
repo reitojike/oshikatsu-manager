@@ -32,6 +32,7 @@ coverage/
 # Claude Code (ローカル個人設定)
 .claude/settings.local.json
 .claude/worktrees/
+.claude/tmp/
 
 # Codex CLI (ローカル個人設定)
 # モデル名とreasoning effortの割り当てはローカル設定に置き、リポジトリには入れない
