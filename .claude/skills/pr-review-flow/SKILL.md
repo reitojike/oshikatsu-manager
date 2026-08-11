@@ -101,6 +101,14 @@ PRはまず`gh pr create --draft`でDraft作成する。
 - **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。反復の主力はClaude/Codexで、CodeRabbitは取れたときに追加の視点が入る、という位置づけで期待値を持つこと。レート制限は`docs/pr-review-flow-details.md`「CodeRabbit」を参照
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
 
+**Codexへの手動`＠codex review`は毎ラウンド打たない。**Draft作成直後の1回(Codex独自の
+視点を早期に得る)と、反復を打ち切ると判断する巡(governance-docsは下記の打ち切り条件を
+満たす巡、それ以外の分類は指摘が尽きたと判断する巡)の1回、計2回を基本とする。
+中間ラウンドはpush起動のclaude-review・CodeRabbitに任せ、Codexへの再依頼はしない
+(PR #135実測。手動再依頼4回中3回が「Didn't find any major issues.」で、以降のラウンドに
+追加情報をもたらさなかった)。打ち切り判定の後に新たな行動が変わる修正が発生した場合は、
+そのラウンドが新しい「打ち切り判定をする巡」になるので、そこでもう一度1回呼ぶ。
+
 **governance-docsのみに分類されるPRに限り、Draftでの反復はP0と、実行者の行動が変わる
 P1が0になるまで続ける。**他の分類(code・automation-config)のPRでは、従来どおり
 指摘が尽きるまで反復する。**docsとcode・automation-configにまたがる複数分類のPRは、
@@ -141,7 +149,20 @@ governance-docs側の扱いを適用しない(「複数の分類にまたがるP
 上記の反復終了条件(governance-docsは打ち切り条件、それ以外は指摘が尽きること)を満たしたら
 `gh pr ready`でReady for reviewに変える。このタイミングでCopilotの最終レビューが1回走る(`review_draft_pull_requests: false`、Ready化がトリガー)。
 
-**Codex Cloudについて。**PR #113での実測では、Ready化そのもの(pushを伴わない`gh pr ready`単体)では8分以上経っても自動投稿が無かった一方、**Ready化後に新しいコミットをpushすると、手動メンション無しで自動投稿された**(push後約3分)。つまり発火条件は「Draft**ではない**状態でのpush(synchronize)」であって、「Draftをreadyにするというイベント自体」ではないと見られる(bot自身の案内文言は「Draftをreadyにする」と表現しているが、実測に基づくとこちらの解釈の方が正確)。**Ready化した時点で新規pushの予定が無いPRでは自動発火を待たず、`@codex review`を手動コメントすること。**
+**Codex Cloudについて。**PR #113での実測では、Ready化そのもの(pushを伴わない`gh pr ready`単体)では8分以上経っても自動投稿が無かった一方、**Ready化後に新しいコミットをpushすると、手動メンション無しで自動投稿された**(push後約3分)。つまり発火条件は「Draft**ではない**状態でのpush(synchronize)」であって、「Draftをreadyにするというイベント自体」ではないと見られる(bot自身の案内文言は「Draftをreadyにする」と表現しているが、実測に基づくとこちらの解釈の方が正確)。
+**Ready化した時点で、直前の打ち切り判定巡(上記「Draftフェーズ」)より後にpushしていなければ、
+その巡で得たCodexの結果をそのまま充当してよく、`@codex review`を改めて手動コメントする必要はない。
+その巡より後にpushしている場合は、自動発火を待たず`@codex review`を手動コメントすること。**
+**マージ前に、その時点のHEADのSHAに対するCodexの結果を最低1回得ることを義務とする**
+(Ready化後のpushによる自動投稿、Ready化後の手動コメント、または打ち切り判定巡で得た結果の
+充当のいずれかで満たせばよい)。**結果は対象コミットにしか紐づかない。**それより後にpushした
+場合(Ready後に追加修正をpushした場合を含む)、その結果は無効になり、新しいHEADに対して
+上記(Ready化後のpushによる自動投稿、または手動コメント)と同じ手段で改めて得る必要がある。
+**「得た」とみなすのは、Codexが
+その対象コミットにコメントを投稿した(指摘あり)、または👍リアクションを付けた(指摘0件)
+場合に限る。**どちらも無い状態は未実行として扱い、指摘0件と読み替えない(Codex自身の
+案内文言「suggestionsがあればコメント、無ければ👍」に基づく。上記「Draft前セルフレビュー」の
+「無言を0件と読み替えない」と同じ原則をここにも揃える)。
 
 ## Ready後の運用
 
