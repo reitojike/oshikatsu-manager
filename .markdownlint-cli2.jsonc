@@ -9,5 +9,5 @@
     // 目次構造を変える意味のある変更で、機械的に一括変換すべきものではない。
     "MD036": false,
   },
-  "globs": ["docs/**/*.md", ".claude/skills/**/*.md", "*.md"],
+  "globs": ["docs/**/*.md", ".claude/skills/**/*.md", ".github/ISSUE_TEMPLATE/**/*.md", "*.md"],
 }
