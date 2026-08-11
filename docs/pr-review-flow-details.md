@@ -106,4 +106,7 @@ gh api repos/{owner}/{repo}/rulesets/$RULESET_ID \
 Repository由来のRuleset 1件のみ(`gh api repos/{owner}/{repo}/rulesets/$RULESET_ID`が
 `source_type: "Repository"`を返すことを確認済み)。Organization / Enterprise由来のRulesetは
 このリポジトリに存在しないため、同じエンドポイントで詳細が引けるかは未検証。
-遭遇したらこの節に実測結果を追記する。
+**2が該当idでエラーを返した場合、それ自体が「Repository由来と同じエンドポイントでは
+引けない」という判別結果として扱う。**成功を前提にせず、そこで初めて`source_type`に応じた
+別のエンドポイントをGitHub REST APIのドキュメントで調べる(このリポジトリでは未遭遇のため、
+具体的なパスをここに書かない)。遭遇したらこの節に実測結果を追記する。
