@@ -228,10 +228,13 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
 2. issueコメント(総評・案内文): `gh pr view {number} --json comments`
 3. レビュー本文(claude-review・Copilotの総評): `gh pr view {number} --json reviews`
 4. インラインレビューコメント(行に紐づく個別指摘。Codex・CodeRabbit・Copilotが使う):
-   `gh api repos/{owner}/{repo}/pulls/{number}/comments`
+   `gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate`
 
-**1〜3は`gh pr view`で一括取得できるが、4だけ別エンドポイントで取得漏れしやすい。**
-実際にPR #174で4だけ取得漏れし、CodexのP1指摘を見落としたままマージした。
+**2〜3は`gh pr view`で一括取得できるが、1(CI)は別コマンド、4(インラインコメント)は
+別エンドポイントで、どちらも取得漏れしやすい。**実際にPR #174で4だけ取得漏れし、
+CodexのP1指摘を見落としたままマージした。**4は既定で最初の30件しか返らないため、
+`--paginate`を付けて全件取得する。**31件以上ある場合、`--paginate`が無いと後続ページの
+指摘を見落とす。
 
 ## マージ後の振り返り
 
