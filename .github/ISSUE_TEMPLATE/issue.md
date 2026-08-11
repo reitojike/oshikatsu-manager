@@ -27,8 +27,8 @@ labels: ""
 ## 参照
 
 <!--
-  ラベル: agent:* はいずれか1つを付ける(既定はCodex優先。agent:sol / terra / luna。
-  Claude側で判断する場合のみ agent:opus / sonnet / haiku に置き換える。
+  ラベル: agent:* はいずれか1つを付ける(既定はCodex優先。`agent:sol` / `agent:terra` / `agent:luna`。
+  Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haiku` に置き換える。
   詳細は docs/model-routing.md「既定はCodex優先」)。
   phase:N も付ける(docs/roadmap.md のフェーズと対応させる)。
 -->
