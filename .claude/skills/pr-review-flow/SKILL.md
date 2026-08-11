@@ -252,10 +252,17 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
 を記録してから、次の4面をすべて再取得する。**
 
 1. CI: `gh pr checks {number}`
-2. issueコメント(総評・案内文): `gh pr view {number} --json comments`
-3. レビュー本文(claude-review・Copilot・**Codex**の総評): `gh pr view {number} --json reviews`
+2. issueコメント(総評・案内文): `gh api repos/{owner}/{repo}/issues/{number}/comments --paginate`
+3. レビュー本文(claude-review・Copilot・**Codex**の総評):
+   `gh api repos/{owner}/{repo}/pulls/{number}/reviews --paginate`
 4. インラインレビューコメント(行に紐づく個別指摘。Codex・CodeRabbit・Copilotが使う):
    `gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate`
+
+**2・3は`gh pr view {number} --json comments`/`--json reviews`でも取得できるが、
+これらは100件を超えると同じくページネーションされずに欠落しうる。**4と揃えて
+`gh api`の`--paginate`付きコマンドを既定にする。実際にPR #174で4(インラインコメント)
+だけ取得漏れし、CodexのP1指摘を見落としたままマージした。4は既定で最初の30件しか
+返らないため、`--paginate`が無いと31件以上ある場合に後続ページの指摘を見落とす。
 
 **Codexは`Reviewed commit`を面2(issueコメント)と面3(レビュー本文)の両方に投稿しうる。**
 指摘0件のときは面2(issue comment、例: PR #173の15:38:54Z)、指摘ありのときは面3
@@ -263,12 +270,6 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
 分離される。例: PR #173の15:46:51Z、`commit_id`フィールドで直接フルSHAが得られる)に
 投稿された実例がある。上記「得た」の判定で`Reviewed commit`を探す際は、面2・面3の両方を
 対象に含める。
-
-**2〜3は`gh pr view`で一括取得できるが、1(CI)は別コマンド、4(インラインコメント)は
-別エンドポイントで、どちらも取得漏れしやすい。**実際にPR #174で4だけ取得漏れし、
-CodexのP1指摘を見落としたままマージした。**4は既定で最初の30件しか返らないため、
-`--paginate`を付けて全件取得する。**31件以上ある場合、`--paginate`が無いと後続ページの
-指摘を見落とす。
 
 **4面の取得中に新しいpushが起きると、確認した内容と実際にマージするコミットがずれる。**
 これを防ぐため、マージ実行時は4面の取得を始める**前に**記録したHEAD OIDを
