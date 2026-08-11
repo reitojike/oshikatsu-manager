@@ -184,8 +184,9 @@ Sonnetがそこで選んでよいことにはならない。**宛先の決め方
   紐づけの確認は `gh api repos/{owner}/{repo}/issues/{parent_number}/sub_issues` で行う
 
 ```bash
-# 1. 子Issueを作る(ラベル・Project登録は通常どおり)
-gh issue create --title "..." --body "..." --label "agent:sonnet,phase:0"
+# 1. 子Issueを作る(ラベル・Project登録は通常どおり。agent:*は引き継ぎ先の階層に対応する
+#    1つを選ぶ。既定はCodex優先なので `docs/model-routing.md`「既定はCodex優先」を参照)
+gh issue create --title "..." --body "..." --label "agent:<引き継ぎ先の階層>,phase:<親と同じフェーズ番号>"
 
 # 2. 子のnumeric id(node idではない)を取って親に紐づける
 SUB_ID=$(gh api repos/{owner}/{repo}/issues/{sub_number} --jq '.id')

@@ -86,16 +86,38 @@ Copilotの最終レビューは「プレミアムリクエストのquota上限�
 `gh api`でのRuleset書き込みはClaude Codeのauto mode分類器にブロックされるため、
 この設定を変更する場合は人間が手動で行う。適用状況の確認は一覧系エンドポイント
 (`gh api repos/{owner}/{repo}/rulesets`)では`rules`が返らず誤判定するため、
-各Rulesetの`id`を控えたうえで詳細エンドポイントを使う。`id`はブランチ単位のルール一覧
-エンドポイントから取得できる(各ルールに`ruleset_id`が付き、`type`で`copilot_code_review`を
-特定できる)。
+各Rulesetの`id`を控えたうえで詳細エンドポイントを使う。**`main`には複数のRulesetが同時に
+効きうる**(Repository / Organization / Enterprise由来。`ruleset_source_type`で区別できる)ため、
+`id`を1件に決め打ちしない。`{id}`は`gh api`のURLテンプレート展開の対象ではないので、
+シェル変数に入れてから渡す。
 
 ```bash
-# 1. mainに効いているRulesetのidを特定する
+# 1. mainに効いているcopilot_code_reviewのRulesetを列挙する(id・由来とも複数ありうる)
 gh api repos/{owner}/{repo}/rules/branches/main \
-  --jq '.[] | select(.type == "copilot_code_review") | .ruleset_id'
+  --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique'
 
-# 2. そのidで詳細を取得し、実際に適用されている値を確認する
-gh api repos/{owner}/{repo}/rulesets/{id} \
-  --jq '{enforcement, target, conditions, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}'
+# 2. 列挙された全idについて詳細を取得し、実際に適用されている値を確認する(1件でもループで回す)
+#    pipefailにより、1のgh apiまたはループ内のgh apiが失敗したらそこで打ち切る
+#    (パイプの終端コマンドの終了ステータスだけを見ると、途中の失敗を見逃す)
+set -o pipefail
+gh api repos/{owner}/{repo}/rules/branches/main \
+  --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique | .[] | "\(.ruleset_id) \(.ruleset_source_type)"' \
+| while read -r RULESET_ID SOURCE_TYPE; do
+    echo "== id=$RULESET_ID source_type=$SOURCE_TYPE =="
+    gh api repos/{owner}/{repo}/rulesets/$RULESET_ID \
+      --jq '{enforcement, target, conditions, source_type, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}' \
+      || { echo "id=$RULESET_ID の取得に失敗"; exit 1; }
+  done
 ```
+
+**2の`source_type`は1のフィルタと必ず突き合わせる。**このリポジトリでの実測は
+Repository由来のRuleset 1件のみ(上記ループの出力が`source_type: "Repository"`を
+返すことを確認済み)。Organization / Enterprise由来のRulesetはこのリポジトリに存在しないため、
+同じエンドポイントで詳細が引けるかは未検証。
+
+**2がエラーを返しても、それだけでは「由来別に別エンドポイントが要る」と判断しない。**
+認証・権限エラー(`gh`の再ログインが必要、トークンにスコープが無い)、存在しない`id`
+(1の出力を取り違えた)、一時的な通信エラーをまず除外する。それらのどれにも当たらず、
+かつ`source_type`がRepository以外のときに限って、`source_type`に応じた別のエンドポイントを
+GitHub REST APIのドキュメントで調べる(このリポジトリでは未遭遇のため、具体的なパスは
+ここに書かない)。遭遇したらこの節に実測結果を追記する。

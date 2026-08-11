@@ -309,7 +309,7 @@ RLS検証の最小セット:
 
 | ジョブ | 内容 | ゲート |
 | --- | --- | --- |
-| lint / typecheck | ESLint + markdownlint-cli2 + tsc | ゲート |
+| lint / typecheck | 改行コード確認 + lintスコープ確認 + Prettier + ESLint + markdownlint-cli2 + tsc | ゲート |
 | unit test | pure関数のテスト(依存なし・高速) | ゲート |
 | db test | Supabaseローカル起動 + RLS検証 | ゲート |
 | supabase型検証 | 生成型を再生成し、差分がないことを確認(8.2) | ゲート |
