@@ -50,7 +50,11 @@ Anthropic側も effort の調整を「モデルを切り替えるより良いレ
 ## 呼び出しを細かく割らない理由
 
 利用上限はモデル・タスクの大きさや複雑さ・実行環境に応じて消費され、
-5時間の共有窓を単位とする([Codex Pricing](https://learn.chatgpt.com/docs/pricing))。
+ローカルのメッセージとクラウドのchatが5時間の共有窓を単位として共有する
+([Codex Pricing](https://learn.chatgpt.com/docs/pricing)、
+"local messages and cloud chats share a five-hour window")。
+**この5時間窓とは別に、追加の週次上限が適用されることがある**
+(同上、"Additional weekly limits may apply.")。
 turn単位で区切られる保証はないが、少なくとも「進行中のturnは上限到達後も継続できる」
 ("If you reach your usage limits during an active turn, the agent will be able to continue working
 on that turn, subject to fair use limits."、同上)ため、細切れに投げて呼び出し回数を増やすほど、
@@ -113,6 +117,13 @@ Codexの残量確認手段は、対話セッション内の `/status` と
 (他の分類でも経路差が無いとは限らない。分類ごとに実測するまでは未確認のまま扱う)。
 また、`try again at Aug 16th, 2026 8:32 AM` のようなリセット時刻表記が UTC かローカル
 タイムゾーンかは**未確認**であり、断定しない。
+
+**この実測例のリセット時刻は、実測日(2026-08-11)から見て約5日後であり、
+「呼び出しを細かく割らない理由」で述べた5時間の共有窓とは周期が異なる。**
+Codex Pricingは5時間窓とは別に「追加の週次上限が適用されることがある」と明記しており
+(前述、"Additional weekly limits may apply.")、今回の実測はこの週次(またはそれに類する
+長い周期)の上限に該当した可能性が高い。ただし応答本文だけからはどちらの上限に当たったかを
+確定できないため、断定はしない。
 
 **文字列判定だけで断定しない。**上限とレート制限の区別が付かないときは、
 **1回だけ同じ内容で再試行し、同じエラーなら上限として扱う。**
