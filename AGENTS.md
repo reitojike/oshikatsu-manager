@@ -36,6 +36,8 @@
 - `lib/` — I/O層。Supabaseクライアント、外部通信。ここにルールを書かない。
 - `test/` — Vitest。`test/unit/`(依存なし)と`test/db/`(Supabaseローカル起動が必要)を分ける。
 - `supabase/` — マイグレーションと生成型。
+- `scripts/` — 人が必要な時に呼ぶリポジトリ運用スクリプト。`package.json` の `yarn` コマンドを
+  公開の入口にする(`docs/worktree-policy.md`「リポジトリ運用スクリプトの置き場所と正本」)。
 
 ## 絶対に守ること
 

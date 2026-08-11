@@ -11,7 +11,8 @@
     "test": "vitest run --project unit --project component",
     "test:db": "vitest run --project db",
     "gen:types": "supabase gen types typescript --local > supabase/types.ts",
-    "issue:set-agent": "node scripts/sync-agent-model.mjs"
+    "issue:set-agent": "node scripts/sync-agent-model.mjs",
+    "codex:resolve-tier": "node scripts/resolve-codex-tier.mjs"
   },
   "dependencies": {
     "next": "16.3.0",
@@ -34,6 +35,7 @@
     "jsdom": "^30",
     "markdownlint-cli2": "^0.23.2",
     "prettier": "^3",
+    "smol-toml": "^1.7.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "typescript-eslint": "^8",

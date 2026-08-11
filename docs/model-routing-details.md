@@ -73,11 +73,13 @@ Codexの残量確認手段は、対話セッション内の `/status` と
 ([Codex Pricing](https://learn.chatgpt.com/docs/pricing))。
 上限は「呼んで失敗して初めて分かる」。
 
-> **階層(プロファイル名による指定)はCLI(`codex exec -p <階層名>`)でしかできない。**
-> MCP経由でプロファイル名を指定する経路が無いことを、考えられる経路すべてについて
-> **実測で確認した**(issue #163、codex-cli 0.147.0)。試した経路と結果、採らない理由、
-> MCP経由を使ってよい範囲、無反応時の扱いは `docs/codex-profiles.md`「階層を指定できる
-> のはCLIだけ」。ここには書き写さない。
+> **階層指定を含むCodexへの委譲は、MCP(`mcp__codex__codex`)を既定経路とする**
+> (issue #166)。プロファイル名を直接渡す経路は無く(issue #163実測)、代わりに
+> `scripts/resolve-codex-tier.mjs` でプロファイルから解決した `model` を、対象worktreeの
+> 絶対 `cwd` とともに明示してMCPを呼ぶ。CLI(`codex exec -p <階層名>`)はMCP経路自体が
+> 失敗したときの限定的なフォールバックに留める。**手順、失敗時の分類との接続は
+> `docs/codex-profiles.md`「階層をCodexへ渡す(既定はMCP)」を参照する**
+> (ここには書き写さない)。
 
 事前に軽い1往復を投げて生存確認する運用は**採らない。**ping成功の直後に本命のturnで
 上限に達しうるので可用性を保証せず、ping自体が枠と時間を消費する(Solの見解、issue #67)。
