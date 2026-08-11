@@ -1,3 +1,6 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -11,6 +14,12 @@ import {
 
 type ResolutionError = Error & { code: string };
 
+const isResolutionError = (value: unknown): value is ResolutionError =>
+  value instanceof Error && "code" in value && typeof value.code === "string";
+
+const errnoError = (code: string, message: string): NodeJS.ErrnoException =>
+  Object.assign(new Error(message), { code });
+
 const FAKE_HOME = process.platform === "win32" ? "C:\\fake-home" : "/fake-home";
 const FAKE_CUSTOM_HOME = process.platform === "win32" ? "C:\\custom\\home" : "/custom/home";
 const homedir = () => FAKE_HOME;
@@ -18,20 +27,14 @@ const homedir = () => FAKE_HOME;
 const fakeFiles = (files: Record<string, string>) => ({
   readFileSync: (path: string) => {
     const content = Object.hasOwn(files, path) ? files[path] : undefined;
-    if (content === undefined) {
-      const error = new Error(`ENOENT: no such file, open '${path}'`) as NodeJS.ErrnoException;
-      error.code = "ENOENT";
-      throw error;
-    }
+    if (content === undefined) throw errnoError("ENOENT", `no such file, open '${path}'`);
     return content;
   },
 });
 
 const unreadable = () => ({
   readFileSync: () => {
-    const error = new Error("EACCES: permission denied") as NodeJS.ErrnoException;
-    error.code = "EACCES";
-    throw error;
+    throw errnoError("EACCES", "permission denied");
   },
 });
 
@@ -41,7 +44,8 @@ const expectResolutionFailure = (run: () => unknown, code: string) => {
     expect.unreachable();
   } catch (error) {
     expect(isCodexProfileResolutionError(error)).toBe(true);
-    expect((error as ResolutionError).code).toBe(code);
+    if (!isResolutionError(error)) throw new Error("expected a resolution error with a code");
+    expect(error.code).toBe(code);
   }
 };
 
@@ -163,6 +167,76 @@ describe("resolveTierModel (失敗系)", () => {
     expectResolutionFailure(
       () => resolveTierModel("sol", { env: {}, homedir, ...files }),
       "FILE_MISSING",
+    );
+  });
+});
+
+const cliScriptPath = join(import.meta.dirname, "..", "..", "scripts", "resolve-codex-tier.mjs");
+
+const runCli = (args: string[], codexHome: string) =>
+  spawnSync(process.execPath, [cliScriptPath, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, CODEX_HOME: codexHome },
+  });
+
+const withTempCodexHome = (
+  setup: (codexHome: string) => void,
+  run: (codexHome: string) => void,
+) => {
+  const codexHome = mkdtempSync(join(os.tmpdir(), "resolve-codex-tier-cli-"));
+  try {
+    setup(codexHome);
+    run(codexHome);
+  } finally {
+    rmSync(codexHome, { recursive: true, force: true });
+  }
+};
+
+describe("CLIラッパー(scripts/resolve-codex-tier.mjs)", () => {
+  it("prints exactly one line to stdout and exits 0 on success", () => {
+    withTempCodexHome(
+      (codexHome) => writeFileSync(join(codexHome, "sol.config.toml"), 'model = "fixture-sol"\n'),
+      (codexHome) => {
+        const result = runCli(["sol"], codexHome);
+        expect(result.status).toBe(0);
+        expect(result.stdout).toBe("fixture-sol\n");
+        expect(result.stderr).toBe("");
+      },
+    );
+  });
+
+  it("prints nothing to stdout and exits non-zero when the profile is missing", () => {
+    withTempCodexHome(
+      () => {},
+      (codexHome) => {
+        const result = runCli(["sol"], codexHome);
+        expect(result.status).not.toBe(0);
+        expect(result.stdout).toBe("");
+        expect(result.stderr).toContain("FILE_MISSING");
+      },
+    );
+  });
+
+  it("prints nothing to stdout and exits non-zero for an unknown tier", () => {
+    withTempCodexHome(
+      () => {},
+      (codexHome) => {
+        const result = runCli(["opus"], codexHome);
+        expect(result.status).not.toBe(0);
+        expect(result.stdout).toBe("");
+        expect(result.stderr).toContain("UNKNOWN_TIER");
+      },
+    );
+  });
+
+  it("prints nothing to stdout and exits non-zero when no tier is given", () => {
+    withTempCodexHome(
+      () => {},
+      (codexHome) => {
+        const result = runCli([], codexHome);
+        expect(result.status).not.toBe(0);
+        expect(result.stdout).toBe("");
+      },
     );
   });
 });
