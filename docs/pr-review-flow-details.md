@@ -159,12 +159,13 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 複数の視点によるレビューが確保される。Ready化ではさらにGitHub Copilotの最終レビューが
 別途走るため、Codexが欠けても多重レビューの構造自体は失われない。
 
-**実例。**PR #207(2026-08-12、Issue #204)。ローカルCodexが
+**実例。**PR #207(2026-08-12、Issue #204。本節を追加した当のPR)。ローカルCodexが
 `You've hit your usage limit... try again at Aug 18th, 2026 9:20 AM`で失敗し、Draft前
 セルフレビューは`/code-review`に切替(skill既定の手順どおり)。Draft作成直後の
 `@codex review`とReady化契機の自動投稿の両方でCodex Cloudが
-`You have reached your Codex usage limits for code reviews`を返した。claude-review(0件)・
-CI全green・CodeRabbitの結果で代替してマージした。
+`You have reached your Codex usage limits for code reviews`を返した。上記の判別基準に
+該当するため、claude-review・CodeRabbitの結果で代替してマージする(本PR自身がこの代替の
+第1号適用)。
 
 ### CodeRabbit
 
