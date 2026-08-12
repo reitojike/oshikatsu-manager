@@ -148,6 +148,23 @@ describe("evaluatePreconditions: lock", () => {
       evaluatePreconditions({ worktree, status: cleanPushedStatus, unlockRequested: false }),
     ).toEqual({ ok: true, needsUnlock: false });
   });
+
+  it("allows a clean detached-HEAD worktree to proceed despite having no upstream", () => {
+    const detachedWorktree = {
+      path: TARGET_PATH,
+      branch: undefined,
+      locked: false,
+      lockReason: undefined,
+    };
+    const detachedStatus = { dirty: false, dirtyLines: [], upstream: undefined, ahead: undefined };
+    expect(
+      evaluatePreconditions({
+        worktree: detachedWorktree,
+        status: detachedStatus,
+        unlockRequested: false,
+      }),
+    ).toEqual({ ok: true, needsUnlock: false });
+  });
 });
 
 describe("evaluatePreconditions: dirty and push state (negative tests)", () => {
@@ -247,6 +264,26 @@ describe("cleanupWorktree: happy path and negative (dirty) test", () => {
     const git = createGit({ status: aheadStatus });
     const result = cleanupWorktree({ path: TARGET_PATH, unlock: false }, { git, log: vi.fn() });
     expect(result).toEqual({ removed: false, branchDeleted: false, reason: "unpushed" });
+  });
+});
+
+describe("cleanupWorktree: detached HEAD", () => {
+  it("removes a clean detached worktree and skips branch deletion", () => {
+    const detachedPorcelain = [mainWorktree, `worktree ${TARGET_PATH}\nHEAD def456\ndetached`].join(
+      "\n\n",
+    );
+    const detachedStatus = "# branch.oid def456\n# branch.head (detached)";
+    const git = vi.fn((args: string[]) => {
+      if (args[0] === "worktree" && args[1] === "list") return detachedPorcelain;
+      if (args[0] === "-C" && args[2] === "status") return detachedStatus;
+      if (args[0] === "worktree" && args[1] === "remove") return "";
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+    const log = vi.fn();
+    const result = cleanupWorktree({ path: TARGET_PATH, unlock: false }, { git, log });
+    expect(result).toEqual({ removed: true, branchDeleted: false, reason: undefined });
+    expect(git).not.toHaveBeenCalledWith(expect.arrayContaining(["-d"]));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("detached HEAD"));
   });
 });
 

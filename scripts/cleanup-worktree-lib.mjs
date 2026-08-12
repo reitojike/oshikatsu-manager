@@ -62,24 +62,29 @@ export const evaluatePreconditions = ({ worktree, status, unlockRequested }) => 
       reason: "dirty",
       message: `worktree has uncommitted or untracked changes:\n${status.dirtyLines.join("\n")}`,
     };
-  if (status.upstream === undefined)
-    return {
-      ok: false,
-      reason: "no-upstream",
-      message: "branch has no upstream configured; cannot verify it was pushed",
-    };
-  if (status.ahead === undefined)
-    return {
-      ok: false,
-      reason: "upstream-gone",
-      message: `upstream '${status.upstream}' is gone; cannot verify the branch was pushed`,
-    };
-  if (status.ahead > 0)
-    return {
-      ok: false,
-      reason: "unpushed",
-      message: `branch is ahead of '${status.upstream}' by ${status.ahead} commit(s)`,
-    };
+  // detached HEAD にはブランチが無く、push対象のupstreamという概念自体が存在しないため、
+  // 以降のupstreamチェックは対象外にする(worktree.branch === undefined はcleanupWorktree側の
+  // ブランチ削除スキップと対応しており、ここで弾くと常に到達不能になる)。
+  if (worktree.branch !== undefined) {
+    if (status.upstream === undefined)
+      return {
+        ok: false,
+        reason: "no-upstream",
+        message: "branch has no upstream configured; cannot verify it was pushed",
+      };
+    if (status.ahead === undefined)
+      return {
+        ok: false,
+        reason: "upstream-gone",
+        message: `upstream '${status.upstream}' is gone; cannot verify the branch was pushed`,
+      };
+    if (status.ahead > 0)
+      return {
+        ok: false,
+        reason: "unpushed",
+        message: `branch is ahead of '${status.upstream}' by ${status.ahead} commit(s)`,
+      };
+  }
   return { ok: true, needsUnlock: worktree.locked && unlockRequested };
 };
 
