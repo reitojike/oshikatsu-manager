@@ -12,7 +12,8 @@
     "test:db": "vitest run --project db",
     "gen:types": "supabase gen types typescript --local > supabase/types.ts",
     "issue:set-agent": "node scripts/sync-agent-model.mjs",
-    "issue:set-status": "node scripts/set-issue-status.mjs"
+    "issue:set-status": "node scripts/set-issue-status.mjs",
+    "worktree:cleanup": "node scripts/cleanup-worktree.mjs"
   },
   "dependencies": {
     "next": "16.3.0",

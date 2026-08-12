@@ -141,7 +141,11 @@ git rev-list --left-right --count main...origin/main
 **2段構えにする。**
 
 1. **一次: PRをマージ / closeした直後。**担当したモデル自身が畳む。
-   `AGENTS.md`「作業完了後は `git worktree remove` で片付ける」がこれで、新しいルールではない
+   `AGENTS.md`「作業完了後は `git worktree remove` で片付ける」がこれで、新しいルールではない。
+   **自分のworktreeを畳む一次の場面は、下記「リポジトリ運用スクリプトの置き場所と正本」の
+   `yarn worktree:cleanup` を使う。**前提条件(未コミット/未push/lock)を機械確認し、
+   満たしていなければ削除せず理由を報告して止まる。他人の残骸worktreeを畳む二次の棚卸し
+   (下記「削除してよい条件(白)」)には使わない(PRのマージ状態確認を行わないため)
 2. **二次: 新しくworktreeを切る前。**一次が漏れることを前提にした網
 
 **なぜ「セッション終了時」を強く書き直すのではなく、二次を足すのか。**issue #84で漏れたのは
@@ -316,6 +320,30 @@ Projectの選択肢定義自体は変更せず、既存の選択肢IDを使っ�
 検証するところまでが責務であり、遷移の妥当性判定・ラベルとの連動(`Status` に対応するラベルは
 存在しない)・`Blocked` の理由記録(引き続きエージェントが行う。`AGENTS.md`)は含まない**
 (#147のPO決定コメント・2026-08-12が正本)。
+
+第3弾は、**自分のworktreeを畳む一次の場面**(上記「使い終わったworktree/ブランチを畳む」)向けの
+`yarn worktree:cleanup --path <worktreeのパス> [--unlock]` とする。他人の残骸worktreeを畳む
+二次の棚卸し(PRのマージ状態をAPIで確認する「削除してよい条件(白)」の手順)は対象外で、
+このスクリプトは呼ばない。
+
+- **前提条件チェック**(`git worktree list --porcelain` と対象worktreeの
+  `git status --porcelain=v2 --branch` から判定する。いずれか1つでも満たさなければ**削除せず**、
+  該当する理由(`locked` / `dirty` / `no-upstream` / `upstream-gone` / `unpushed`)と詳細を
+  報告して終了する):
+  1. **lock**: `locked` が付いていないこと。付いている場合、`--unlock` を明示したときだけ
+     unlockして続行する(自分のworktreeであることの判定は呼び出し側の責任。`AGENTS.md`
+     「自分のworktreeがlock済みならunlockしてから削除する」の実装)
+  2. **未コミット変更(untracked含む)が無いこと**
+  3. **未pushコミットが無いこと**: upstreamが未設定、またはupstreamの参照が消えていて
+     (fetch --prune後などで)ahead数を確認できない場合も、確認できないこと自体を理由に
+     止める(fail-closed。`--unlock`と違い、これを回避するフラグは無い)
+- **実行**: 条件を満たしたら `git worktree remove` → `git branch -d` の順に実行する。
+  `git branch -d` は未マージなら失敗するが(このリポジトリはsquash mergeのため、マージ済みでも
+  失敗しうる。「`git branch --merged` も `git branch -d` も、単独では判定に使えない」参照)、
+  worktree自体は既に削除済みなので、失敗はブランチが残った旨の報告に留め、スクリプト全体は
+  異常終了として扱わない(`-D`・`--force`は使わない)
+- **やらないこと**: 他人の残骸worktreeの掃除の自動化、GitHub側の状態(PRのマージ有無)の確認。
+  これらは引き続き上記「削除してよい条件(白)」の手動手順で行う
 
 Issue #134で試作した消費実績集計スクリプトを取り込む場合も、この決定に従って `scripts/` に置き、
 `package.json` から呼び出す。集計の意味や対象期間などの方針は、対応する文書を正本にする。
