@@ -258,3 +258,30 @@ codex exec -p terra "Reply with exactly OK. Do not use any tools."
 `.codex/config.toml` に黙って上書きされる」事故は、MCP経路では起きない。
 確認すべきなのは「`model` / `cwd` を渡し忘れていないか」であり、
 上記「MCP呼び出しで明示すること」を参照する。
+
+## `.agents/` へのskill複製(既知の副作用)
+
+プロジェクト直下に、未追跡の `.agents/skills/<name>/SKILL.md` が出現することがある
+(issue #213で `.agents/skills/pr-review-flow/SKILL.md` として観測)。
+`.claude/skills/**` の複製だが、`Claude`→`Codex`、`.claude`→`.Codex`、`CLAUDE.md`→`AGENTS.md`
+という**機械的な文字列置換**を伴っており、実在しないファイル・パスを指す形で正本と食い違う
+(例: `claude-review.yml` → 実在しない`Codex-review.yml`)。**内容を正本として読んではならない。**
+
+**生成元は断定できていない。**手がかりとして次の2点を記録する(issue #213調査時点)。
+
+- `.agents/plugins/marketplace.json` + `.agents/skills/<name>/SKILL.md` という構成は、
+  Codex本体が使う「plugin/skillのマーケットプレイスリポジトリ」自体のレイアウトと一致する
+  (`$CODEX_HOME/.tmp/plugins/README.md` に同じ構成の説明がある)
+- ローカルの `$CODEX_HOME/config.toml` に `[desktop] external-agent-import-sync-enabled = true`
+  が入っており、実際にClaude Codeのセッション履歴が同ホーム配下へインポートされていることも
+  確認できた(`$CODEX_HOME/external_agent_session_imports.json`)。**ただしこの設定が
+  プロジェクト直下への`.agents/skills/**`出力の直接の原因であることまでは実証できていない**
+  (2026-08-18までCodexがレート制限中で、生成を再現する実行ができないため)
+
+**生成を止められるかは未確認。**候補である`external-agent-import-sync-enabled`はローカル個人設定
+(`$CODEX_HOME/config.toml`。このリポジトリでは`.gitignore`済みでコミットされない)側の値であり、
+リポジトリ側から制御できない。
+
+**運用: 出現したら削除する。**`.agents/`は`.gitignore`済み(issue #213)なので誤コミットはされないが、
+削除するまでは正本(`.claude/skills/**`)との乖離が残る。`.claude/skills/**`が常に正本である
+原則は `AGENTS.md`「ディレクトリ構成」の複製禁止にすでにある(理屈をここに書き写さない)。

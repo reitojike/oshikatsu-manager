@@ -39,6 +39,10 @@ coverage/
 # (docs/model-routing.md「モデル名を文書に固定しない」)
 .codex/
 
+# Codex CLI/デスクトップアプリが生成する外部ミラー (未追跡。生成元・停止可否は未確定。
+# 詳細は docs/codex-profiles.md「`.agents/`へのskill複製」、issue #213)
+.agents/
+
 # OS / エディタ
 .DS_Store
 Thumbs.db
