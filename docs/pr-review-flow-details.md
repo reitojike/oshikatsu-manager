@@ -97,8 +97,7 @@ gh api repos/{owner}/{repo}/rules/branches/main \
   --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique'
 
 # 2. 列挙された全idについて詳細を取得し、実際に適用されている値を確認する(1件でもループで回す)
-#    pipefailは効かせない(プロセス置換 `< <(...)` の中で失敗しても伝播しないため)。
-#    代わりに、1のgh apiの出力をいったん変数に受け、代入コマンド自体の成否を`||`で確認する。
+#    1のgh apiの出力をいったん変数に受け、代入コマンド自体の成否を`||`で明示的に確認する。
 #    0件のときにwhile/for本体が一度も実行されずexit 0で終わり、「1件も検証していない」ことに
 #    気づけなくなるのを防ぐため、件数(空文字かどうか)も明示的に確認する
 RULESETS_RAW=$(gh api repos/{owner}/{repo}/rules/branches/main \
