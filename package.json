@@ -13,6 +13,7 @@
     "gen:types": "supabase gen types typescript --local > supabase/types.ts",
     "issue:set-agent": "node scripts/sync-agent-model.mjs",
     "issue:set-status": "node scripts/set-issue-status.mjs",
+    "issue:register": "node scripts/register-issue.mjs",
     "worktree:cleanup": "node scripts/cleanup-worktree.mjs"
   },
   "dependencies": {

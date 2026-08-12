@@ -33,6 +33,25 @@ export const resolveGhPath = ({ configuredPath, platform, exists }) => {
 
 const parseJson = (value) => JSON.parse(value);
 
+export const addProjectItem = (runGh, contentId) => {
+  const query = `mutation($project:ID!,$content:ID!){
+    addProjectV2ItemById(input:{projectId:$project,contentId:$content}){item{id}}
+  }`;
+  const result = parseJson(
+    runGh([
+      "api",
+      "graphql",
+      "-f",
+      `query=${query}`,
+      "-f",
+      `project=${PROJECT_ID}`,
+      "-f",
+      `content=${contentId}`,
+    ]),
+  );
+  return result.data.addProjectV2ItemById.item.id;
+};
+
 export const getProjectItem = (runGh, repo, issue) => {
   const result = parseJson(
     runGh([
