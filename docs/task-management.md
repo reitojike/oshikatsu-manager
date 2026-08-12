@@ -185,8 +185,10 @@ Sonnetがそこで選んでよいことにはならない。**宛先の決め方
 
 ```bash
 # 1. 子Issueを作る(ラベル・Project登録は通常どおり。agent:*は引き継ぎ先の階層に対応する
-#    1つを選ぶ。既定はCodex優先なので `docs/model-routing.md`「既定はCodex優先」を参照)
-gh issue create --title "..." --body "..." --label "agent:<引き継ぎ先の階層>,phase:<親と同じフェーズ番号>"
+#    1つを選ぶ。既定はCodex優先なので `docs/model-routing.md`「既定はCodex優先」を参照。
+#    phase:*は親のラベルをそのままコピーする。`phase:2-backlog`のような番号だけでは
+#    表せないラベルもあるため、「フェーズ番号」ではなく親のラベル文字列そのものを使う)
+gh issue create --title "..." --body "..." --label "agent:<引き継ぎ先の階層>,<親のphase:*ラベルをそのままコピー>"
 
 # 2. 子のnumeric id(node idではない)を取って親に紐づける
 SUB_ID=$(gh api repos/{owner}/{repo}/issues/{sub_number} --jq '.id')

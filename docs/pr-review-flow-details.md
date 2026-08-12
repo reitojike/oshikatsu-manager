@@ -99,15 +99,24 @@ gh api repos/{owner}/{repo}/rules/branches/main \
 # 2. 列挙された全idについて詳細を取得し、実際に適用されている値を確認する(1件でもループで回す)
 #    pipefailにより、1のgh apiまたはループ内のgh apiが失敗したらそこで打ち切る
 #    (パイプの終端コマンドの終了ステータスだけを見ると、途中の失敗を見逃す)
+#    配列に受けてから件数を確認する。パイプでwhileに直結すると0件のとき本体が一度も実行されず
+#    exit 0で終わってしまい、「1件も検証していない」ことに気づけない
 set -o pipefail
-gh api repos/{owner}/{repo}/rules/branches/main \
-  --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique | .[] | "\(.ruleset_id) \(.ruleset_source_type)"' \
-| while read -r RULESET_ID SOURCE_TYPE; do
-    echo "== id=$RULESET_ID source_type=$SOURCE_TYPE =="
-    gh api repos/{owner}/{repo}/rulesets/$RULESET_ID \
-      --jq '{enforcement, target, conditions, source_type, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}' \
-      || { echo "id=$RULESET_ID の取得に失敗"; exit 1; }
-  done
+mapfile -t RULESETS < <(gh api repos/{owner}/{repo}/rules/branches/main \
+  --jq '[.[] | select(.type == "copilot_code_review") | {ruleset_id, ruleset_source_type}] | unique | .[] | "\(.ruleset_id) \(.ruleset_source_type)"')
+
+if [ "${#RULESETS[@]}" -eq 0 ]; then
+  echo "copilot_code_reviewのRulesetが0件でした。1件も検証していません" >&2
+  exit 1
+fi
+
+for LINE in "${RULESETS[@]}"; do
+  read -r RULESET_ID SOURCE_TYPE <<< "$LINE"
+  echo "== id=$RULESET_ID source_type=$SOURCE_TYPE =="
+  gh api repos/{owner}/{repo}/rulesets/$RULESET_ID \
+    --jq '{enforcement, target, conditions, source_type, copilot_rules: [.rules[] | select(.type == "copilot_code_review") | .parameters]}' \
+    || { echo "id=$RULESET_ID の取得に失敗"; exit 1; }
+done
 ```
 
 **2の`source_type`は1のフィルタと必ず突き合わせる。**このリポジトリでの実測は
