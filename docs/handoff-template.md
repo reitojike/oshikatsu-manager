@@ -68,14 +68,16 @@ Issueに新規着手するエージェント(レーン)をコールドスター�
 >
 > \<並行して他Issueが同じファイルを触っている場合の申し送り。無ければ省略\>
 >
-> 着手時にProjectの`Status`を`In Progress`に移し、worktreeの切り方・畳み方は
-> `docs/worktree-policy.md`のとおり進めてください。PRの作成からマージまでは
-> `pr-review-flow` skillの手順に従ってください(Draft作成・レビュー反復・Ready化・
-> マージ・マージ後の振り返りを含む)。コミット前の検証は`AGENTS.md`「作業の終わり方」の
-> とおりに行ってください。
+> 着手時にProjectの`Status`を`In Progress`に移し、worktreeの切り方は`AGENTS.md`
+> 「ブランチとPR」、畳み方は`docs/worktree-policy.md`のとおり進めてください。
+> PRの作成からマージまでは`pr-review-flow` skillの手順に従ってください(Draft作成・
+> レビュー反復・Ready化・マージ・マージ後の振り返りを含む)。コミット前の検証は
+> `AGENTS.md`「作業の終わり方」のとおりに行ってください。
 >
 > レーンは待機しない(下記「レーンの待ち方」)。判断が割れている・計画に無い判断に
 > 出くわしたら、自分で選ばず`docs/decision-policy.md`の手順に従ってください。
+> 同じ問題が3回続いて機械的に解決しない場合は`AGENTS.md`のエスカレーション基準
+> (Haiku→Sonnet→Opus)に従ってください。両者は対処が別で、混ぜません。
 
 ## レーンの待ち方(空転防止)
 
