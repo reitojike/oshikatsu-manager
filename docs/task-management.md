@@ -107,8 +107,8 @@ Issueを分ける」。モデル引き上げは対象外)。判断が割れて�
 
 - 束ねる各Issueが単独でも「判断を含まない」こと(`docs/decision-policy.md`のPO確認が
   不要な追従修正・誤記修正の範囲)
-- 束ねる対象は`docs/**`・`AGENTS.md`等のgovernance-docs分類に限る。**コード変更を含む
-  Issueの束ねへは拡張しない**
+- 束ねる対象は `pr-review-flow` skillのPR種別分類における`governance-docs`に限る
+  (対象パスの一覧はそちらが正本)。**コード変更を含むIssueの束ねへは拡張しない**
 
 **上限**:
 

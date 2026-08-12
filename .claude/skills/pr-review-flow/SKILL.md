@@ -409,8 +409,9 @@ issue #43の振り返りでは挙がらず、外部からの指摘で発覚し�
 (実測の詳細は `docs/pr-review-flow-details.md`)。
 
 **close漏れの機械確認。**マージ直後、対象Issue全件について
-`gh api repos/{owner}/{repo}/issues/<N> --jq .state` でstateを確認する。GitHubのキーワード
+`gh api repos/{owner}/{repo}/issues/{issue_number} --jq .state` でstateを確認する。GitHubのキーワード
 解決に委ねきりにしない。
 
-**振り返りの記録先。**振り返りはPR側を正本とし(上記「マージ後の振り返り」の手順どおり
-記録する)、束ねた各Issueには振り返りコメントへの参照1行を残す。
+**振り返りの記録先。**上記「マージ後の振り返り」の一般則(Issueが紐づく場合はIssueへ記録する)の
+**例外として**、束ねPRでは振り返りをPR側を正本として記録し、束ねた各Issueには振り返りコメントへの
+参照1行を残す。
