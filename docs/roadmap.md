@@ -1,6 +1,6 @@
-# 開発計画 (v0.5)
+# 開発計画 (v0.9)
 
-`docs/prd.md` v0.5 のMVPスコープを、実装可能な順序に並べたもの。
+`docs/prd.md` v0.8 のMVPスコープを、実装可能な順序に並べたもの。
 
 ## タスク管理
 
@@ -48,17 +48,18 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
 **目的: この後に書く全てのコードが通る門を先に立てる。**
 
 - [x] mainブランチの保護(Ruleset。PR必須・force push禁止・削除禁止。リポジトリ管理者はバイパス可)
-- [ ] Next.js + TypeScript + yarn の初期化
-- [ ] ディレクトリ骨格を空で作る (`common/` `app/` `mcp/` `lib/` `test/{unit,component,db}` `supabase/`)
-- [ ] tsconfig を `strict` で設定
-- [ ] ESLint設定 — `docs/lint-policy.md` の内容をそのまま。**最初から全てerror**
-- [ ] Vitest設定 — environment を3つに分ける(`unit`=node / `component`=jsdom / `db`=node)
-- [ ] `package.json` にスクリプト登録 (`dev` `lint` `typecheck` `test` `test:db` `gen:types`)
-- [ ] GitHub Actions
-  - [ ] lint / typecheck
-  - [ ] unit test
-  - [ ] db test(フェーズ1でSupabaseが入るまでは空で通る)
-  - [ ] supabase型検証(`yarn gen:types` して差分があれば失敗)
+- [x] Next.js + TypeScript + yarn の初期化(issue #1)
+- [x] ディレクトリ骨格を空で作る (`common/` `app/` `mcp/` `lib/` `test/{unit,component,db}` `supabase/`)(issue #1)
+- [x] tsconfig を `strict` で設定(issue #1)
+- [x] ESLint設定 — `docs/lint-policy.md` の内容をそのまま。**最初から全てerror**(issue #2)
+- [x] Vitest設定 — environment を3つに分ける(`unit`=node / `component`=jsdom / `db`=node)(issue #3)
+- [x] `package.json` にスクリプト登録 (`dev` `lint` `typecheck` `test` `test:db` `gen:types`)(issue #3)
+- [x] GitHub Actions
+  - [x] lint / typecheck(issue #4)
+  - [x] unit test(issue #4)
+  - [x] db test(issue #5。`supabase/config.toml`が無い場合はジョブを失敗させる作り。issue #187で
+        「未初期化として黙ってスキップ」から変更)
+  - [x] supabase型検証(`yarn gen:types` して差分があれば失敗)(issue #5)
   - [x] 自動コードレビュー: Claude(`claude-review.yml`)本稼働。実際にPRへ総評+インライン
         コメントを投稿することを確認済み
   - [x] 自動コードレビュー: CodexはCodex CloudのPR自動レビュー(ワークフローファイル・
@@ -66,8 +67,8 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
         参照)。GitHub Actions版(`codex-review.yml`)はIssue #82で削除済み
   - [x] 自動コードレビュー: GitHub Copilotの自動レビュー。Ruleset(`copilot_code_review`)で
         有効化済み。PR作成時・push毎に自動でレビューコメントを投稿することを確認済み
-  - [ ] keep-alive(日次。向き先は本番ができるフェーズ6で設定)
-- [ ] 各workflowの先頭に「これが何を守っているか」のコメントを書く
+  - [x] keep-alive(骨格。issue #7)。日次実行の向き先を本番Supabaseへ切り替える作業はフェーズ6に残る
+- [x] 各workflowの先頭に「これが何を守っているか」のコメントを書く
 
 **完了条件(壊して確認する):**
 
@@ -76,7 +77,7 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
 - 型エラーを1つ入れる → typecheckが赤くなる
 
 赤くなるのを見てから戻す。ここで確認しないと、以降のフェーズは
-「ゲートがあるつもり」で進むことになる。
+「ゲートがあるつもり」で進むことになる。**issue #8で3項目とも確認済み。**
 
 **注意点**
 
@@ -89,7 +90,7 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
 
 コードの問題ではなく、あなたのアカウント側の準備状況に関わるタスクの記録。準備待ちのものだけでなく、
 既に完了した実績や、アカウント側の事情で見送り(確定)にした判断も含む。MVPスコープ外ではないので
-フェーズ2バックログには入れない。
+拡大期バックログには入れない。
 
 | タスク | 状態 |
 | --- | --- |
@@ -109,25 +110,38 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
 
 **目的: 権限を、機能より先に固める。**
 
-- [ ] `supabase init`、ローカル起動の手順をREADMEに
-- [ ] マイグレーション(`docs/data-model.md` の6テーブル)
+- [x] `supabase init`、ローカル起動の手順をREADMEに(issue #23)
+- [x] マイグレーション(`docs/data-model.md` の6テーブル)(issue #24)
       `profiles` / `events` / `event_participants` / `ticket_entries` / `expenses` / `budgets`
-- [ ] `auth.users` → `profiles` の自動作成トリガー
-- [ ] インデックス(data-model.md に記載のもの)
-- [ ] RLSポリシー(data-model.md「RLSポリシー方針」の表)
-- [ ] Google SSO (Supabase Auth) の設定
-- [ ] `yarn gen:types` → `supabase/types.ts` をコミット
-- [ ] `test/db/` でRLS検証
+- [x] `auth.users` → `profiles` の自動作成トリガー(issue #24)
+- [x] インデックス(data-model.md に記載のもの)(issue #24)
+- [x] RLSポリシー(data-model.md「RLSポリシー方針」の表)(issue #25)
+- [x] Google SSO (Supabase Auth) の設定(issue #28)
+- [x] `yarn gen:types` → `supabase/types.ts` をコミット(issue #27)
+- [x] `test/db/` でRLS検証(issue #26)
 
 **RLS検証の必須要件**(`docs/permissions.md` より、再掲ではなく実施項目として)
 
-- [ ] service_roleキーを `test/db/` のどこでも使わない
+- [x] service_roleキーを `test/db/` のどこでも使わない
 - [ ] 権限マトリクスを「行=操作 × 列=ロール」の表としてテストに写す。空欄=テスト漏れ
-- [ ] 最小検証セット8項目を実装
-- [ ] **各テストについて、対応するRLSポリシーを一時的に落として赤くなるのを確認してから戻す**
+      (`docs/permissions.md`「3. マトリクスを表のままテストに写す」/ `docs/prd.md` 8.4)。
+      `test/db/`は個別`test()`ケースの積み上げで、データ駆動の表構造ではない。
+      さらに「他人のステータス変更」「他人の参加登録を取りやめ」の2行は、無関係のユーザーが
+      actorのケースしかテストされておらず、オーナー・参加登録済みの他ユーザーがactorのケースが
+      未検証(issue #192で追跡)。文書の要求形式と機能的カバレッジの両方が未達のためチェックしない
+- [x] 最小検証セットを実装(`docs/permissions.md`「最小の検証セット」。issue #26時点は8項目、
+      issue #34・#54で追加した2項目を含め現在10項目。テストと1対1で対応済み)
+- [x] **各テストについて、対応するRLSポリシーを一時的に落として赤くなるのを確認してから戻す**
 
-**完了条件:** マトリクスの×が全てDBレベルで弾かれる。
-service_roleキーがテストコードに出現しない(grepで確認できる)。
+**完了条件:** マトリクスの×が全てDBレベルで弾かれる(issue #192の4セルを除く)。
+service_roleキーがテストコードに出現しない(grepで確認できる)。**issue #26で確認済み。**
+
+**フェーズ1完了後に見つかった追加対応**
+
+- issue #33: `test/db/` の `auth.signUp` 呼び出し回数がSupabaseのrate limitに接近 → 対応済み(CLOSED)
+- issue #34: オーナーが未参加の場合の招待可否について権限マトリクスとRLS実装の不整合 → 対応済み(CLOSED。`docs/decision-policy.md` の実例)
+- issue #54: 論理削除済みイベントへの招待経路が塞がれていない → 対応済み(CLOSED)
+- **issue #58: 削除済みイベントの復活(`deleted_at` → NULL)にガードがない → OPEN。仕様として認めるかも含めて未決定**
 
 **決定済み: `profiles.is_admin` の扱い**
 
@@ -137,7 +151,7 @@ service_roleキーがテストコードに出現しない(grepで確認できる
   したがって `docs/permissions.md` の権限マトリクスに管理者の列は作らず、
   フェーズ1の時点でマトリクスは完全な状態になる
 - 削除ガード(参加者がいたら削除不可)に例外はない。管理者でもバイパスできない
-- 強制削除と管理者画面は「フェーズ2バックログ」へ
+- 強制削除と管理者画面は「拡大期バックログ」へ
 
 ---
 
@@ -246,7 +260,7 @@ Supabaseもブラウザも要らないので、フェーズ1と並行して進�
       (`docs/testing.md` 優先度6。片方だけルールが古くなるのを検出する)
 
 **やらないこと:** MCP独自の認証機構。アクセス制御はOSのプロセス権限に委ねる(prd 4.7)。
-リモート化(OAuth 2.1 + PKCE)はフェーズ2の独立した課題。
+リモート化(OAuth 2.1 + PKCE)は拡大期の独立した課題。
 
 **完了条件:** PCのClaude(Desktop / Code)から、登録・確認の最低限の操作ができる。
 
@@ -260,7 +274,7 @@ Supabaseもブラウザも要らないので、フェーズ1と並行して進�
 - [ ] keep-alive workflow を本番プロジェクトに向ける(日次)
 - [ ] README整備(セットアップ、MCPの繋ぎ方)
 
-**留意:** 無料枠はバックアップ保持が0日。フェーズ2で家族・友人に展開する前に、
+**留意:** 無料枠はバックアップ保持が0日。拡大期で家族・友人に展開する前に、
 支出データのエクスポート手段を用意するか、有料プランを検討する。
 
 ---
@@ -277,7 +291,7 @@ Supabaseもブラウザも要らないので、フェーズ1と並行して進�
 
 ---
 
-## フェーズ2バックログ
+## 拡大期バックログ
 
 MVPのスコープ外。**利用者を家族・友人に広げるタイミングで着手する。**
 (`docs/prd.md` 4.8「将来検討」に対応する、実施単位のリスト)
@@ -318,7 +332,7 @@ MVPのスコープ外。**利用者を家族・友人に広げるタイミング
 | 参加情報の限定公開(`visibility = 'limited'`) | 「この人にだけ見せたい」が実際に出たら |
 | 支出の割り勘・精算管理 | 複数人で費用を出し合うようになったら |
 | PWAのオフライン対応 | オフラインでの書き込みが実際に必要になったら |
-| 支出データのエクスポート | 無料枠のバックアップ0日が問題になる前(フェーズ2展開前) |
+| 支出データのエクスポート | 無料枠のバックアップ0日が問題になる前(拡大期展開前) |
 
 ## 更新履歴
 
@@ -332,3 +346,4 @@ MVPのスコープ外。**利用者を家族・友人に広げるタイミング
 | v0.6 | Codexレビューの本稼働化の状態を「保留」から「見送り(確定)」に変更。ChatGPT Plusの契約にAPIキーは含まれず、OpenAI Platformの従量課金である点を理由として明記(v0.5の「取得しない方針」の撤回ではなく、理由の追記と確定) |
 | v0.7 | Codex Cloud のPR自動レビュー(Automatic reviews)を有効化(issue #101)。GitHub Actions版`codex-review.yml`とは別経路で、ワークフローファイル・APIキーとも不要。「保留: 外部アカウント待ち」の行をGitHub Actions版とCodex Cloud版に分割。実PRで、Draft PRへのpushでは自動発火しないこと・`@codex review`の手動リクエストで投稿されること・Ready化後のpushでは手動メンション無しで自動投稿されること(発火条件は「Draftではない状態でのpush」と見られる)を確認 |
 | v0.8 | Claudeレビューを機械的なゲートに格上げ(issue #95)。レビュー観点の正本を`AGENTS.md`の`## Code Review Rules`に一本化し、base SHA固定で読み出す。トークン未設定・実行したのに投稿0件・総評のマーカー不一致でcheckが赤くなる(赤になる条件の一覧は`docs/pr-review-flow-details.md`「Claude Review」)。`review:full`ラベルで全分類の再レビューを起動できる。**Rulesetのrequired status checkへの配線はPOの手作業として残っており、それまで赤はマージを止めない。**あわせてCodexレビュー(GitHub Actions版)の状態を「見送り(確定)+ ファイルの扱いは未確定」から「削除済み」に変更(issue #82)。v0.6で「採らないと決めた」ことの帰結であって、判断の変更ではない |
+| v0.9 | フェーズ0・フェーズ1のチェックリストを、対応するCLOSED Issue(#1〜#8、#23〜#28、#33、#34、#54)とリポジトリの現状に合わせて完了済みに更新(issue #187)。MVP以降の利用者拡大時期を指す「フェーズ2」の用法(roadmap.mdの`## フェーズ2 — common/のpure関数`など、MVP開発工程を指す用法は対象外)を「拡大期」に統一し、「フェーズ2バックログ」を「拡大期バックログ」に改称 |

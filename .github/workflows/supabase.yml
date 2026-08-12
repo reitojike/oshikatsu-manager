@@ -1,9 +1,9 @@
 # 何を守っているか:
 # フェーズ1でSupabaseが導入された後、db test(RLS検証含む)と生成型のコミット漏れが
 # 検出されずにmainへ入ることを防ぐゲート(docs/prd.md 8.2「生成型の運用」/ 8.6)。
-# supabase/ が未初期化の現時点(フェーズ0)では `supabase/config.toml` が無いことを
-# 検出してジョブ本体をスキップし、空で成立させる(docs/roadmap.md フェーズ0の注意点)。
-# `supabase init` 後は自動的に実検証へ切り替わる。
+# `supabase/config.toml` はフェーズ1(issue #23)でコミット済みの必須成果物のため、
+# 無い場合は「未初期化として黙ってスキップ」せず、このジョブ自体を失敗させる
+# (誤ってsupabase/を削除するPRが緑のまま通り抜けることを防ぐ)。
 # Supabase CLIのバージョンはローカルと揃えて固定する(ずれると「マイグレーション忘れ」
 # ではなく「CLI差」で落ち、誰も信じなくなるため)。
 name: Supabase
@@ -36,27 +36,21 @@ jobs:
       - run: yarn install --frozen-lockfile
 
       - name: Check for supabase/config.toml
-        id: check
         run: |
-          if [ -f supabase/config.toml ]; then
-            echo "initialized=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "initialized=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::supabase/config.toml が無いため supabase start をスキップします(フェーズ1で有効化)。yarn test:db はこのまま実行します。"
+          if [ ! -f supabase/config.toml ]; then
+            echo "::error::supabase/config.toml が見つかりません。フェーズ1でコミット済みの必須成果物です。誤って削除していないか確認してください。"
+            exit 1
           fi
 
       - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
-        if: steps.check.outputs.initialized == 'true'
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
       - run: supabase start
-        if: steps.check.outputs.initialized == 'true'
 
       # test/db/ が認証済みクライアントでRLSを検証するために接続情報を渡す。
       # service_roleキーはエクスポートしない(test/db/では使わない。docs/permissions.md)。
       - name: Export local Supabase connection info
-        if: steps.check.outputs.initialized == 'true'
         # supabase status -o env は値をダブルクォートで囲んで出力するが、
         # GITHUB_ENV はクォートを解釈しないため、そのまま渡すと値にクォートが
         # 含まれてしまう(例: API_URL が `"http://127.0.0.1:54321"` になる)。
@@ -82,36 +76,28 @@ jobs:
       - run: yarn install --frozen-lockfile
 
       - name: Check for supabase/config.toml
-        id: check
         run: |
-          if [ -f supabase/config.toml ]; then
-            echo "initialized=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "initialized=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::supabase/config.toml が無いため型検証をスキップします(フェーズ1で有効化)。"
+          if [ ! -f supabase/config.toml ]; then
+            echo "::error::supabase/config.toml が見つかりません。フェーズ1でコミット済みの必須成果物です。誤って削除していないか確認してください。"
+            exit 1
           fi
 
       - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
-        if: steps.check.outputs.initialized == 'true'
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
       - run: supabase start
-        if: steps.check.outputs.initialized == 'true'
 
       - run: yarn gen:types
-        if: steps.check.outputs.initialized == 'true'
 
       # ローカル開発機にDockerが無く `yarn gen:types --local` を手元で実行できない
       # 場合でも、生成結果をここから取得してコミットできるようにする。
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: steps.check.outputs.initialized == 'true'
         with:
           name: supabase-types
           path: supabase/types.ts
 
       - name: supabase/types.ts に差分がないことを確認
-        if: steps.check.outputs.initialized == 'true'
         # git diff だけだと未追跡ファイル(コミットし忘れ)を検出できないため、
         # 一旦stageしてから差分を見る。既存の内容と一致していればstageしても差分は出ない。
         run: |

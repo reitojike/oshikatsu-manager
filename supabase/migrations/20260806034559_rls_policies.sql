@@ -32,7 +32,7 @@ create policy "profiles_update_self" on public.profiles
   with check (id = auth.uid());
 
 -- is_adminは本人のUPDATEでも書き換えられないようにする。参照して分岐を作ってはいないが
--- (docs/permissions.mdの禁止範囲)、書き換え自体を放置すると、フェーズ2で管理者判定を
+-- (docs/permissions.mdの禁止範囲)、書き換え自体を放置すると、拡大期で管理者判定を
 -- 実装した瞬間に「今のうちに自分でis_admin=trueにしておいたユーザー」がそのまま
 -- 管理者権限を得てしまう。service_role(将来の管理者操作用)はauth.role()で除外する。
 create function public.guard_is_admin_immutable()
