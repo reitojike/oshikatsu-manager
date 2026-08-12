@@ -70,7 +70,6 @@ export const waitForProjectItem = (
       sleep(delayMs);
     }
   }
-  return undefined;
 };
 
 export const registerIssue = (options, { runGh, log, sleep }) => {
