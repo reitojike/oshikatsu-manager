@@ -1,6 +1,7 @@
-import path from "node:path";
-
-const normalizePath = (value) => path.resolve(value).replace(/\\/g, "/");
+// CWD依存のパス解決(相対パス→絶対パス)はI/O境界であるCLIエントリ(cleanup-worktree.mjs)の
+// 責務とし、ここでは既に絶対パスであることを前提に文字列としての正規化だけを行う
+// (AGENTS.md「境界では依存を引数で渡す」)。
+const normalizePath = (value) => value.replace(/\\/g, "/");
 
 const parseWorktreeBlock = (block) => {
   const lines = block.split(/\r?\n/).filter((line) => line !== "");

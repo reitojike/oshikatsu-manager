@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import path from "node:path";
 
 import { cleanupWorktree, parseArguments } from "./cleanup-worktree-lib.mjs";
 
@@ -8,9 +9,10 @@ const usage = () => {
 
 const run = () => {
   const options = parseArguments(process.argv.slice(2));
+  const resolvedOptions = { ...options, path: path.resolve(options.path) };
   const git = (args) =>
     execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  const result = cleanupWorktree(options, { git, log: console.log });
+  const result = cleanupWorktree(resolvedOptions, { git, log: console.log });
   if (!result.removed) process.exitCode = 1;
 };
 
