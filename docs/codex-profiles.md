@@ -266,6 +266,8 @@ codex exec -p terra "Reply with exactly OK. Do not use any tools."
 `.claude/skills/**` の複製だが、`Claude`→`Codex`、`.claude`→`.Codex`、`CLAUDE.md`→`AGENTS.md`
 という**機械的な文字列置換**を伴っており、実在しないファイル・パスを指す形で正本と食い違う
 (例: `claude-review.yml` → 実在しない`Codex-review.yml`)。**内容を正本として読んではならない。**
+**`.Codex`(大文字C)は`.agents/`側の壊れた複製の中身に実際に現れる文字列であり、
+このリポジトリの実在ディレクトリ`.codex/`(小文字)とは別物である**(混同注意。issue #213)。
 
 **生成元は、Codexデスクトップアプリの「外部エージェントのインポート同期」機能である可能性が高い
 (断定はできていない)。**根拠(issue #213調査時点)。
@@ -295,6 +297,11 @@ codex exec -p terra "Reply with exactly OK. Do not use any tools."
 採用しないこと、`.claude/skills/**`が常に正本であることは、issue #213で決めた本節固有の運用である
 (`AGENTS.md`「ディレクトリ構成」の複製禁止は`common/`のドメインロジックを対象にした別のルールで、
 本件はそこには含まれない)。
+
+**`.gitignore`済みのため、通常の`git status`には出現しない。**「出現したら削除する」を実行する
+機会は、`git status --ignored`(または`ls -a`)で明示的に確認したときに限られる。定期実行の
+仕組みは持たない(`docs/worktree-policy.md`「自動化の線引き」と同じ理由。ローカルのgitフックは
+GitHub Actionsから見えず、CIゲートにできない)。
 
 **このリポジトリ内の自動レビューは`.agents/`を読まない(issue #213確認済み)。**
 `claude-review.yml`はAGENTS.mdをbase SHAから読み、変更分類の対象パスも`.claude/skills/**`に
