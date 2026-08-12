@@ -78,9 +78,9 @@ required status checksに`claude-review`が含まれる)。上記の赤はマー
 | メッセージ | 型 | 対応 |
 | --- | --- | --- |
 | 「Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です」 | ゲートによる赤(投稿0件) | 下記「投稿0件の原因を切り分ける」へ |
-| 「…head SHAマーカーに一致する投稿が0件です」 | ゲートによる赤(マーカー不一致) | promptのマーカー指示が守られていない可能性。再実行して改善しなければissueへ記録する |
-| 「Claude actionが失敗したため投稿件数判定は対象外です」 | action自体の実行時失敗(元stepの赤をそのまま維持) | `gh run view <run-id> --log`で`"is_error": true`を確認する。再現性のない失敗であることが多く、失敗ジョブの再実行で完走することがある(PR #139・run 31348464844で実測。再実行後3m45sで完走し指摘0件を投稿した。原因の特定は#150) |
-| 「…workflow validation skipでした」 | 意図的スキップ(`claude-review.yml`自体を変更するPR) | 上記のworkflow検証スキップの対処に従う |
+| 「Claude actionは実行され、対象head以降にclaude[bot]の投稿がありますが、head SHAマーカーに一致する投稿が0件です。promptのマーカー指示が守られていない可能性があります」 | ゲートによる赤(マーカー不一致) | promptのマーカー指示が守られていない可能性。再実行して改善しなければissueへ記録する |
+| 「Claude actionが失敗したため投稿件数判定は対象外です。元stepの失敗を維持します。」 | action自体の実行時失敗(元stepの赤をそのまま維持) | `gh run view <run-id> --log`で`"is_error": true`を確認する。再現性のない失敗であることが多く、失敗ジョブの再実行で完走することがある(PR #139・run 31348464844で実測。再実行後3m45sで完走し指摘0件を投稿した。原因の特定は#150) |
+| 「Claude actionはworkflow validation skipでした。投稿件数判定は機械では行えません。」 | 意図的スキップ(`claude-review.yml`自体を変更するPR) | 上記のworkflow検証スキップの対処に従う |
 
 **投稿0件の原因を切り分ける。**上表1行目(ゲートによる赤・投稿0件)の場合、次にPRが
 機微なパスを変更していないか確認する。対象は`.claude`, `.mcp.json`, `.claude.json`,
