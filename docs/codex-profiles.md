@@ -283,5 +283,7 @@ codex exec -p terra "Reply with exactly OK. Do not use any tools."
 リポジトリ側から制御できない。
 
 **運用: 出現したら削除する。**`.agents/`は`.gitignore`済み(issue #213)なので誤コミットはされないが、
-削除するまでは正本(`.claude/skills/**`)との乖離が残る。`.claude/skills/**`が常に正本である
-原則は `AGENTS.md`「ディレクトリ構成」の複製禁止にすでにある(理屈をここに書き写さない)。
+削除するまでは正本(`.claude/skills/**`)との乖離が残る。`.agents/skills/**`を新たな正本として
+採用しないこと、`.claude/skills/**`が常に正本であることは、issue #213で決めた本節固有の運用である
+(`AGENTS.md`「ディレクトリ構成」の複製禁止は`common/`のドメインロジックを対象にした別のルールで、
+本件はそこには含まれない)。
