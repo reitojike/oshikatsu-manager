@@ -138,9 +138,9 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 
 ### Codex Cloud
 
-**ローカルCodex・Codex Cloudの両方が同一の利用上限で失敗した場合、マージ前の義務(上記
-「Ready化」の「マージ前に…Codexの結果を最低1回得ることを義務とする」)をclaude-review +
-CodeRabbitの結果で代替してよい(PO決定・2026-08-12)。**
+**ローカルCodex・Codex Cloudの両方が同一の利用上限で失敗した場合、マージ前の義務
+(`.claude/skills/pr-review-flow/SKILL.md`「Ready化」の「マージ前に…Codexの結果を最低1回
+得ることを義務とする」)をclaude-review + CodeRabbitの結果で代替してよい(PO決定・2026-08-12)。**
 
 **判別基準。**次の両方を満たすこと。
 
@@ -151,8 +151,9 @@ CodeRabbitの結果で代替してよい(PO決定・2026-08-12)。**
   `You have reached your Codex usage limits for code reviews`(実測文言)で失敗している
 
 **両方が同一の利用上限に起因していることを確認できた場合に限る。**Cloud側だけが失敗して
-ローカルは未試行、またはCloud側の失敗が別の理由(一時的な通信エラー等、上記「失敗の分類」の
-「不明」相当)である可能性を除外できない場合は代替せず、通常どおり結果を待つ。
+ローカルは未試行、またはCloud側の失敗が別の理由(一時的な通信エラー等、
+`docs/model-routing-details.md`「失敗の分類」の「不明」相当)である可能性を除外できない
+場合は代替せず、通常どおり結果を待つ。
 
 **代替の根拠。**claude-reviewとCodeRabbitは担当モデル(Claude)とは独立した別ボットであり、
 複数の視点によるレビューが確保される。Ready化ではさらにGitHub Copilotの最終レビューが
