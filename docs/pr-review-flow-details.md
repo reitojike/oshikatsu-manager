@@ -138,7 +138,32 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 
 ### Codex Cloud
 
-Codex Cloudが投稿しない場合など、固有の対処はこの節に追加する。
+**ローカルCodex・Codex Cloudの両方が同一の利用上限で失敗した場合、マージ前の義務(上記
+「Ready化」の「マージ前に…Codexの結果を最低1回得ることを義務とする」)をclaude-review +
+CodeRabbitの結果で代替してよい(PO決定・2026-08-12)。**
+
+**判別基準。**次の両方を満たすこと。
+
+- ローカルCodex(`mcp__codex__codex`)が上限到達の文言(`docs/model-routing-details.md`
+  「上限到達時に読む手順」の判別表の「上限到達」行、`You've hit your usage limit`と
+  `try again at <時刻>`の両方)で失敗している
+- Codex Cloudの自動投稿・手動`@codex review`のいずれも
+  `You have reached your Codex usage limits for code reviews`(実測文言)で失敗している
+
+**両方が同一の利用上限に起因していることを確認できた場合に限る。**Cloud側だけが失敗して
+ローカルは未試行、またはCloud側の失敗が別の理由(一時的な通信エラー等、上記「失敗の分類」の
+「不明」相当)である可能性を除外できない場合は代替せず、通常どおり結果を待つ。
+
+**代替の根拠。**claude-reviewとCodeRabbitは担当モデル(Claude)とは独立した別ボットであり、
+複数の視点によるレビューが確保される。Ready化ではさらにGitHub Copilotの最終レビューが
+別途走るため、Codexが欠けても多重レビューの構造自体は失われない。
+
+**実例。**PR #207(2026-08-12、Issue #204)。ローカルCodexが
+`You've hit your usage limit... try again at Aug 18th, 2026 9:20 AM`で失敗し、Draft前
+セルフレビューは`/code-review`に切替(skill既定の手順どおり)。Draft作成直後の
+`@codex review`とReady化契機の自動投稿の両方でCodex Cloudが
+`You have reached your Codex usage limits for code reviews`を返した。claude-review(0件)・
+CI全green・CodeRabbitの結果で代替してマージした。
 
 ### CodeRabbit
 
