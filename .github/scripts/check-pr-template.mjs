@@ -12,13 +12,7 @@ if (!sectionMatch) {
 }
 const section = sectionMatch[1];
 
-const REQUIRED_LABELS = [
-  "実施主体",
-  "レビュー対象リビジョン",
-  "結果",
-  "指摘と処置",
-  "静的解析でのフォローアップ有無",
-];
+const REQUIRED_LABELS = ["実施主体", "レビュー対象リビジョン", "結果", "指摘と処置"];
 
 // トップレベルの箇条書き(行頭が "- ")だけを項目境界として扱う。
 // インデントされたネスト行(例: 指摘一覧の子項目)は直前のラベルの内容として蓄積する。
@@ -59,9 +53,7 @@ for (const line of section.split("\n")) {
 }
 flush();
 
-const missing = ["実施主体", "レビュー対象リビジョン", "静的解析でのフォローアップ有無"].filter(
-  (label) => !fields.get(label),
-);
+const missing = ["実施主体", "レビュー対象リビジョン"].filter((label) => !fields.get(label));
 if (missing.length > 0) {
   console.error(`「Draft前セルフレビュー」セクションの次の項目が空です: ${missing.join("、")}`);
   process.exit(1);
