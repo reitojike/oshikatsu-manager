@@ -180,7 +180,7 @@ Codex側の Sol / Terra / Luna は下記の Opus / Sonnet / Haiku と同じ基�
   (`docs/task-management.md`「Issue内でモデル階層を分担する」。
   親Issueは判断を下したモデルのまま残す)。
 - Issueには `phase:N` ラベルを付け、`docs/roadmap.md` のフェーズと対応させる。
-  フェーズ2バックログは `phase:2-backlog`。
+  拡大期バックログは `phase:2-backlog`。
 - Projectの `Status` は Todo / In Progress / Blocked / Done。着手時にIn Progressへ、
   他Issueの完了待ちやエスカレーション上限到達など進められない場合はBlockedへ移す。
 
