@@ -172,7 +172,8 @@ Sonnetがそこで選んでよいことにはならない。**宛先の決め方
 
 - 親Issueのラベルと `Model` を書き換えないのは `AGENTS.md` の規則。以下はSub-issue側に足す手順
 - Sub-issue: 引き継ぎ先の `agent:*` ラベルとProjectの `Model`(通常のIssue運用と同様、
-  両方を対応させる)、親と同じ `phase:N`、Projectに登録して `Status` を Todo → In Progress。
+  両方を対応させる)、親の `phase:*` ラベルをそのままコピー(`phase:2-backlog` のような
+  番号だけでは表せないラベルもあるため)、Projectに登録して `Status` を Todo → In Progress。
   受け入れ条件を満たしたら、担当したモデルが `Status` を `Done` にしてIssueをcloseする。
   「PRは分けない」ため通常の `Closes #N` によるSub-issueの自動closeは効かない(親Issueの
   `Closes #N` は親のみを指す)。close忘れは機械的に検出できないため、受け入れ条件達成の
@@ -185,8 +186,10 @@ Sonnetがそこで選んでよいことにはならない。**宛先の決め方
 
 ```bash
 # 1. 子Issueを作る(ラベル・Project登録は通常どおり。agent:*は引き継ぎ先の階層に対応する
-#    1つを選ぶ。既定はCodex優先なので `docs/model-routing.md`「既定はCodex優先」を参照)
-gh issue create --title "..." --body "..." --label "agent:<引き継ぎ先の階層>,phase:<親と同じフェーズ番号>"
+#    1つを選ぶ。既定はCodex優先なので `docs/model-routing.md`「既定はCodex優先」を参照。
+#    phase:*は親のラベルをそのままコピーする。`phase:2-backlog`のような番号だけでは
+#    表せないラベルもあるため、「フェーズ番号」ではなく親のラベル文字列そのものを使う)
+gh issue create --title "..." --body "..." --label "agent:<引き継ぎ先の階層>,<親のphase:*ラベルをそのままコピー>"
 
 # 2. 子のnumeric id(node idではない)を取って親に紐づける
 SUB_ID=$(gh api repos/{owner}/{repo}/issues/{sub_number} --jq '.id')
