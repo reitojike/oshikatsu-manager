@@ -267,20 +267,28 @@ codex exec -p terra "Reply with exactly OK. Do not use any tools."
 という**機械的な文字列置換**を伴っており、実在しないファイル・パスを指す形で正本と食い違う
 (例: `claude-review.yml` → 実在しない`Codex-review.yml`)。**内容を正本として読んではならない。**
 
-**生成元は断定できていない。**手がかりとして次の2点を記録する(issue #213調査時点)。
+**生成元は、Codexデスクトップアプリの「外部エージェントのインポート同期」機能である可能性が高い
+(断定はできていない)。**根拠(issue #213調査時点)。
 
 - `.agents/plugins/marketplace.json` + `.agents/skills/<name>/SKILL.md` という構成は、
   Codex本体が使う「plugin/skillのマーケットプレイスリポジトリ」自体のレイアウトと一致する
   (`$CODEX_HOME/.tmp/plugins/README.md` に同じ構成の説明がある)
-- ローカルの `$CODEX_HOME/config.toml` に `[desktop] external-agent-import-sync-enabled = true`
-  が入っており、実際にClaude Codeのセッション履歴が同ホーム配下へインポートされていることも
-  確認できた(`$CODEX_HOME/external_agent_session_imports.json`)。**ただしこの設定が
-  プロジェクト直下への`.agents/skills/**`出力の直接の原因であることまでは実証できていない**
-  (2026-08-18までCodexがレート制限中で、生成を再現する実行ができないため)
+- `$CODEX_HOME/config.toml`(プロジェクト直下の`.codex/config.toml`とは別のファイルで、
+  リポジトリのディレクトリツリーの外にある。上記「置き場所」参照)に
+  `[desktop] external-agent-import-sync-enabled = true` が入っており、実際にClaude Codeの
+  セッション履歴が同ホーム配下へインポートされていることも確認できた
+  (`$CODEX_HOME/external_agent_session_imports.json`)
+- Codexデスクトップアプリの設定画面に「インポートしたエージェント設定」という項目があり、
+  「前回のインポート」の表示が `.agents/` の生成時刻(20:53)に近いタイミングを指していた
+  (呼び出し元が2026-08-12に画面上で確認)
 
-**生成を止められるかは未確認。**候補である`external-agent-import-sync-enabled`はローカル個人設定
-(`$CODEX_HOME/config.toml`。このリポジトリでは`.gitignore`済みでコミットされない)側の値であり、
-リポジトリ側から制御できない。
+**ただし再現実行による実証はできていない。**Codexが2026-08-18までレート制限中で生成を意図的に
+再現する実行ができないため、上記は状況証拠にとどまる。
+
+**対処: 呼び出し元がCodexデスクトップアプリの設定でこの機能(Claudeからのインポート)を
+オフにした(2026-08-12。ローカル個人設定なのでリポジトリには反映されない)。**これにより
+再発しなくなる見込みだが、他の開発者・別マシンではこの設定が有効なままの可能性があるため、
+リポジトリ側の備え(下記)は残す。
 
 **運用: 出現したら削除する。**`.agents/`は`.gitignore`済み(issue #213)なので誤コミットはされないが、
 削除するまでは正本(`.claude/skills/**`)との乖離が残る。`.agents/skills/**`を新たな正本として
