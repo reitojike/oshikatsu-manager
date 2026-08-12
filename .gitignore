@@ -39,6 +39,11 @@ coverage/
 # (docs/model-routing.md「モデル名を文書に固定しない」)
 .codex/
 
+# 未追跡の外部ミラー。生成元は断定できていない(有力候補: Codexデスクトップアプリの
+# 外部エージェントインポート同期機能)。詳細は docs/codex-profiles.md「`.agents/`へのskill複製」、
+# issue #213
+.agents/
+
 # OS / エディタ
 .DS_Store
 Thumbs.db

@@ -258,3 +258,54 @@ codex exec -p terra "Reply with exactly OK. Do not use any tools."
 `.codex/config.toml` に黙って上書きされる」事故は、MCP経路では起きない。
 確認すべきなのは「`model` / `cwd` を渡し忘れていないか」であり、
 上記「MCP呼び出しで明示すること」を参照する。
+
+## `.agents/` へのskill複製(既知の副作用)
+
+プロジェクト直下に、未追跡の `.agents/skills/<name>/SKILL.md` が出現することがある
+(issue #213で `.agents/skills/pr-review-flow/SKILL.md` として観測)。
+`.claude/skills/**` の複製だが、`Claude`→`Codex`、`.claude`→`.Codex`、`CLAUDE.md`→`AGENTS.md`
+という**機械的な文字列置換**を伴っており、実在しないファイル・パスを指す形で正本と食い違う
+(例: `claude-review.yml` → 実在しない`Codex-review.yml`)。**内容を正本として読んではならない。**
+**`.Codex`(大文字C)は`.agents/`側の壊れた複製の中身に実際に現れる文字列であり、
+このリポジトリの実在ディレクトリ`.codex/`(小文字)とは別物である**(混同注意。issue #213)。
+
+**生成元は、Codexデスクトップアプリの「外部エージェントのインポート同期」機能である可能性が高い
+(断定はできていない)。**根拠(issue #213調査時点)。
+
+- `.agents/plugins/marketplace.json` + `.agents/skills/<name>/SKILL.md` という構成は、
+  Codex本体が使う「plugin/skillのマーケットプレイスリポジトリ」自体のレイアウトと一致する
+  (`$CODEX_HOME/.tmp/plugins/README.md` に同じ構成の説明がある)
+- `$CODEX_HOME/config.toml`(プロジェクト直下の`.codex/config.toml`とは別のファイルで、
+  リポジトリのディレクトリツリーの外にある。上記「置き場所」参照)に
+  `[desktop] external-agent-import-sync-enabled = true` が入っており、実際にClaude Codeの
+  セッション履歴が同ホーム配下へインポートされていることも確認できた
+  (`$CODEX_HOME/external_agent_session_imports.json`)
+- Codexデスクトップアプリの設定画面に「インポートしたエージェント設定」という項目があり、
+  「前回のインポート」の表示が `.agents/` の生成時刻(20:53)に近いタイミングを指していた
+  (呼び出し元が2026-08-12に画面上で確認)
+
+**ただし再現実行による実証はできていない。**Codexが2026-08-18までレート制限中で生成を意図的に
+再現する実行ができないため、上記は状況証拠にとどまる。
+
+**対処: 呼び出し元がCodexデスクトップアプリの設定でこの機能(Claudeからのインポート)を
+オフにした(2026-08-12。ローカル個人設定なのでリポジトリには反映されない)。**これにより
+再発しなくなる見込みだが、他の開発者・別マシンではこの設定が有効なままの可能性があるため、
+リポジトリ側の備え(下記)は残す。
+
+**運用: 出現したら削除する。**`.agents/`は`.gitignore`済み(issue #213)なので誤コミットはされないが、
+削除するまでは正本(`.claude/skills/**`)との乖離が残る。`.agents/skills/**`を新たな正本として
+採用しないこと、`.claude/skills/**`が常に正本であることは、issue #213で決めた本節固有の運用である
+(`AGENTS.md`「ディレクトリ構成」の複製禁止は`common/`のドメインロジックを対象にした別のルールで、
+本件はそこには含まれない)。
+
+**`.gitignore`済みのため、通常の`git status`には出現しない。**「出現したら削除する」を実行する
+機会は、`git status --ignored`(または`ls -a`)で明示的に確認したときに限られる。定期実行の
+仕組みは持たない(`docs/worktree-policy.md`「自動化の線引き」と同じ理由。ローカルのgitフックは
+GitHub Actionsから見えず、CIゲートにできない)。
+
+**このリポジトリ内の自動レビューは`.agents/`を読まない(issue #213確認済み)。**
+`claude-review.yml`はAGENTS.mdをbase SHAから読み、変更分類の対象パスも`.claude/skills/**`に
+固定している。`.mcp.json`にも`.agents/`を読み込む指定は無い。**読まれるリスクがあるのは、
+Codexデスクトップアプリ/CLIそのものが自分のセッションで`.agents/skills/**`をローカルスキルとして
+拾う経路である**(上記「対処」で軽減済みだが未実証)。「出現したら削除する」運用は、
+その未実証の経路への備えとして残す。
