@@ -3,7 +3,7 @@
 # 機械的に保証する最初のゲート(docs/prd.md 8.6「CIに置くジョブ」)。
 # lint/typecheckは型・ルールの逃げ道封鎖(any, as, eslint-disable禁止など)を、
 # unit testはSupabase起動なしで通るpure関数の検証を担保する。
-# db testとsupabase型検証はフェーズ1でSupabaseが入ってから別workflowに追加する。
+# db testとsupabase型検証はフェーズ1でSupabaseが導入されたため、supabase.ymlで実行する。
 name: CI
 
 on:

@@ -1,9 +1,9 @@
 # 何を守っているか:
 # フェーズ1でSupabaseが導入された後、db test(RLS検証含む)と生成型のコミット漏れが
 # 検出されずにmainへ入ることを防ぐゲート(docs/prd.md 8.2「生成型の運用」/ 8.6)。
-# supabase/ が未初期化の現時点(フェーズ0)では `supabase/config.toml` が無いことを
-# 検出してジョブ本体をスキップし、空で成立させる(docs/roadmap.md フェーズ0の注意点)。
-# `supabase init` 後は自動的に実検証へ切り替わる。
+# `supabase/config.toml` はフェーズ1(issue #23)でコミット済みのため、現在は
+# 各ジョブとも実検証を実行する。`supabase/config.toml` の有無で判定する
+# skip分岐自体は、supabase/を持たない別ブランチ・PRでの誤爆を防ぐために残している。
 # Supabase CLIのバージョンはローカルと揃えて固定する(ずれると「マイグレーション忘れ」
 # ではなく「CLI差」で落ち、誰も信じなくなるため)。
 name: Supabase
@@ -42,7 +42,7 @@ jobs:
             echo "initialized=true" >> "$GITHUB_OUTPUT"
           else
             echo "initialized=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::supabase/config.toml が無いため supabase start をスキップします(フェーズ1で有効化)。yarn test:db はこのまま実行します。"
+            echo "::notice::supabase/config.toml が無いため supabase start をスキップします。yarn test:db はこのまま実行します。"
           fi
 
       - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
@@ -88,7 +88,7 @@ jobs:
             echo "initialized=true" >> "$GITHUB_OUTPUT"
           else
             echo "initialized=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::supabase/config.toml が無いため型検証をスキップします(フェーズ1で有効化)。"
+            echo "::notice::supabase/config.toml が無いため型検証をスキップします。"
           fi
 
       - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
