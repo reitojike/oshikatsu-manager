@@ -295,3 +295,10 @@ codex exec -p terra "Reply with exactly OK. Do not use any tools."
 採用しないこと、`.claude/skills/**`が常に正本であることは、issue #213で決めた本節固有の運用である
 (`AGENTS.md`「ディレクトリ構成」の複製禁止は`common/`のドメインロジックを対象にした別のルールで、
 本件はそこには含まれない)。
+
+**このリポジトリ内の自動レビューは`.agents/`を読まない(issue #213確認済み)。**
+`claude-review.yml`はAGENTS.mdをbase SHAから読み、変更分類の対象パスも`.claude/skills/**`に
+固定している。`.mcp.json`にも`.agents/`を読み込む指定は無い。**読まれるリスクがあるのは、
+Codexデスクトップアプリ/CLIそのものが自分のセッションで`.agents/skills/**`をローカルスキルとして
+拾う経路である**(上記「対処」で軽減済みだが未実証)。「出現したら削除する」運用は、
+その未実証の経路への備えとして残す。
