@@ -49,13 +49,15 @@ Issueに新規着手するエージェント(レーン)をコールドスター�
 埋めるのは**その回だけの固有情報**(Issue番号、担当階層、このIssue固有の作業範囲・除外事項、
 競合するファイルの申し送りなど)に限る。
 
-> stage-tracker の Issue #\<番号\> に着手します(agent:\<階層\>。
-> \<担当変更の経緯があれば1行(例: フェイルオーバー記録コメントへのリンク)\>)。
+> stage-tracker の Issue #\<番号\> に着手します(agent:\<階層\>)。
+> \<担当変更の経緯があれば1行(例: フェイルオーバー記録コメントへのリンク)\>
 >
 > まず `AGENTS.md` を読み、`pr-review-flow` skill を呼んでから、
 > `gh issue view <番号> --comments` で本文とコメントを全部読んでください。
 > (GraphQLのレート制限で失敗する場合は `gh api repos/{owner}/{repo}/issues/<番号>` と
-> `gh api repos/{owner}/{repo}/issues/<番号>/comments` のREST経路に切り替える。)
+> `gh api repos/{owner}/{repo}/issues/<番号>/comments --paginate` のREST経路に
+> 切り替える。`--paginate` を付けないと、コメントが2ページ目以降にある場合に
+> 後続のスコープ上書き・PO判断を読み落とす。)
 >
 > \<このIssue固有の前提。本文とコメントで前提が上書きされている箇所があれば読み方の
 > 優先関係、最新のスコープを示すコメントへのポインタを書く\>
