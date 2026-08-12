@@ -61,6 +61,7 @@ export const waitForProjectItem = (
   issue,
   { sleep, attempts = 10, delayMs = 3000 },
 ) => {
+  if (attempts < 1) throw new Error("waitForProjectItem requires at least one attempt");
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       return getProjectItem(runGh, repo, issue);

@@ -218,6 +218,15 @@ describe("waitForProjectItem", () => {
     ).toThrow("boom");
     expect(sleep).not.toHaveBeenCalled();
   });
+
+  it("throws immediately instead of returning undefined when attempts is not positive", () => {
+    const runGh = vi.fn();
+    const sleep = vi.fn();
+    expect(() =>
+      waitForProjectItem(runGh, options.repo, options.issue, { sleep, attempts: 0 }),
+    ).toThrow("waitForProjectItem requires at least one attempt");
+    expect(runGh).not.toHaveBeenCalled();
+  });
 });
 
 describe("registerIssue label validation", () => {
