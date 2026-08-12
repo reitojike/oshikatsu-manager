@@ -11,6 +11,40 @@
 PR #18〜#32の実績分析(Claude/Copilotの指摘重複率、Copilotのクレジット消費が
 実測で1レビューあたりプレミアムリクエスト13回相当。公式の固定値ではなく実績値)に基づく判断。
 
+## 束ねPRの根拠
+
+`.claude/skills/pr-review-flow/SKILL.md`「束ねPR」と`docs/task-management.md`「軽微なdocs修正
+Issueを束ねる」の運用がなぜそうなっているかの実測根拠。唯一の前例は
+PR [#173](https://github.com/reitojike/stage-tracker/pull/173)(Issue #129/#108/#148、
+3件を束ねた)。
+
+**Closes書式と自動close。**本文に「## 対応するIssue」見出しを立て、`Closes #129: <一行説明>` /
+`Closes #108: <一行説明>` / `Closes #148: <一行説明>` を列挙する形式を採った。マージ
+(2026-08-11T15:49:23Z、merge commit `bac7b95`)で3件とも`state: closed` / `state_reason:
+completed`になったことをAPIで確認済み。Issueのtimelineでも`referenced`(マージコミットSHA)
+→`closed`の順でイベントが記録されており、複数の`Closes`を1本のPR本文に並べれば全件に
+自動closeが効くことを実測で確認した。
+
+**close漏れ確認手順を追加した理由。**#173の実運用では「本文に`Closes #N`を並べる」以外の
+追加確認は行っておらず、GitHubのキーワード解決に委ねきりだった(結果的に3件とも成功したが、
+手順としては未検証のまま運用していた)。束ねPR運用として明文化するにあたり、マージ直後に
+対象Issue全件のstateを機械確認する一手順を追加した(「これは機械が止められるか」
+(`AGENTS.md`)に沿う)。
+
+**振り返りの記録先。**#173では振り返りをPR本体にのみ投稿し
+([該当コメント](https://github.com/reitojike/stage-tracker/pull/173#issuecomment-5255565894))、
+3つのIssue側には振り返りの複製・個別コメントを残さなかった(着手前の合意コメントのみが
+各Issue側の記録)。束ねPR運用ではこれをそのまま既定にせず、`pr-review-flow` skill「マージ後の
+振り返り」の原則(Issueが紐づく場合はIssueへ記録する)と整合させ、PR側を正本としつつ各Issueへ
+参照1行のコメントを残す形に変更した。
+
+**束ねる本数を3件までとした理由。**#173は3件を束ねた唯一の実例で、4件以上を束ねた実測が
+無い。PR差分規模は素の差分で+35/-12・4ファイル変更(計47行)であり、3 Issue分を束ねても
+300行目安・135行中央値のいずれにも収まっていた。振り返りコメントでは「対象3件はいずれも
+正しい側が他の記述から一意に決まる追従漏れで、判断はほぼ発生せず」と明記されており、
+判断合計3個以内の目安からも外れていない。実績が1件しか無いため、上限は保守的に実例の
+本数(3件)に置いた。
+
 ## Draft前セルフレビューの強制範囲
 
 **Rulesetのrequired status checkに配線済み**(2026-08-12確認。Ruleset「main branch protection」の
@@ -104,7 +138,34 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 
 ### Codex Cloud
 
-Codex Cloudが投稿しない場合など、固有の対処はこの節に追加する。
+**ローカルCodex・Codex Cloudの両方が同一の利用上限で失敗した場合、マージ前の義務
+(`.claude/skills/pr-review-flow/SKILL.md`「Ready化」の「マージ前に…Codexの結果を最低1回
+得ることを義務とする」)をclaude-review + CodeRabbitの結果で代替してよい(PO決定・2026-08-12)。**
+
+**判別基準。**次の両方を満たすこと。
+
+- ローカルCodex(`mcp__codex__codex`)が上限到達の文言(`docs/model-routing-details.md`
+  「上限到達時に読む手順」の判別表の「上限到達」行、`You've hit your usage limit`と
+  `try again at <時刻>`の両方)で失敗している
+- Codex Cloudの自動投稿・手動`@codex review`のいずれも
+  `You have reached your Codex usage limits for code reviews`(実測文言)で失敗している
+
+**両方が同一の利用上限に起因していることを確認できた場合に限る。**Cloud側だけが失敗して
+ローカルは未試行、またはCloud側の失敗が別の理由(一時的な通信エラー等、
+`docs/model-routing-details.md`「失敗の分類」の「不明」相当)である可能性を除外できない
+場合は代替せず、通常どおり結果を待つ。
+
+**代替の根拠。**claude-reviewとCodeRabbitは担当モデル(Claude)とは独立した別ボットであり、
+複数の視点によるレビューが確保される。Ready化ではさらにGitHub Copilotの最終レビューが
+別途走るため、Codexが欠けても多重レビューの構造自体は失われない。
+
+**実例。**PR #207(2026-08-12、Issue #204。本節を追加した当のPR)。ローカルCodexが
+`You've hit your usage limit... try again at Aug 18th, 2026 9:20 AM`で失敗し、Draft前
+セルフレビューは`/code-review`に切替(skill既定の手順どおり)。Draft作成直後の
+`@codex review`とReady化契機の自動投稿の両方でCodex Cloudが
+`You have reached your Codex usage limits for code reviews`を返した。上記の判別基準に
+該当するため、claude-review・CodeRabbitの結果で代替してマージする(本PR自身がこの代替の
+第1号適用)。
 
 ### CodeRabbit
 
