@@ -8,7 +8,7 @@ import {
 export { PROJECT_ITEM_LIMIT, resolveGhPath };
 
 const MODEL_FIELD_ID = "PVTSSF_lAHOAzvh3c4BfeaMzhZxDK8";
-const MODEL_OPTIONS = new Map([
+export const MODEL_OPTIONS = new Map([
   ["opus", { id: "d233b8f2", name: "Opus" }],
   ["sonnet", { id: "7b1942f7", name: "Sonnet" }],
   ["haiku", { id: "6e152153", name: "Haiku" }],
@@ -45,7 +45,7 @@ export const parseArguments = (args) => {
 };
 
 const parseJson = (value) => JSON.parse(value);
-const agentLabels = (labels) =>
+export const agentLabels = (labels) =>
   labels.map((label) => label.name).filter((name) => name.startsWith("agent:"));
 
 const getIssue = (runGh, repo, issue) =>
