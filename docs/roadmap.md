@@ -57,7 +57,8 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
 - [x] GitHub Actions
   - [x] lint / typecheck(issue #4)
   - [x] unit test(issue #4)
-  - [x] db test(issue #5。フェーズ1で`supabase init`後、自動的に実検証へ切り替わる作り)
+  - [x] db test(issue #5。`supabase/config.toml`が無い場合はジョブを失敗させる作り。issue #187で
+        「未初期化として黙ってスキップ」から変更)
   - [x] supabase型検証(`yarn gen:types` して差分があれば失敗)(issue #5)
   - [x] 自動コードレビュー: Claude(`claude-review.yml`)本稼働。実際にPRへ総評+インライン
         コメントを投稿することを確認済み
@@ -122,9 +123,11 @@ Claude側で判断する場合のみ `agent:opus` / `agent:sonnet` / `agent:haik
 **RLS検証の必須要件**(`docs/permissions.md` より、再掲ではなく実施項目として)
 
 - [x] service_roleキーを `test/db/` のどこでも使わない
-- [x] 権限マトリクスの全セルを`test/db/`の個別`test()`ケースとして実装(`docs/permissions.md`の
-      権限マトリクスと突き合わせ済み。行×列の表そのものをコードに持たせているわけではなく、
-      セルごとに命名したテストケースへ写している)
+- [ ] 権限マトリクスを「行=操作 × 列=ロール」の表としてテストに写す。空欄=テスト漏れ
+      (`docs/permissions.md`「3. マトリクスを表のままテストに写す」/ `docs/prd.md` 8.4)。
+      現状は`test/db/`の個別`test()`ケースとして全セル相当を網羅しており(`docs/permissions.md`
+      権限マトリクスと突き合わせ済み)機能的な検証漏れは無いが、両文書が要求するデータ駆動の
+      表構造そのものは未実装のため、文書の要求形式との一致という意味ではチェックしない
 - [x] 最小検証セットを実装(`docs/permissions.md`「最小の検証セット」。issue #26時点は8項目、
       issue #34・#54で追加した2項目を含め現在10項目。テストと1対1で対応済み)
 - [x] **各テストについて、対応するRLSポリシーを一時的に落として赤くなるのを確認してから戻す**
