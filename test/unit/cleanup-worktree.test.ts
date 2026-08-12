@@ -85,6 +85,15 @@ describe("parseWorktreeList / findWorktree", () => {
       "worktree not found",
     );
   });
+
+  it("keeps distinct POSIX worktrees that differ only by case (does not match the wrong one)", () => {
+    const porcelain = [
+      "worktree /repo/Foo\nHEAD aaa111\nbranch refs/heads/branch-foo-upper",
+      "worktree /repo/foo\nHEAD bbb222\nbranch refs/heads/branch-foo-lower",
+    ].join("\n\n");
+    expect(findWorktree(porcelain, "/repo/Foo").branch).toBe("branch-foo-upper");
+    expect(findWorktree(porcelain, "/repo/foo").branch).toBe("branch-foo-lower");
+  });
 });
 
 describe("parseStatus", () => {

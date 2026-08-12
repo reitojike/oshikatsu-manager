@@ -336,8 +336,12 @@ Projectの選択肢定義自体は変更せず、既存の選択肢IDを使っ�
   2. **未コミット変更(untracked含む)が無いこと**
   3. **未pushコミットが無いこと**: upstreamが未設定、またはupstreamの参照が消えていて
      (fetch --prune後などで)ahead数を確認できない場合も、確認できないこと自体を理由に
-     止める(fail-closed。`--unlock`と違い、これを回避するフラグは無い)
+     止める(fail-closed。`--unlock`と違い、これを回避するフラグは無い)。**この条件3は
+     detached HEADのworktree(ブランチを持たない)には適用されない。**push対象のブランチ・
+     upstreamという概念自体が存在しないため、条件3の判定を丸ごとスキップし、
+     条件1・2(lock・未コミット変更)だけで削除可否を決める
 - **実行**: 条件を満たしたら `git worktree remove` → `git branch -d` の順に実行する。
+  detached HEADの場合はブランチが無いので `git branch -d` は行わない(worktree削除のみで終了)。
   `git branch -d` は未マージなら失敗するが(このリポジトリはsquash mergeのため、マージ済みでも
   失敗しうる。「`git branch --merged` も `git branch -d` も、単独では判定に使えない」参照)、
   worktree自体は既に削除済みなので、失敗はブランチが残った旨の報告に留め、スクリプト全体は

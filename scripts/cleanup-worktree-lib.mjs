@@ -1,7 +1,16 @@
 // CWD依存のパス解決(相対パス→絶対パス)はI/O境界であるCLIエントリ(cleanup-worktree.mjs)の
 // 責務とし、ここでは既に絶対パスであることを前提に文字列としての正規化だけを行う
 // (AGENTS.md「境界では依存を引数で渡す」)。
-const normalizePath = (value) => value.replace(/\\/g, "/");
+const isWindowsStylePath = (value) => /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\");
+
+// 大文字小文字の無視はWindows形式のパスに限る。POSIXのファイルシステムは大文字小文字を
+// 区別するため、無条件に小文字化すると大文字小文字だけが異なる別のworktree
+// (例: /repo/Foo と /repo/foo)を取り違え、意図しない方を削除しうる
+// (fail-closedにならない誤マッチであり、「worktree not found」で止まる非対称正規化の問題とは別種)。
+const normalizeComparisonPath = (value) => {
+  const normalized = value.replace(/\\/g, "/");
+  return isWindowsStylePath(value) ? normalized.toLowerCase() : normalized;
+};
 
 const parseWorktreeBlock = (block) => {
   const lines = block.split(/\r?\n/).filter((line) => line !== "");
@@ -26,11 +35,10 @@ export const parseWorktreeList = (porcelainOutput) =>
     .map(parseWorktreeBlock);
 
 export const findWorktree = (porcelainOutput, targetPath) => {
-  const normalizedTarget = normalizePath(targetPath).toLowerCase();
+  const normalizedTarget = normalizeComparisonPath(targetPath);
   const found = parseWorktreeList(porcelainOutput).find(
     (worktree) =>
-      worktree.path !== undefined &&
-      normalizePath(worktree.path).toLowerCase() === normalizedTarget,
+      worktree.path !== undefined && normalizeComparisonPath(worktree.path) === normalizedTarget,
   );
   if (found === undefined)
     throw new Error(`worktree not found in 'git worktree list': ${targetPath}`);
