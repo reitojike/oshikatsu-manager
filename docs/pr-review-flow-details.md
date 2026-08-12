@@ -13,10 +13,11 @@ PR #18〜#32の実績分析(Claude/Copilotの指摘重複率、Copilotのクレ�
 
 ## Draft前セルフレビューの強制範囲
 
-**現時点では、この必須化は運用ルールとしてのみ存在し、CIのrequired status checkでは
-強制されていない。**`pr-template-check.yml`は記入漏れを検知するが、Rulesetの
-required checkにはまだ配線されていない(人間の手動対応待ち)。つまり現状は、CIが赤く
-ならなくてもマージできてしまう。
+**Rulesetのrequired status checkに配線済み**(2026-08-12確認。Ruleset「main branch protection」の
+required status checksに`PR Template Check`のjob `check`が含まれる)。`pr-template-check.yml`
+(`check-pr-template.mjs`)が記入漏れを検知し、赤になればマージをブロックする
+(オーナーのbypassを除く)。配線前のPRでは赤がマージを止めていなかった時期があるので、
+過去のマージ実績から「赤でも実害がない」と類推しないこと。
 
 ## セルフレビューのlevelを具体値で記す理由
 
@@ -89,8 +90,10 @@ required status checksに`claude-review`が含まれる)。上記の赤はマー
 セキュリティ機構)。該当する場合、レビュー対象の変更点そのものが復元によって消えており、
 これが投稿0件の原因である可能性が高い(issue #91、PR #89で実例確認。`gh run view <run-id> --log`
 の`Restoring .claude, .mcp.json, ... from origin/main`と`permission_denials_count`が
-0より大きいことが手がかりになる)。該当する場合は、上記のworkflow検証スキップと同様に
-`/code-review`スキルで自分でレビューする。
+0より大きいことが手がかりになる)。ただしこれらは原因の手がかりに過ぎないため、機微パス起因と
+断定する前に、対象run開始以降の`claude[bot]`について、issue comment・inline review comment・
+review bodyの3面すべてで投稿が無いことを確認する(一部だけ投稿されている場合は別の原因を疑う)。
+該当する場合は、上記のworkflow検証スキップと同様に`/code-review`スキルで自分でレビューする。
 
 **`claude-review`はテストを実行していない。**レビュー環境には`node_modules`が無く、
 ネットワークアクセスも制限されているため、`yarn lint` / `yarn typecheck` / `yarn test`を
