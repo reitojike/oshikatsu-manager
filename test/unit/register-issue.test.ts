@@ -218,15 +218,26 @@ describe("waitForProjectItem", () => {
     ).toThrow("boom");
     expect(sleep).not.toHaveBeenCalled();
   });
+});
 
-  it("throws immediately instead of returning undefined when attempts is not positive", () => {
-    const runGh = vi.fn();
-    const sleep = vi.fn();
-    expect(() =>
-      waitForProjectItem(runGh, options.repo, options.issue, { sleep, attempts: 0 }),
-    ).toThrow("waitForProjectItem requires at least one attempt");
-    expect(runGh).not.toHaveBeenCalled();
-  });
+describe("waitForProjectItem attempts validation", () => {
+  it.each([
+    { attempts: 0, label: "zero" },
+    { attempts: -1, label: "negative" },
+    { attempts: NaN, label: "NaN" },
+    { attempts: Infinity, label: "Infinity" },
+    { attempts: 1.5, label: "fractional" },
+  ])(
+    "throws immediately instead of looping forever or returning undefined when attempts is $label",
+    ({ attempts }) => {
+      const runGh = vi.fn();
+      const sleep = vi.fn();
+      expect(() =>
+        waitForProjectItem(runGh, options.repo, options.issue, { sleep, attempts }),
+      ).toThrow("waitForProjectItem requires at least one attempt");
+      expect(runGh).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("registerIssue label validation", () => {
