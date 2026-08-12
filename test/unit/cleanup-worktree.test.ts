@@ -74,6 +74,12 @@ describe("parseWorktreeList / findWorktree", () => {
     expect(findWorktree(porcelain, "D:/repo/.claude/worktrees/ISSUE-206").branch).toBe("issue-206");
   });
 
+  it("finds a worktree even when the porcelain listing itself uses backslashes", () => {
+    const porcelain =
+      "worktree D:\\repo\\.claude\\worktrees\\issue-206\nHEAD def456\nbranch refs/heads/issue-206";
+    expect(findWorktree(porcelain, "D:/repo/.claude/worktrees/issue-206").branch).toBe("issue-206");
+  });
+
   it("throws when the path is not in the worktree list", () => {
     expect(() => findWorktree(mainWorktree, "D:/repo/.claude/worktrees/missing")).toThrow(
       "worktree not found",

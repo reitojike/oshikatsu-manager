@@ -11,7 +11,11 @@ const run = () => {
   const options = parseArguments(process.argv.slice(2));
   const resolvedOptions = { ...options, path: path.resolve(options.path) };
   const git = (args) =>
-    execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    execFileSync("git", args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 64 * 1024 * 1024,
+    });
   const result = cleanupWorktree(resolvedOptions, { git, log: console.log });
   if (!result.removed) process.exitCode = 1;
 };

@@ -28,7 +28,9 @@ export const parseWorktreeList = (porcelainOutput) =>
 export const findWorktree = (porcelainOutput, targetPath) => {
   const normalizedTarget = normalizePath(targetPath).toLowerCase();
   const found = parseWorktreeList(porcelainOutput).find(
-    (worktree) => worktree.path !== undefined && worktree.path.toLowerCase() === normalizedTarget,
+    (worktree) =>
+      worktree.path !== undefined &&
+      normalizePath(worktree.path).toLowerCase() === normalizedTarget,
   );
   if (found === undefined)
     throw new Error(`worktree not found in 'git worktree list': ${targetPath}`);
