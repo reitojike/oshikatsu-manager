@@ -13,10 +13,11 @@ PR #18〜#32の実績分析(Claude/Copilotの指摘重複率、Copilotのクレ�
 
 ## Draft前セルフレビューの強制範囲
 
-**現時点では、この必須化は運用ルールとしてのみ存在し、CIのrequired status checkでは
-強制されていない。**`pr-template-check.yml`は記入漏れを検知するが、Rulesetの
-required checkにはまだ配線されていない(人間の手動対応待ち)。つまり現状は、CIが赤く
-ならなくてもマージできてしまう。
+**Rulesetのrequired status checkに配線済み**(2026-08-12確認。Ruleset「main branch protection」の
+required status checksに`PR Template Check`のjob `check`が含まれる)。`pr-template-check.yml`
+(`check-pr-template.mjs`)が記入漏れを検知し、赤になればマージをブロックする
+(オーナーのbypassを除く)。配線前のPRでは赤がマージを止めていなかった時期があるので、
+過去のマージ実績から「赤でも実害がない」と類推しないこと。
 
 ## セルフレビューのlevelを具体値で記す理由
 
@@ -63,8 +64,43 @@ required checkにはまだ配線されていない(人間の手動対応待ち)�
 **無関係なラベルを付けたときは進行中のレビューを止めない**(別のcheck名で報告され、
 `claude-review`の結果を上書きしない)。
 
-**Rulesetのrequired status checkに配線されるまで、上記の赤はマージを止めない。**
-「実装した = 効いている」と見なさないこと。
+**Rulesetのrequired status checkに配線済み**(2026-08-12確認。Ruleset「main branch protection」の
+required status checksに`claude-review`が含まれる)。上記の赤はマージをブロックする
+(オーナーのbypassを除く)。配線前のPRでは赤がマージを止めていなかった時期があるので、
+過去のマージ実績から「赤でも実害がない」と類推しないこと。
+
+#### 赤・無投稿に遭遇したときの見分け方(型の切り分け)
+
+`check-claude-review.mjs`は赤の理由をStep Summary(`::notice`にも同文が出る)に明示する。
+人が(または`/code-review`のセルフレビューで代替する側が)実際に遭遇したときは、
+まずこのメッセージ文言で型を切り分ける。
+
+| メッセージ | 型 | 対応 |
+| --- | --- | --- |
+| 「Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です」 | ゲートによる赤(投稿0件) | 下記「投稿0件の原因を切り分ける」へ |
+| 「Claude actionは実行され、対象head以降にclaude[bot]の投稿がありますが、head SHAマーカーに一致する投稿が0件です。promptのマーカー指示が守られていない可能性があります」 | ゲートによる赤(マーカー不一致) | promptのマーカー指示が守られていない可能性。再実行して改善しなければissueへ記録する |
+| 「Claude actionが失敗したため投稿件数判定は対象外です。元stepの失敗を維持します。」 | action自体の実行時失敗(元stepの赤をそのまま維持) | `gh run view <run-id> --log`で`"is_error": true`を確認する。再現性のない失敗であることが多く、失敗ジョブの再実行で完走することがある(PR #139・run 31348464844で実測。再実行後3m45sで完走し指摘0件を投稿した。原因の特定は#150) |
+| 「Claude actionはworkflow validation skipでした。投稿件数判定は機械では行えません。」 | 意図的スキップ(`claude-review.yml`自体を変更するPR) | 上記のworkflow検証スキップの対処に従う |
+
+**投稿0件の原因を切り分ける。**上表1行目(ゲートによる赤・投稿0件)の場合、次にPRが
+機微なパスを変更していないか確認する。対象は`.claude`, `.mcp.json`, `.claude.json`,
+`.gitmodules`, `.ripgreprc`, `CLAUDE.md`, `CLAUDE.local.md`, `.husky`。
+`anthropics/claude-code-action`はこれらのパスを、レビュー実行前に`origin/main`の内容へ
+強制的に復元する(PRがレビューエージェント自身のツール実行環境を乗っ取るのを防ぐ
+セキュリティ機構)。該当する場合、レビュー対象の変更点そのものが復元によって消えており、
+これが投稿0件の原因である可能性が高い(issue #91、PR #89で実例確認。`gh run view <run-id> --log`
+の`Restoring .claude, .mcp.json, ... from origin/main`と`permission_denials_count`が
+0より大きいことが手がかりになる)。ただしこれらは原因の手がかりに過ぎないため、機微パス起因と
+断定する前に、対象run開始以降の`claude[bot]`について、issue comment・inline review comment・
+review bodyの3面すべてで投稿が無いことを確認する(一部だけ投稿されている場合は別の原因を疑う)。
+該当する場合は、上記のworkflow検証スキップと同様に`/code-review`スキルで自分でレビューする。
+
+**`claude-review`はテストを実行していない。**レビュー環境には`node_modules`が無く、
+ネットワークアクセスも制限されているため、`yarn lint` / `yarn typecheck` / `yarn test`を
+実行して確認することができない(PR #142のレビュー本文で明記、観測日2026-08-10)。
+指摘の有無はコードを静的に読んだ結果であり、テストの合否は`unit-test` / `typecheck` /
+`lint`の各CI checkだけが根拠になる。逆に、テストが緑であることも「claude-reviewが
+実レビューした」ことの根拠にはならない(上の型の切り分けが扱う話)。
 
 ### Codex Cloud
 
