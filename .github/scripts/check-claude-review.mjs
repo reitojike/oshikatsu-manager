@@ -19,6 +19,30 @@ export const MARKER_MISSING_ERROR =
 
 export const headShaMarker = (headSha) => `<!-- claude-review-head-sha:${headSha} -->`;
 
+// 型(c): 復元対象パスを変更しているのに、`.claude-pr/` を読む手段が --allowedTools に
+// 無い状態。レビューが復元後(origin/main)のツリーを見たまま完了しうる
+// (レビュー内容の正しさは判定しない。読み取り手段の有無だけを見る)。
+export const RESTORED_PATH_GATE_ERROR =
+  "このPRは復元対象パスを変更していますが、.claude-pr/ を読む手段(Read(.claude-pr/**)等)が --allowedTools に含まれていません。レビューは復元後(origin/main)のツリーを見たまま完了した可能性があります。";
+
+// allowedToolsはカンマ区切りのツール宣言の並びであり、部分一致では
+// `Bash(echo Read(.claude-pr/**))` のようなBashの引数文字列に埋め込まれた
+// テキストにも誤って一致する(CodeRabbit実測)。カンマで分割し、宣言1件全体が
+// `Read(.claude-pr/...)` の形であることを要求する(先頭・末尾ともにアンカー)。
+// `.claude-pr` を含むだけでは `Read(.claude-pr-decoy/**)` のような別パスにも
+// 一致するため(matchesRestoredPathが`.claude`と`.claude.json`を区別しているのと
+// 同じ境界の問題)、`Read(.claude-pr/` に続くことも要求する。
+const CLAUDE_PR_READ_PATTERN = /^Read\(\.claude-pr\/.*\)$/;
+
+export const hasRestoredPathReadAccess = (allowedTools) =>
+  allowedTools.split(",").some((entry) => CLAUDE_PR_READ_PATTERN.test(entry.trim()));
+
+// 復元対象パスを変更しているのに読み取り手段が無いときだけ true。呼び出し側は
+// この2値しか見ないため、判定を3値(not-applicable/ok/missing-read-access)で
+// 返す必要は無い。
+export const isRestoredPathGateBlocked = ({ restoredPaths, allowedTools }) =>
+  restoredPaths.length > 0 && !hasRestoredPathReadAccess(allowedTools);
+
 // 文字列前提で trim() を呼ぶと、非文字列が来たときTypeErrorになって「空です」に化ける。
 // 赤くはなるが原因が読めないので、型ごと明示的に弾く。
 const environment = (value, name) => {
@@ -91,7 +115,8 @@ export const reviewCheckDecision = ({ outcome, enabled, conclusion, postCount })
   // #83のworkflow検証スキップ。注記のみでpassさせるのはissue #95 決定3 (i)の既決
   // (機械では埋められない。判定は参考であり最終判断は人間 —— docs/prd.md 8.6)。
   // 残存リスク: claude-review.yml を変更するPRはここに落ち、Claudeレビューを受けずにcheckが緑になる。
-  // 埋め合わせはセルフレビュー + CodeRabbit / Copilotで、どれで満たしたかをPR本文に書く(#95の不変条件)。
+  // 埋め合わせはセルフレビュー + CodeRabbit(Draft中はCopilotが走らないため対象外)で、
+  // どれで満たしたかをPR本文に書く(#95の不変条件。.claude/skills/pr-review-flow/SKILL.md「Claude」項)。
   if (conclusion === undefined || conclusion === "") return "validation-skipped";
   if (postCount === undefined) return "check-posts";
   return postCount === 0 ? "missing-posts" : "posts-found";
@@ -258,8 +283,50 @@ const executionDiagnostics = (read, executionFile) => {
   }
 };
 
+// 空文字列は「復元対象パスの変更なし」として許容する(他の必須環境値と違い、
+// 非該当が正当な値であるため)。型のみ厳格に見る。
+const restoredPathsEnvironment = (value, name) => {
+  if (typeof value !== "string") throw new Error(`${name} は文字列である必要があります`);
+  return value.trim() === "" ? [] : value.split(",");
+};
+
+const restoredPathGateEnvironment = (restoredPathsValue, allowedToolsValue) => ({
+  restoredPaths: restoredPathsEnvironment(restoredPathsValue, "RESTORED_PATHS"),
+  allowedTools: environment(allowedToolsValue, "ALLOWED_TOOLS"),
+});
+
+// レビューが実際に走ったか・投稿したかに関係なく判定できる静的な設定チェックのため、
+// 呼び出し元(main)の2箇所——validation-skipped分岐と通常のverifyPosts経路——で共有する。
+const throwIfRestoredPathGateBlocked = (restoredPathGate, append, summaryPath, outputNotice) => {
+  if (!isRestoredPathGateBlocked(restoredPathGate)) return;
+  report(append, summaryPath, outputNotice, RESTORED_PATH_GATE_ERROR);
+  throw new Error(RESTORED_PATH_GATE_ERROR);
+};
+
+// validation-skipped(claude-review.yml自体を変更するPR)はレビューが1回も走らず従来は
+// 注記のみで緑になる。ただし復元対象パスを変更しているのにallowedToolsの読み取り手段が
+// 欠落している状態は、レビューの実行結果に関係なく静的に判定できるため、この分岐でも検知する。
+// 素通りするとallowedToolsの配線ミスをこの回だけ検知できない(#229 型(c)。実測で見つかった穴)。
+const checkRestoredPathGateOnValidationSkipped = (env, append, summaryPath, outputNotice) => {
+  let restoredPathGate;
+  try {
+    restoredPathGate = restoredPathGateEnvironment(env.RESTORED_PATHS, env.ALLOWED_TOOLS);
+  } catch (error) {
+    reportValidationError(append, summaryPath, outputNotice, error);
+  }
+  throwIfRestoredPathGateBlocked(restoredPathGate, append, summaryPath, outputNotice);
+};
+
 // 取得・件数summary・失敗判定をmainから切り出す。判定の順序は変えない。
-const verifyPosts = ({ outcome, enabled, conclusion, executionFile, target, io }) => {
+const verifyPosts = ({
+  outcome,
+  enabled,
+  conclusion,
+  executionFile,
+  target,
+  io,
+  restoredPathGate,
+}) => {
   const { repository, prNumber, headSha, since } = target;
   const { getGhPosts, append, read, outputNotice, summaryPath } = io;
   let counts;
@@ -273,6 +340,14 @@ const verifyPosts = ({ outcome, enabled, conclusion, executionFile, target, io }
   }
   summary(append, summaryPath, `- Claude投稿件数: ${counts.matched}`);
   summary(append, summaryPath, `- 診断: ${executionDiagnostics(read, executionFile)}`);
+  summary(
+    append,
+    summaryPath,
+    `- 復元対象パス: ${restoredPathGate.restoredPaths.join(", ") || "無し"}`,
+  );
+  // 投稿の有無によらず判定する。投稿があっても、復元後のツリーを見たまま書かれた
+  // 可能性を消せないため(#229 型(c))。
+  throwIfRestoredPathGateBlocked(restoredPathGate, append, summaryPath, outputNotice);
   if (
     reviewCheckDecision({ outcome, enabled, conclusion, postCount: counts.matched }) !==
     "missing-posts"
@@ -295,6 +370,8 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
     ACTION_STARTED_AT,
     GITHUB_STEP_SUMMARY,
     EXECUTION_FILE,
+    RESTORED_PATHS,
+    ALLOWED_TOOLS,
   } = env;
   // この2つだけはreport()を通さず直接throwする。summaryの出力先が確定する前なので、
   // 構造上どこにも書けない。以降の検証失敗はすべてsummaryとnoticeに残す
@@ -313,17 +390,22 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   if (message !== undefined) {
     report(append, summaryPath, outputNotice, message);
     if (decision === "token-unavailable") throw new Error(message);
+    if (decision === "validation-skipped") {
+      checkRestoredPathGateOnValidationSkipped(env, append, summaryPath, outputNotice);
+    }
     return;
   }
   let repository;
   let prNumber;
   let headSha;
   let since;
+  let restoredPathGate;
   try {
     repository = environment(REPOSITORY, "REPOSITORY");
     prNumber = prNumberEnvironment(PR_NUMBER);
     headSha = headShaEnvironment(HEAD_SHA);
     since = actionStartedAt(ACTION_STARTED_AT);
+    restoredPathGate = restoredPathGateEnvironment(RESTORED_PATHS, ALLOWED_TOOLS);
   } catch (error) {
     reportValidationError(append, summaryPath, outputNotice, error);
   }
@@ -334,6 +416,7 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
     executionFile: EXECUTION_FILE,
     target: { repository, prNumber, headSha, since },
     io: { getGhPosts, append, read, outputNotice, summaryPath },
+    restoredPathGate,
   });
 };
 

@@ -3,8 +3,10 @@ import {
   buildPrompt,
   buildSummary,
   classifyChangedFiles,
+  detectRestoredPaths,
   main,
   outputEntry,
+  restoredPathsNotice,
 } from "../../.github/scripts/build-review-prompt.mjs";
 
 const agents = `# test
@@ -53,6 +55,51 @@ describe("classifyChangedFiles", () => {
 
   test("空の差分は失敗させる", () => {
     expect(() => classifyChangedFiles([], false)).toThrow("changed files が空です");
+  });
+});
+
+describe("detectRestoredPaths", () => {
+  test("復元対象パス配下のファイル変更を検出する", () => {
+    expect(detectRestoredPaths([".claude/skills/pr-review-flow/SKILL.md"])).toEqual([".claude"]);
+    expect(detectRestoredPaths([".husky/pre-commit"])).toEqual([".husky"]);
+  });
+
+  test("復元対象パスそのものの変更(ファイル形式)を検出する", () => {
+    expect(detectRestoredPaths([".mcp.json"])).toEqual([".mcp.json"]);
+    expect(detectRestoredPaths(["CLAUDE.md"])).toEqual(["CLAUDE.md"]);
+    expect(detectRestoredPaths(["CLAUDE.local.md"])).toEqual(["CLAUDE.local.md"]);
+    expect(detectRestoredPaths([".gitmodules"])).toEqual([".gitmodules"]);
+    expect(detectRestoredPaths([".ripgreprc"])).toEqual([".ripgreprc"]);
+  });
+
+  test("複数の復元対象パスを検出順(定義順)で返す", () => {
+    expect(detectRestoredPaths(["CLAUDE.md", ".claude/settings.json", "app/page.tsx"])).toEqual([
+      ".claude",
+      "CLAUDE.md",
+    ]);
+  });
+
+  test("`.claude.json` は `.claude` の配下と誤って一致しない(前方一致の境界)", () => {
+    expect(detectRestoredPaths([".claude.json"])).toEqual([".claude.json"]);
+    expect(detectRestoredPaths([".claudeXXX/foo"])).toEqual([]);
+  });
+
+  test("復元対象パスを含まない変更は検出しない(否定側)", () => {
+    expect(detectRestoredPaths(["app/page.tsx", "docs/prd.md", "test/unit/x.test.ts"])).toEqual([]);
+  });
+});
+
+describe("restoredPathsNotice", () => {
+  test("空配列では空文字列を返す(否定側)", () => {
+    expect(restoredPathsNotice([])).toBe("");
+  });
+
+  test("検出したパス一覧と `.claude-pr/` を読む指示、作業ツリーの汚れとして指摘しない旨を含む", () => {
+    const notice = restoredPathsNotice([".claude", "CLAUDE.md"]);
+    expect(notice).toContain("`.claude`");
+    expect(notice).toContain("`CLAUDE.md`");
+    expect(notice).toContain(".claude-pr/");
+    expect(notice).toContain("作業ツリーの汚れとして指摘しないでください");
   });
 });
 
@@ -276,12 +323,47 @@ BASE-ONLY-GOVERNANCE`;
   expect(appended).toHaveLength(2);
   expect(appended.map(({ path }) => path)).toEqual(["test-output", "test-summary"]);
   const output = decodeOutput(appended[0].value);
-  expect([...output.keys()]).toEqual(["prompt", "classifications"]);
+  expect([...output.keys()]).toEqual(["prompt", "classifications", "restored_paths"]);
   expect(output.get("classifications")).toBe("governance-docs");
   expect(output.get("prompt")).toBe(expectedPrompt);
+  expect(output.get("restored_paths")).toBe("");
   expect(appended[0].value).not.toContain("HEAD-ONLY-GOVERNANCE");
   expect(appended[1].value).not.toContain("HEAD-ONLY-GOVERNANCE");
   expect(appended[1].value).toBe(expectedSummary);
+});
+
+test("mainは復元対象パスの変更を検出し、promptに注意書きを追加してoutputに載せる", () => {
+  const baseSha = "base-sha";
+  const headSha = "head-sha";
+  const appended: Array<{ path: string; value: string }> = [];
+  const diffArguments = ["diff", "--name-only", "--no-renames", "-z", baseSha, headSha];
+  const showBaseArguments = ["show", `${baseSha}:AGENTS.md`];
+  const changedFiles = ".claude/skills/pr-review-flow/SKILL.md\0CLAUDE.md\0";
+  const runGit = (arguments_: string[]): Buffer => {
+    if (hasGitArguments(arguments_, diffArguments)) return Buffer.from(changedFiles, "utf8");
+    if (hasGitArguments(arguments_, showBaseArguments)) return Buffer.from(agents, "utf8");
+    throw new Error(`unexpected git arguments: ${arguments_.join(",")}`);
+  };
+  const appendFile = (path: string, value: string): void => {
+    appended.push({ path, value });
+  };
+
+  main({
+    environment: {
+      BASE_SHA: baseSha,
+      HEAD_SHA: headSha,
+      REVIEW_FULL: "false",
+      GITHUB_OUTPUT: "test-output",
+      GITHUB_STEP_SUMMARY: "test-summary",
+    },
+    runGit,
+    appendFile,
+  });
+
+  const output = decodeOutput(appended[0].value);
+  expect(output.get("restored_paths")).toBe(".claude,CLAUDE.md");
+  expect(output.get("prompt")).toContain("## 復元対象パスの注意");
+  expect(output.get("prompt")).toContain(".claude-pr/");
 });
 
 test("mainはreview:fullで3分類を固定順かつカンマ区切りで出力する", () => {

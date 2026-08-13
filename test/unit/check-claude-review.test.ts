@@ -5,10 +5,13 @@ import {
   countClaudePosts,
   flattenGhPages,
   getGhPosts,
+  hasRestoredPathReadAccess,
   headShaMarker,
+  isRestoredPathGateBlocked,
   main,
   MARKER_MISSING_ERROR,
   MISSING_CLAUDE_POSTS_ERROR,
+  RESTORED_PATH_GATE_ERROR,
   reviewCheckDecision,
 } from "../../.github/scripts/check-claude-review.mjs";
 
@@ -16,6 +19,8 @@ const headSha = "abc1230000000000000000000000000000000000";
 const otherHead = "def4560000000000000000000000000000000000";
 const since = "2026-08-10T01:00:00Z";
 const bot = { login: "claude[bot]" };
+const ALLOWED_TOOLS_WITH_READ =
+  "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read(.claude-pr/**)";
 const baseEnv = {
   CLAUDE_OUTCOME: "success",
   CLAUDE_ENABLED: "true",
@@ -26,6 +31,8 @@ const baseEnv = {
   ACTION_STARTED_AT: since,
   GITHUB_STEP_SUMMARY: "summary-path",
   EXECUTION_FILE: "execution-path",
+  RESTORED_PATHS: "",
+  ALLOWED_TOOLS: ALLOWED_TOOLS_WITH_READ,
 };
 
 const createDependencies = ({
@@ -89,7 +96,11 @@ test("main: success時は正しい3 APIを各1回読み、投稿と診断をsumm
     main(dependencies);
     expect(ghPaths).toEqual(apiPaths());
     expect(reads).toEqual(["execution-path"]);
-    expect(summaries).toEqual(["- Claude投稿件数: 1\n", "- 診断: num_turns: 1\n"]);
+    expect(summaries).toEqual([
+      "- Claude投稿件数: 1\n",
+      "- 診断: num_turns: 1\n",
+      "- 復元対象パス: 無し\n",
+    ]);
   }
 });
 
@@ -102,6 +113,7 @@ test("main: 投稿が0件なら件数summaryの後に例外を伝播する", () 
   expect(summaries).toEqual([
     "- Claude投稿件数: 0\n",
     "- 診断: num_turns: 1\n",
+    "- 復元対象パス: 無し\n",
     `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
   ]);
 });
@@ -127,6 +139,64 @@ test.each([
   expect(reads).toEqual([]);
   expect(notices).toEqual([message]);
   expect(summaries).toEqual([`- ${message}\n`]);
+});
+
+describe("main: validation-skippedでも復元対象パスの読み取り手段ゲートを検知する(型c)", () => {
+  // validation-skipped(claude-review.yml自体を変更するPR)はレビューが1回も走らないため
+  // 従来はここで緑になっていたが、復元対象パスを変更しているのにallowedToolsの読み取り手段が
+  // 欠落している状態は静的に判定できるため、この分岐でも検知する(#229 型(c))。
+  const skippedEnv = { ...baseEnv, CLAUDE_OUTCOME: "success", CLAUDE_CONCLUSION: "" };
+  const skipMessage =
+    "Claude actionはworkflow validation skipでした。投稿件数判定は機械では行えません。";
+
+  test("復元対象パスの変更なし → 従来どおり緑(誤検知しないこと)", () => {
+    const env = { ...skippedEnv, RESTORED_PATHS: "" };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    main(dependencies);
+
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([skipMessage]);
+    expect(summaries).toEqual([`- ${skipMessage}\n`]);
+  });
+
+  test("復元対象パスの変更 + 読み取り手段あり → 緑", () => {
+    const env = { ...skippedEnv, RESTORED_PATHS: ".claude" };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    main(dependencies);
+
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([skipMessage]);
+    expect(summaries).toEqual([`- ${skipMessage}\n`]);
+  });
+
+  test("復元対象パスの変更 + 読み取り手段なし → 赤(従来は素通りしていた穴。否定側)", () => {
+    const env = {
+      ...skippedEnv,
+      RESTORED_PATHS: ".claude",
+      ALLOWED_TOOLS: "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)",
+    };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    expect(() => main(dependencies)).toThrow(RESTORED_PATH_GATE_ERROR);
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([skipMessage, RESTORED_PATH_GATE_ERROR]);
+    expect(summaries).toEqual([`- ${skipMessage}\n`, `- ${RESTORED_PATH_GATE_ERROR}\n`]);
+  });
+
+  test.each([
+    ["RESTORED_PATHS", undefined, "RESTORED_PATHS は文字列である必要があります"],
+    ["ALLOWED_TOOLS", "", "ALLOWED_TOOLS が空です"],
+  ])("必須環境値 %s の不正も検知して拒否する", (name, value, message) => {
+    const env = { ...skippedEnv, [name]: value };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    expect(() => main(dependencies)).toThrow(message);
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([skipMessage, message]);
+    expect(summaries).toEqual([`- ${skipMessage}\n`, `- ${message}\n`]);
+  });
 });
 
 test.each([
@@ -317,6 +387,7 @@ test.each([undefined, ""])(
     expect(summaries).toEqual([
       "- Claude投稿件数: 0\n",
       "- 診断: 実行診断ファイルはありません。\n",
+      "- 復元対象パス: 無し\n",
       `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
     ]);
   },
@@ -332,6 +403,7 @@ test.each([
   expect(summaries).toEqual([
     "- Claude投稿件数: 0\n",
     "- 診断: 実行診断ファイルを読めませんでした。\n",
+    "- 復元対象パス: 無し\n",
     `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
   ]);
 });
@@ -348,6 +420,7 @@ test("main: 診断配列は末尾から診断要素を探し、後方の非診�
   expect(summaries).toEqual([
     "- Claude投稿件数: 0\n",
     "- 診断: permission_denials_count: 2\n",
+    "- 復元対象パス: 無し\n",
     `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
   ]);
 });
@@ -361,6 +434,7 @@ test.each(["{}", JSON.stringify([{ ignored: true }])])(
     expect(summaries).toEqual([
       "- Claude投稿件数: 0\n",
       "- 診断: 実行診断値はありません。\n",
+      "- 復元対象パス: 無し\n",
       `- ${MISSING_CLAUDE_POSTS_ERROR}\n`,
     ]);
   },
@@ -380,6 +454,7 @@ test("main: headと開始時刻を投稿フィルタに渡し、別headと開始
   expect(summaries).toEqual([
     "- Claude投稿件数: 0\n",
     "- 診断: num_turns: 1\n",
+    "- 復元対象パス: 無し\n",
     `- ${MARKER_MISSING_ERROR}\n`,
   ]);
 });
@@ -396,6 +471,7 @@ test("main: マーカーだけが無い投稿は、無投稿ではなくマー�
   expect(summaries).toEqual([
     "- Claude投稿件数: 0\n",
     "- 診断: num_turns: 1\n",
+    "- 復元対象パス: 無し\n",
     `- ${MARKER_MISSING_ERROR}\n`,
   ]);
 });
@@ -522,7 +598,129 @@ test("main: 可変headと開始時刻の対象投稿を数える", () => {
 
   main(dependencies);
 
-  expect(summaries).toEqual(["- Claude投稿件数: 1\n", "- 診断: num_turns: 1\n"]);
+  expect(summaries).toEqual([
+    "- Claude投稿件数: 1\n",
+    "- 診断: num_turns: 1\n",
+    "- 復元対象パス: 無し\n",
+  ]);
+});
+
+describe("hasRestoredPathReadAccess", () => {
+  test("Read(.claude-pr/**)を含むallowedToolsを検出する", () => {
+    expect(hasRestoredPathReadAccess(ALLOWED_TOOLS_WITH_READ)).toBe(true);
+  });
+
+  test("Readが無いallowedToolsは検出しない(否定側)", () => {
+    expect(
+      hasRestoredPathReadAccess(
+        "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)",
+      ),
+    ).toBe(false);
+  });
+
+  test("`.claude-pr`を含まないRead宣言は検出しない(誤検知しないこと)", () => {
+    expect(hasRestoredPathReadAccess("Read(docs/**)")).toBe(false);
+  });
+
+  test("`.claude-pr`で始まる別パスは検出しない(前方一致の境界。否定側)", () => {
+    expect(hasRestoredPathReadAccess("Read(.claude-pr-decoy/**)")).toBe(false);
+    expect(hasRestoredPathReadAccess("Read(docs/.claude-print/**)")).toBe(false);
+  });
+
+  test("Bashの引数文字列に埋め込まれたテキストには一致しない(CodeRabbit指摘。否定側)", () => {
+    expect(hasRestoredPathReadAccess("Bash(echo Read(.claude-pr/**))")).toBe(false);
+    expect(hasRestoredPathReadAccess("Bash(gh pr view:*),Bash(echo Read(.claude-pr/**))")).toBe(
+      false,
+    );
+  });
+
+  test("宣言1件全体が一致する形のみ許可する(前後の空白は許容)", () => {
+    expect(hasRestoredPathReadAccess(" Read(.claude-pr/**) ")).toBe(true);
+    expect(hasRestoredPathReadAccess("Bash(gh pr view:*), Read(.claude-pr/**)")).toBe(true);
+  });
+});
+
+describe("isRestoredPathGateBlocked", () => {
+  test("復元対象パスが無ければ allowedTools を問わず false", () => {
+    expect(
+      isRestoredPathGateBlocked({ restoredPaths: [], allowedTools: "Bash(gh pr diff:*)" }),
+    ).toBe(false);
+  });
+
+  test("復元対象パスがあり読み取り手段があれば false", () => {
+    expect(
+      isRestoredPathGateBlocked({
+        restoredPaths: [".claude"],
+        allowedTools: ALLOWED_TOOLS_WITH_READ,
+      }),
+    ).toBe(false);
+  });
+
+  test("復元対象パスがあり読み取り手段が無ければ true(否定側)", () => {
+    expect(
+      isRestoredPathGateBlocked({
+        restoredPaths: [".claude"],
+        allowedTools: "Bash(gh pr diff:*)",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("main: 復元対象パスの読み取り手段ゲート(型c)", () => {
+  const [issuePath] = apiPaths();
+  const postedPosts = new Map([
+    [issuePath, [{ user: bot, body: headShaMarker(headSha), created_at: since }]],
+  ]);
+
+  test("復元対象パスの変更 + 読み取り手段あり → 緑(投稿ありの通常経路)", () => {
+    const env = { ...baseEnv, RESTORED_PATHS: ".claude,CLAUDE.md" };
+    const { dependencies, summaries } = createDependencies({ env, posts: postedPosts });
+
+    main(dependencies);
+
+    expect(summaries).toContainEqual("- 復元対象パス: .claude, CLAUDE.md\n");
+  });
+
+  test("復元対象パスの変更 + 読み取り手段なし → 赤(投稿があっても止める。否定側)", () => {
+    const env = {
+      ...baseEnv,
+      RESTORED_PATHS: ".claude",
+      ALLOWED_TOOLS: "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)",
+    };
+    const { dependencies, notices, summaries } = createDependencies({ env, posts: postedPosts });
+
+    expect(() => main(dependencies)).toThrow(RESTORED_PATH_GATE_ERROR);
+    expect(notices).toEqual([RESTORED_PATH_GATE_ERROR]);
+    expect(summaries).toContainEqual(`- ${RESTORED_PATH_GATE_ERROR}\n`);
+  });
+
+  test("復元対象パスの変更なし + 読み取り手段なし → 緑(誤検知しないこと)", () => {
+    const env = {
+      ...baseEnv,
+      RESTORED_PATHS: "",
+      ALLOWED_TOOLS: "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)",
+    };
+    const { dependencies, summaries } = createDependencies({ env, posts: postedPosts });
+
+    main(dependencies);
+
+    expect(summaries).toContainEqual("- 復元対象パス: 無し\n");
+  });
+
+  test.each([
+    ["RESTORED_PATHS", undefined, "RESTORED_PATHS は文字列である必要があります"],
+    ["RESTORED_PATHS", 123, "RESTORED_PATHS は文字列である必要があります"],
+    ["ALLOWED_TOOLS", "", "ALLOWED_TOOLS が空です"],
+    ["ALLOWED_TOOLS", undefined, "ALLOWED_TOOLS が空です"],
+  ])("必須環境値 %s の不正をAPI取得前に記録して拒否する", (name, value, message) => {
+    const env = { ...baseEnv, [name]: value };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    expect(() => main(dependencies)).toThrow(message);
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([message]);
+    expect(summaries).toEqual([`- ${message}\n`]);
+  });
 });
 
 test("reviewCheckDecision: 公式の4 outcomeを判定する", () => {

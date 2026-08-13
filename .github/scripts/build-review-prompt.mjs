@@ -8,6 +8,21 @@ const HEADING_BY_CLASSIFICATION = new Map(
   CLASSIFICATIONS.map((classification) => [`### ${classification}`, classification]),
 );
 
+// anthropics/claude-code-action@5ef2e550a465a721f4f45e4a7d3c340c873e1dcc(claude-review.ymlに
+// ピン留めしているSHAと同一)の restoreConfigFromBase が復元するパスと一致させる
+// (src/github/operations/restore-config.ts の SENSITIVE_PATHS)。ずれると型(c)の
+// 検知対象が実際の復元対象からずれる。
+const RESTORED_PATHS = [
+  ".claude",
+  ".mcp.json",
+  ".claude.json",
+  ".gitmodules",
+  ".ripgreprc",
+  "CLAUDE.md",
+  "CLAUDE.local.md",
+  ".husky",
+];
+
 const fail = (message) => {
   throw new Error(`Build review prompt: ${message}`);
 };
@@ -72,6 +87,35 @@ export const classifyChangedFiles = (files, reviewFull) => {
     }
   }
   return CLASSIFICATIONS.filter((classification) => selected.has(classification));
+};
+
+// ディレクトリ形式のパス(`.claude`, `.husky`)は配下のファイルも一致させる。
+// `.claude.json` が `.claude` の配下と誤って一致しないよう、区切りを挟んだ前方一致で判定する。
+const matchesRestoredPath = (file, restoredPath) =>
+  file === restoredPath || file.startsWith(`${restoredPath}/`);
+
+export const detectRestoredPaths = (files) =>
+  RESTORED_PATHS.filter((restoredPath) =>
+    files.some((file) => matchesRestoredPath(file, restoredPath)),
+  );
+
+// `.claude-pr/${元のパス}` というレイアウト(例: `.claude/x` → `.claude-pr/.claude/x`)は
+// anthropics/claude-code-action@5ef2e550a465a721f4f45e4a7d3c340c873e1dcc の
+// src/github/operations/restore-config.ts、restoreConfigFromBase内
+// `snapshotSensitivePath(p, \`.claude-pr/${p}\`, ...)` で確認済み(PR #241)。
+// action更新でレイアウトが変わった場合はこの注意書きが誤った案内になるため、
+// pinned SHAを上げるPRでは同ファイルの該当箇所を合わせて確認すること。
+export const restoredPathsNotice = (restoredPaths) => {
+  if (restoredPaths.length === 0) return "";
+  const list = restoredPaths.map((path) => `\`${path}\``).join(", ");
+  return [
+    "## 復元対象パスの注意",
+    "",
+    `このPRは復元対象パス(${list})を変更しています。`,
+    "セキュリティ機構により、カレントディレクトリの該当パスは `origin/main` の内容へ復元されており、PRの内容ではありません。",
+    "PRが変更した内容は `.claude-pr/` 配下に同じ相対パスで退避されています(例: `.claude/x` の変更は `.claude-pr/.claude/x` を読んでください)。該当パスをレビューする際は必ず `.claude-pr/` 配下を読んでください。",
+    "この復元によってカレントディレクトリとPRの内容に差が生じますが、これは復元機構によるものであり、作業ツリーの汚れとして指摘しないでください。",
+  ].join("\n");
 };
 
 const sectionLines = (agents) => {
@@ -181,10 +225,16 @@ export const main = ({ environment, runGit, appendFile }) => {
   const files = splitNul(runGit(["diff", "--name-only", "--no-renames", "-z", baseSha, headSha]));
   const classifications = classifyChangedFiles(files, REVIEW_FULL === "true");
   const agents = runGit(["show", `${baseSha}:AGENTS.md`]).toString("utf8");
-  const prompt = buildPrompt(agents, classifications);
+  const restoredPaths = detectRestoredPaths(files);
+  const notice = restoredPathsNotice(restoredPaths);
+  const prompt = [buildPrompt(agents, classifications), notice]
+    .filter((part) => part !== "")
+    .join("\n\n");
   appendFile(
     outputPath,
-    outputEntry("prompt", prompt) + outputEntry("classifications", classifications.join(",")),
+    outputEntry("prompt", prompt) +
+      outputEntry("classifications", classifications.join(",")) +
+      outputEntry("restored_paths", restoredPaths.join(",")),
   );
   appendFile(summaryPath, buildSummary({ baseSha, headSha, files, classifications, prompt }));
 };
