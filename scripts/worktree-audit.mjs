@@ -27,7 +27,8 @@ const run = () => {
       stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: 64 * 1024 * 1024,
     });
-  auditWorktrees(options, { git, gh, log: console.log });
+  const result = auditWorktrees(options, { git, gh, log: console.log });
+  if (result.deleted.some((deletion) => deletion.error !== undefined)) process.exitCode = 1;
 };
 
 try {
