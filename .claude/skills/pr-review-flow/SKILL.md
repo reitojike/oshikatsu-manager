@@ -137,6 +137,11 @@ PRはまず`gh pr create --draft`でDraft作成する。
 CodeRabbitのレート制限は数十分で解除される。「Codexを待つ」は現実的でないが
 「CodeRabbitを待つ」は現実的である。
 
+**CodeRabbit側も同じ判別を適用する。**「レート制限中」と判定するのは`docs/pr-review-flow-details.md`
+「CodeRabbit」が挙げる明確なレート制限メッセージ(`Review limit reached`等)で失敗した場合に限る。
+認証エラー・通信エラー・空応答など、レート制限と確認できない失敗は「使える」側として扱い、
+通常どおり取得を試みる(再試行して改善しなければ`AGENTS.md`のエスカレーション基準に従う)。
+
 **Codexへの手動`＠codex review`は毎ラウンド打たない。**Draft作成直後の1回(Codex独自の
 視点を早期に得る)と、反復を打ち切ると判断する巡(governance-docsは下記の打ち切り条件を
 満たす巡、それ以外の分類は指摘が尽きたと判断する巡)の1回、計2回を基本とする。
@@ -189,7 +194,7 @@ governance-docs側の扱いを適用しない(「複数の分類にまたがるP
 
 | Copilot | 行動 |
 | --- | --- |
-| レビューを得られた | 必須充足。**Codex・CodeRabbitの可用性は問わない** |
+| レビューを得られた(`Copilot wasn't able to review any files in this pull request.`のように、対象コードファイルが無いだけの応答を含む。下記「Ready後の運用」参照) | 必須充足。**Codex・CodeRabbitの可用性は問わない** |
 | quota失敗等で得られない | 下記「Ready後の運用」の再リクエスト手順(マージ直前に手動で1回まで)を先に尽くす。**それでも得られなければPOにエスカレーションして判断を仰ぐ**(自分で代替を決めない) |
 
 **Draft中に(Codex または CodeRabbit)のいずれかのレビューを受けたうえでReady化しているはず
