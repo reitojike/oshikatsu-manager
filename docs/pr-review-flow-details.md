@@ -225,7 +225,7 @@ gh api repos/{owner}/{repo}/commits/<SHA>/status \
 **このエンドポイント(combined status)はcontextごとに最新の1件だけを返す。**
 複数のstatusを履歴として返す別エンドポイント(`GET /repos/{owner}/{repo}/statuses/{sha}`)と
 混同しないこと。実測(コミット`22ca8bb`、2026-08-13): combined statusは`CodeRabbit`が1件、
-history(`/statuses/{sha}`)は3件(`Review queued` → `Review in progress` → `Review rate limited`
+history(`/statuses/{sha}`)は3件(`Review rate limited` → `Review in progress` → `Review queued`
 の順、**新しい順**)を返した。ページングや「最新順に並べ替えてから末尾を取る」処理は、
 combined statusを使う限り不要。
 

@@ -120,7 +120,9 @@ PRはまず`gh pr create --draft`でDraft作成する。
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
 
 **Draft PR中の必須レビュー(issue #220)。**`claude-review`は常に必須(上記のとおりpushごとに
-走り、機械的なゲートを持つ)。それに加えて、**Codex または CodeRabbit のいずれか1つ**を
+走り、機械的なゲートを持つ。ただし上記「Claude」の項が定める`claude-review.yml`自体を
+変更するPRの例外——workflow検証スキップによりセルフレビュー + CodeRabbit / Copilotで
+代替する——はここでも維持される)。それに加えて、**Codex または CodeRabbit のいずれか1つ**を
 必須とする(Copilotはdraft中は走らないため、Draft段階で複数モデルの視点を確保する手段は
 この2つしかない)。どちらで必須を満たすかは、両者の可用性で決まる(判別基準は
 `docs/pr-review-flow-details.md`「Codex Cloud」。**「利用上限」と確認できない失敗
@@ -129,7 +131,7 @@ Codex CloudのPR自動レビューが可用かどうかだけを問うもので�
 「上限到達時に読む手順」が定めるエージェント実行のルーティング判定(3回ルール・Blocked化)
 とは対象が別で、そちらの「不明」時の扱いを継承しない。**Draft中は自動投稿自体が発火しない
 ため(上記「Draftフェーズ」のCodexの項)、「自動投稿が来ていない」はこの「確認できない失敗」
-には含めない**(起きていないことと失敗したことは別。判別に使えるのは手動`@codex review`の
+には含めない**(起きていないことと失敗したことは別。判別に使えるのは手動`＠codex review`の
 結果のみ)。
 
 | Codex | CodeRabbit | 必須を満たす経路 | 行動 |
@@ -201,7 +203,9 @@ governance-docs側の扱いを適用しない(「複数の分類にまたがるP
 上記の反復終了条件(governance-docsは打ち切り条件、それ以外は指摘が尽きること)を満たしたら
 `gh pr ready`でReady for reviewに変える。このタイミングでCopilotの最終レビューが1回走る(`review_draft_pull_requests: false`、Ready化がトリガー)。
 
-**Ready化以降の必須レビュー。**`claude-review` + **Copilot** を必須とする(#220)。
+**Ready化以降の必須レビュー。**`claude-review` + **Copilot** を必須とする(#220。
+`claude-review`側の`claude-review.yml`自体を変更するPRの例外は上記「Draft PR中の必須
+レビュー」のとおり維持される)。
 
 | Copilot | 行動 |
 | --- | --- |
