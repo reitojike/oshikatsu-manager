@@ -626,6 +626,18 @@ describe("hasRestoredPathReadAccess", () => {
     expect(hasRestoredPathReadAccess("Read(.claude-pr-decoy/**)")).toBe(false);
     expect(hasRestoredPathReadAccess("Read(docs/.claude-print/**)")).toBe(false);
   });
+
+  test("Bashの引数文字列に埋め込まれたテキストには一致しない(CodeRabbit指摘。否定側)", () => {
+    expect(hasRestoredPathReadAccess("Bash(echo Read(.claude-pr/**))")).toBe(false);
+    expect(hasRestoredPathReadAccess("Bash(gh pr view:*),Bash(echo Read(.claude-pr/**))")).toBe(
+      false,
+    );
+  });
+
+  test("宣言1件全体が一致する形のみ許可する(前後の空白は許容)", () => {
+    expect(hasRestoredPathReadAccess(" Read(.claude-pr/**) ")).toBe(true);
+    expect(hasRestoredPathReadAccess("Bash(gh pr view:*), Read(.claude-pr/**)")).toBe(true);
+  });
 });
 
 describe("isRestoredPathGateBlocked", () => {

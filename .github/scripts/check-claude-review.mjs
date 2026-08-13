@@ -25,13 +25,17 @@ export const headShaMarker = (headSha) => `<!-- claude-review-head-sha:${headSha
 export const RESTORED_PATH_GATE_ERROR =
   "このPRは復元対象パスを変更していますが、.claude-pr/ を読む手段(Read(.claude-pr/**)等)が --allowedTools に含まれていません。レビューは復元後(origin/main)のツリーを見たまま完了した可能性があります。";
 
-// `.claude-pr` を含むだけでは `Read(.claude-pr-decoy/**)` のような別パスにも一致してしまう
-// (matchesRestoredPathが`.claude`と`.claude.json`を区別しているのと同じ境界の問題)。
-// `Read(` の直後に `.claude-pr/` が続くことを要求し、パスの先頭一致だけを許す。
-const CLAUDE_PR_READ_PATTERN = /\bRead\(\.claude-pr\//;
+// allowedToolsはカンマ区切りのツール宣言の並びであり、部分一致では
+// `Bash(echo Read(.claude-pr/**))` のようなBashの引数文字列に埋め込まれた
+// テキストにも誤って一致する(CodeRabbit実測)。カンマで分割し、宣言1件全体が
+// `Read(.claude-pr/...)` の形であることを要求する(先頭・末尾ともにアンカー)。
+// `.claude-pr` を含むだけでは `Read(.claude-pr-decoy/**)` のような別パスにも
+// 一致するため(matchesRestoredPathが`.claude`と`.claude.json`を区別しているのと
+// 同じ境界の問題)、`Read(.claude-pr/` に続くことも要求する。
+const CLAUDE_PR_READ_PATTERN = /^Read\(\.claude-pr\/.*\)$/;
 
 export const hasRestoredPathReadAccess = (allowedTools) =>
-  CLAUDE_PR_READ_PATTERN.test(allowedTools);
+  allowedTools.split(",").some((entry) => CLAUDE_PR_READ_PATTERN.test(entry.trim()));
 
 // 復元対象パスを変更しているのに読み取り手段が無いときだけ true。呼び出し側は
 // この2値しか見ないため、判定を3値(not-applicable/ok/missing-read-access)で
