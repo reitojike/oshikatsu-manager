@@ -16,4 +16,6 @@ $$;
 
 create trigger guard_event_undeletion_trigger
   before update on public.events
-  for each row execute function public.guard_event_undeletion();
+  for each row
+  when (old.deleted_at is distinct from new.deleted_at)
+  execute function public.guard_event_undeletion();
