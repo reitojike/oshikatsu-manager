@@ -71,9 +71,9 @@ required status checksに`PR Template Check`のjob `check`が含まれる)。`pr
 (exit code 0、`gh pr checks`では`pass`と表示される)。ログに
 `Skipping action due to workflow validation`が出ていれば該当する
 (`gh run view <run-id> --log`で確認)。quota失敗時と同様、`pass`表示だけでは
-「レビュー済みで指摘なし」と区別がつかない見落としパターン。該当する場合は
-`/code-review`スキルで自分でレビューするか、マージ後にClaude Reviewが正常に効くようになる
-ことを認識した上で進める。
+「レビュー済みで指摘なし」と区別がつかない見落としパターン。該当する場合の対処は
+`.claude/skills/pr-review-flow/SKILL.md`「Claude」の項が正本(セルフレビュー + CodeRabbit
+必須、CodeRabbitを取得できない場合はReady化しない。ここには書き写さない)。
 
 **`/code-review`を起動する前に、ローカル`main`が`origin/main`に追随しているかを点検する**
 (コマンドと理由は`docs/worktree-policy.md`)。ずれているとマージ済みの他PRの差分まで
@@ -138,40 +138,100 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 
 ### Codex Cloud
 
-**ローカルCodex・Codex Cloudの両方が同一の利用上限で失敗した場合、マージ前の義務
-(`.claude/skills/pr-review-flow/SKILL.md`「Ready化」の「マージ前に…Codexの結果を最低1回
-得ることを義務とする」)をclaude-review + CodeRabbitの結果で代替してよい(PO決定・2026-08-12)。**
+**Draft中・Ready以降で必須とするレビューの組み合わせは
+`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」「Ready化」のパターン表が正本
+(#220)。ここには書き写さない。**以下は、その表で使う判別基準と、発火タイミングの実測記録。
 
-**判別基準。**次の両方を満たすこと。
+**判別基準(Codexが「利用上限」かどうか)。**この基準は`.claude/skills/pr-review-flow/SKILL.md`
+「Draftフェーズ」のDraft必須レビュー表だけが使う。Ready化以降の表はCodex・CodeRabbitの
+可用性を問わないため対象外。Draft必須表が必要とするのはCodex CloudのPR自動レビューであり、
+判定はCloud側の結果だけで行う。
 
-- ローカルCodex(`mcp__codex__codex`)が上限到達の文言(`docs/model-routing-details.md`
-  「上限到達時に読む手順」の判別表の「上限到達」行、`You've hit your usage limit`と
-  `try again at <時刻>`の両方)で失敗している
-- Codex Cloudの自動投稿・手動`@codex review`のいずれも
-  `You have reached your Codex usage limits for code reviews`(実測文言)で失敗している
+**手動`@codex review`が`You have reached your Codex usage limits for code reviews`
+(実測文言)で失敗していれば、それだけで「利用上限」と判定する。**ローカルCodex
+(`mcp__codex__codex`)は別クォータで動く(Draft必須表が問うのはCodex Cloudの可用性のみで、
+ローカルの状態は判定に使わない)。手動`@codex review`が上記の実測文言以外の理由
+(一時的な通信エラー等)で失敗した場合は、この基準を満たさない(満たさない場合の扱いは
+`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」が正本)。
 
-**両方が同一の利用上限に起因していることを確認できた場合に限る。**Cloud側だけが失敗して
-ローカルは未試行、またはCloud側の失敗が別の理由(一時的な通信エラー等、
-`docs/model-routing-details.md`「失敗の分類」の「不明」相当)である可能性を除外できない
-場合は代替せず、通常どおり結果を待つ。
+**Draft PRへのpushではCodex Cloudの自動投稿が発火しない**(`.claude/skills/pr-review-flow/SKILL.md`
+「Draftフェーズ」のCodexの項、PR #113で確認済み)。この事実を判別にどう扱うかは
+`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」が正本(ここには書き写さない)。
 
-**代替の根拠。**claude-reviewとCodeRabbitは担当モデル(Claude)とは独立した別ボットであり、
-複数の視点によるレビューが確保される。Ready化ではさらにGitHub Copilotの最終レビューが
-別途走るため、Codexが欠けても多重レビューの構造自体は失われない。
+**発火タイミングの実測。**Ready後にCodexの投稿を探す場合の参考情報(#220以降、マージ前に
+能動的に待つ義務は無いが、投稿があれば解釈が必要になる)。
 
-**実例。**PR #207(2026-08-12、Issue #204。本節を追加した当のPR)。ローカルCodexが
+- PR #113(2026-08-09): Ready化後の新規pushでは、手動メンション無しで自動投稿された
+  (push後約3分)。Ready化そのもの(pushを伴わない`gh pr ready`単体)では8分以上経っても
+  自動投稿が無かった
+- PR #169・#170・#173・#174(2026-08-11)、PR #161: **Ready化そのもの**(新規pushを一切
+  挟まない`gh pr ready`単体)でも約3分後に自動投稿されることを5件連続で確認した。#113との
+  食い違いの原因は特定できていない(推測で埋めない)。より新しく件数の多いこちらを現在の
+  挙動として優先することはIssue #165でPO確認済み
+- **同一HEADに対してCodexの結果が複数投稿されることがある(PR #173実測、`gh pr ready`実行
+  15:43:46Zに対し、同一コミットへ15:38:54Zと15:46:51Zの2件。#180で見落としが実際に発生した)。**
+  採否ルールは`.claude/skills/pr-review-flow/SKILL.md`「指摘の扱いとマージ」が正本
+  (ここには書き写さない)
+- **Codexの投稿は`Reviewed commit`を含む定型文で、issueコメント・レビュー本文の両方に
+  出現しうる。**`commit_id`フィールドでしかSHAが得られないケースは観測していない。短縮SHAは
+  `gh api repos/{owner}/{repo}/commits/<短縮SHA>`でフルSHAに解決してから比較対象のHEADと
+  突き合わせる(前方一致だけでは複数コミットに一致しうる。解決に失敗した場合
+  ——存在しない短縮SHAはHTTP 422等——は「一致」と判定しない、fail-closed)
+- **指摘0件のときも、単独の👍リアクションではなくテキストコメントで`Reviewed commit`を
+  伴って投稿される(PR #168〜#171、Draft中5巡すべてで実測)。**GitHubのリアクションは
+  コミットSHAに紐づかないため、👍単独は「投稿を得た」と判定しない
+
+**実例(#204、PR #207、2026-08-12)。**ローカルCodexが
 `You've hit your usage limit... try again at Aug 18th, 2026 9:20 AM`で失敗し、Draft前
 セルフレビューは`/code-review`に切替(skill既定の手順どおり)。Draft作成直後の
 `@codex review`とReady化契機の自動投稿の両方でCodex Cloudが
-`You have reached your Codex usage limits for code reviews`を返した。上記の判別基準に
-該当するため、claude-review・CodeRabbitの結果で代替してマージする(本PR自身がこの代替の
-第1号適用)。
+`You have reached your Codex usage limits for code reviews`を返した。当時は「Codex上限時は
+claude-review + CodeRabbitの結果で代替してよい」という規定でマージ前の義務を満たした
+(本PR自身がこの代替の第1号適用)。**この規定は#220でDraft必須の(Codexまたは CodeRabbit)の
+ORへ吸収され、別概念としては解消済み。**当時の判定手順の記録として残す。
 
 ### CodeRabbit
 
 FreeプランはGitHub連携のPRレビューが**1回/時/開発者**に制限されている
 (PR #35で実際にレート制限を確認済み。詳細は`docs/roadmap.md`「CodeRabbitの導入」参照)。
 Draftで短時間に何度もpushしても2回目以降はスキップされうる。
+
+**レート制限通知の実測(経路別)。**発生経路によって、どの面に何が出るかが異なるため、
+`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」の判別で「レート制限」と確認できるのは
+次のいずれかに一致する場合に限る。
+
+1. **PR作成時の自動レビュー**: issueコメントとして「Review limit reached」の見出しと
+   「Next review available in: N minutes」を含む定型文が投稿される(PR #225、
+   2026-08-13T01:25実測)
+2. **push時の自動レビュー**: **issueコメントは投稿されない。commit statusにのみ現れる**
+   (`context: CodeRabbit`、`state: success`、`description: Review rate limited`。
+   PR #225コミット`22ca8bb`、2026-08-13T02:53実測)。**`state`は`success`になるため、
+   `gh pr checks`もGitHub UIも成功として表示する。**レビューが1行も行われていないことは
+   `description`の文言でしか判別できない
+3. **手動`@coderabbitai review`コマンド**: issueコメントの返信として「Review rate limited」
+   (PR #35、2026-08-07実測。`docs/roadmap.md`「CodeRabbitの導入」参照)
+
+**push時のcommit statusの取得コマンド。**
+
+```bash
+gh api repos/{owner}/{repo}/commits/<SHA>/status \
+  --jq '.statuses[] | select(.context == "CodeRabbit") | "\(.context)\t\(.state)\t\(.description)"'
+```
+
+**このエンドポイント(combined status)はcontextごとに最新の1件だけを返す。**
+複数のstatusを履歴として返す別エンドポイント(`GET /repos/{owner}/{repo}/statuses/{sha}`)と
+混同しないこと。実測(コミット`22ca8bb`、2026-08-13): combined statusは`CodeRabbit`が1件、
+history(`/statuses/{sha}`)は3件(`Review rate limited` → `Review in progress` → `Review queued`
+の順、**新しい順**)を返した。ページングや「最新順に並べ替えてから末尾を取る」処理は、
+combined statusを使う限り不要。
+
+**`gh api repos/{owner}/{repo}/commits/<SHA>/check-runs`には出ない**(check-runではなく
+commit statusのため)。`gh pr view --json statusCheckRollup`には含まれるが、
+`.name`/`.conclusion`は`null`になり、`.context`/`.state`を見る必要がある
+(この取り違えでレート制限を見落とした実例がある。PR #225)。
+
+上記のいずれにも一致しない失敗の扱いは`.claude/skills/pr-review-flow/SKILL.md`
+「Draftフェーズ」が正本(ここには書き写さない)。
 
 ### GitHub Copilot
 

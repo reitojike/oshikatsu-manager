@@ -191,6 +191,12 @@ Supabaseもブラウザも要らないので、フェーズ1と並行して進�
 **完了条件:** `yarn test` がSupabase起動なしで通る。
 権限マトリクスがフェーズ1(RLS)とフェーズ2(pure関数)の両方でテストされている。
 
+**共有関数カタログの着手条件**
+
+`common/`の共有helperを一覧化するカタログ(`docs/shared-utils.md`的なもの)を作るかどうかは、
+**フェーズ2完了時点(pure関数6種が出揃った時点)で判断する。**背景・形式の候補・元記事は
+[#47](https://github.com/reitojike/stage-tracker/issues/47)を参照(ここには書き写さない)。
+
 ---
 
 ## フェーズ3 — Web UI(読み取り)
