@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   aggregate,
+  assertPrListComplete,
   attachFace2Findings,
   collectFace2Launches,
   collectFace3Launches,
@@ -12,6 +13,7 @@ import {
   formatSummary,
   isUsageLimitMessage,
   parseArguments,
+  PR_LIST_LIMIT,
   summarizeBotLaunches,
   summarizeClassification,
   summarizePr,
@@ -97,6 +99,20 @@ describe("filterMergedSince", () => {
     expect(filterMergedSince(prs, "2026-08-09").map((pr: { number: number }) => pr.number)).toEqual(
       [1],
     );
+  });
+});
+
+describe("assertPrListComplete", () => {
+  // claude-reviewの指摘: gh-project-lib.mjsのPROJECT_ITEM_LIMIT/getProjectItemと同型の
+  // fail-closed判定なのにテストが無かった。
+  it("passes through the list when it is below the limit", () => {
+    const prs = [{ number: 1 }, { number: 2 }];
+    expect(assertPrListComplete(prs)).toBe(prs);
+  });
+
+  it("throws when the list length hits PR_LIST_LIMIT exactly (negative)", () => {
+    const prs = Array.from({ length: PR_LIST_LIMIT }, (_, index) => ({ number: index }));
+    expect(() => assertPrListComplete(prs)).toThrow(`${PR_LIST_LIMIT}-item limit`);
   });
 });
 

@@ -4,10 +4,12 @@ import { existsSync } from "node:fs";
 import { resolveGhPath } from "./gh-project-lib.mjs";
 import {
   aggregate,
+  assertPrListComplete,
   filterMergedSince,
   formatPrLine,
   formatSummary,
   parseArguments,
+  PR_LIST_LIMIT,
   summarizePr,
 } from "./review-stats-lib.mjs";
 
@@ -16,10 +18,6 @@ const usage = () => {
     "usage: yarn review:stats (--since YYYY-MM-DD | --pr <number>) [--repo owner/name]",
   );
 };
-
-// gh pr list の1回の呼び出しで返せる上限。到達したら「取りこぼしがあるかもしれない」を
-// fail-closedで報告する(gh-project-lib.mjsのPROJECT_ITEM_LIMITと同じ考え方)。
-const PR_LIST_LIMIT = 1000;
 
 const fetchPaginated = (gh, path) => JSON.parse(gh(["api", "--paginate", "--slurp", path])).flat();
 
@@ -45,11 +43,7 @@ const resolveTargets = (options, gh) => {
       String(PR_LIST_LIMIT),
     ]),
   );
-  if (prs.length === PR_LIST_LIMIT)
-    throw new Error(
-      `gh pr list reached the ${PR_LIST_LIMIT}-item limit; results may be incomplete`,
-    );
-  return filterMergedSince(prs, options.since);
+  return filterMergedSince(assertPrListComplete(prs), options.since);
 };
 
 const run = () => {

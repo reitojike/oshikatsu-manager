@@ -268,6 +268,20 @@ export const filterMergedSince = (prs, since) => {
   );
 };
 
+// gh pr list の1回の呼び出しで返せる上限。到達したら「取りこぼしがあるかもしれない」を
+// fail-closedで報告する(gh-project-lib.mjsのPROJECT_ITEM_LIMIT/getProjectItemと同じ考え方。
+// claude-reviewの指摘: 同型の上限判定なのに、あちらはpure関数として切り出されテストされている
+// のに対し、こちらはCLIエントリのI/O呼び出しに埋め込まれておりテストが無かった)。
+export const PR_LIST_LIMIT = 1000;
+
+export const assertPrListComplete = (prs) => {
+  if (prs.length === PR_LIST_LIMIT)
+    throw new Error(
+      `gh pr list reached the ${PR_LIST_LIMIT}-item limit; results may be incomplete`,
+    );
+  return prs;
+};
+
 // 書式が合っていても存在しない日付はDate.parseで静かに補正されうる
 // (例: "2026-02-30" は月末超過分を繰り上げて2026-03-02になり、NaNにならない。
 // "2026-13-01" のような範囲外の月はNaNになる)。前者はDate.parseのNaN判定だけでは
