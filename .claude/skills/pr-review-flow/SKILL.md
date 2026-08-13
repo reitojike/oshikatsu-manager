@@ -189,7 +189,9 @@ governance-docs側の扱いを適用しない(「複数の分類にまたがるP
 **分類を問わず、5巡を超えたら警報として読む。上限ではない。**粒度超過(1つのIssueに判断が
 多すぎる、ラリーの途中で足したものが大きすぎる)を疑い、Issueの分割を検討する。
 `AGENTS.md`「Issueの粒度と、Issue内でのモデル階層の分担」の300行目安と同型で、
-**これはlintではない。CIで強制しない。**
+**これはlintではない。CIで強制しない。束ねPRでは「Issueの分割」ではなく「束ねを解く」の
+検討トリガーとして読み替える(`docs/task-management.md`「Issueを束ねて1本のPRにする」
+「束ねを解く」が正本)。**
 
 **指摘を直すときは、指摘された箇所だけを直してpushしない。**指摘の根拠を一般化し、
 このPRの差分の中に同じ根拠が当てはまる他のファイル・箇所がないかを確認してから、
@@ -389,11 +391,14 @@ issue #43の振り返りでは挙がらず、外部からの指摘で発覚し�
 ## 束ねPR
 
 複数のIssueを1本のPRにまとめる運用。**束ねてよい条件・上限は
-`docs/task-management.md`「軽微なdocs修正Issueを束ねる」が正本。ここには書き写さない。**
+`docs/task-management.md`「Issueを束ねて1本のPRにする」が正本。ここには書き写さない。**
 
 **PR本文。**「## 対応するIssue」見出しを立て、`Closes #N: <一行説明>` を対象Issueの数だけ
 列挙する(#173の書式)。複数の`Closes`を1本のPR本文に並べれば全件に自動closeが効く
-(実測の詳細は `docs/pr-review-flow-details.md`)。
+(実測の詳細は `docs/pr-review-flow-details.md`)。**Issueの一部の範囲だけをこのPRで解決し
+`Closes`で閉じない場合は、同じ見出しの下に `Refs #N: <このPRで済ませた範囲/残る範囲>` を
+並べる(`Closes`で閉じてよいかの条件は`docs/task-management.md`「Issueを束ねて1本のPRにする」
+「部分解決」が正本)。**
 
 **close漏れの機械確認。**マージ直後、対象Issue全件について
 `gh api repos/{owner}/{repo}/issues/{issue_number} --jq .state` でstateを確認する。GitHubのキーワード
