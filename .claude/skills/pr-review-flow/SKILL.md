@@ -114,7 +114,7 @@ CIのrequired checkとしての強制状況を確認する必要がある場合�
 
 PRはまず`gh pr create --draft`でDraft作成する。
 
-- **Claude**(`claude-review.yml`): draftのpushごとに走る。観点は`AGENTS.md`の`## Code Review Rules`から変更ファイルの分類に応じて抽出される(`review:full`ラベルを付けると全分類を当てる)。**「workflowが成功した」を「実レビューが完了した」と読み替えないための機械的なゲートが入っている**(issue #95) —— `CLAUDE_CODE_OAUTH_TOKEN`未設定・実行されたのに投稿0件・総評のマーカー不一致はいずれも**checkが赤**になる。**`claude-review.yml`自体を変更するPRだけは注記のみで緑になる**ため、その回はセルフレビュー + CodeRabbitで不変条件を満たし(Draft中はCopilotが走らないため対象外。下記「Draft PR中の必須レビュー」参照)、どれで満たしたかをPR本文に書く。**赤になる条件の一覧と、Rulesetへの配線状況は`docs/pr-review-flow-details.md`「Claude Review」を参照**
+- **Claude**(`claude-review.yml`): draftのpushごとに走る。観点は`AGENTS.md`の`## Code Review Rules`から変更ファイルの分類に応じて抽出される(`review:full`ラベルを付けると全分類を当てる)。**「workflowが成功した」を「実レビューが完了した」と読み替えないための機械的なゲートが入っている**(issue #95) —— `CLAUDE_CODE_OAUTH_TOKEN`未設定・実行されたのに投稿0件・総評のマーカー不一致はいずれも**checkが赤**になる。**`claude-review.yml`自体を変更するPRだけは注記のみで緑になる**ため、その回は下記「Draft PR中の必須レビュー」のパターン表にかかわらず**セルフレビュー + CodeRabbitを必須とする**(Draft中はCopilotが走らないため対象外)。**CodeRabbitを取得できない場合はReady化しない**(Codexが使えることは代わりにならない。claude-review自体が欠けている回なので、通常のCodex-or-CodeRabbitのORより厳しくする)。どれで満たしたかをPR本文に書く。**赤になる条件の一覧と、Rulesetへの配線状況は`docs/pr-review-flow-details.md`「Claude Review」を参照**
 - **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10 JST、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点とP0/P1定義の正本は`AGENTS.md`の`## Code Review Rules`節にある。**Draft PRへのpushでは自動発火しない**(PR #113で複数回のpushで確認済み)。`@codex review`と手動コメントすれば即座に投稿されることも確認済み。Draft中に投稿が欲しい場合は、PRコメント欄でcodexへメンションして手動リクエストする(誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は削除済み(見送りの根拠は`docs/roadmap.md`「保留: 外部アカウント待ち」を参照)
 - **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。反復の主力はClaude/Codexだが、**Codexが利用上限のときはDraft必須の一角をCodeRabbitが担う**(下記のパターン表)。レート制限は`docs/pr-review-flow-details.md`「CodeRabbit」を参照
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
@@ -245,7 +245,8 @@ files in this pull request.`という同じく中身のないコメントが返�
 1回までの再リクエストの枠を無駄に消費しない(PR #120で実例確認)。
 
 再リクエストは以下のコマンドで行う。1PRにつき手動再リクエストは1回まで。
-2回目が必要だと感じたらDraftに戻し(`gh pr ready --undo`)、Claude/Codex/CodeRabbitで反復し直す。
+**1回で足りない場合(2回目が必要に感じる場合を含む)は、自分でDraftに戻して代替を決めず、
+上記「Ready化以降の必須レビュー」のとおりPOにエスカレーションして判断を仰ぐ**(#220)。
 
 ```bash
 gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
