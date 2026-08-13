@@ -71,9 +71,9 @@ required status checksに`PR Template Check`のjob `check`が含まれる)。`pr
 (exit code 0、`gh pr checks`では`pass`と表示される)。ログに
 `Skipping action due to workflow validation`が出ていれば該当する
 (`gh run view <run-id> --log`で確認)。quota失敗時と同様、`pass`表示だけでは
-「レビュー済みで指摘なし」と区別がつかない見落としパターン。該当する場合は
-`/code-review`スキルで自分でレビューするか、マージ後にClaude Reviewが正常に効くようになる
-ことを認識した上で進める。
+「レビュー済みで指摘なし」と区別がつかない見落としパターン。該当する場合の対処は
+`.claude/skills/pr-review-flow/SKILL.md`「Claude」の項が正本(セルフレビュー + CodeRabbit
+必須、CodeRabbitを取得できない場合はReady化しない。ここには書き写さない)。
 
 **`/code-review`を起動する前に、ローカル`main`が`origin/main`に追随しているかを点検する**
 (コマンドと理由は`docs/worktree-policy.md`)。ずれているとマージ済みの他PRの差分まで
