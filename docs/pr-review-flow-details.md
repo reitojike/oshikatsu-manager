@@ -138,11 +138,11 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 
 ### Codex Cloud
 
-**ローカルCodex・Codex Cloudの両方が同一の利用上限で失敗した場合、マージ前の義務
-(`.claude/skills/pr-review-flow/SKILL.md`「Ready化」の「マージ前に…Codexの結果を最低1回
-得ることを義務とする」)をclaude-review + CodeRabbitの結果で代替してよい(PO決定・2026-08-12)。**
+**Draft中・Ready以降で必須とするレビューの組み合わせは
+`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」「Ready化」のパターン表が正本
+(#220)。ここには書き写さない。**以下は、その表で使う判別基準と、発火タイミングの実測記録。
 
-**判別基準。**次の両方を満たすこと。
+**判別基準(Codexが「利用上限」かどうか)。**次の両方を満たすこと。
 
 - ローカルCodex(`mcp__codex__codex`)が上限到達の文言(`docs/model-routing-details.md`
   「上限到達時に読む手順」の判別表の「上限到達」行、`You've hit your usage limit`と
@@ -153,19 +153,41 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 **両方が同一の利用上限に起因していることを確認できた場合に限る。**Cloud側だけが失敗して
 ローカルは未試行、またはCloud側の失敗が別の理由(一時的な通信エラー等、
 `docs/model-routing-details.md`「失敗の分類」の「不明」相当)である可能性を除外できない
-場合は代替せず、通常どおり結果を待つ。
+場合は、上限到達とは扱わない。
 
-**代替の根拠。**claude-reviewとCodeRabbitは担当モデル(Claude)とは独立した別ボットであり、
-複数の視点によるレビューが確保される。Ready化ではさらにGitHub Copilotの最終レビューが
-別途走るため、Codexが欠けても多重レビューの構造自体は失われない。
+**発火タイミングの実測。**Ready後にCodexの投稿を探す場合の参考情報(#220以降、マージ前に
+能動的に待つ義務は無いが、投稿があれば解釈が必要になる)。
 
-**実例。**PR #207(2026-08-12、Issue #204。本節を追加した当のPR)。ローカルCodexが
+- PR #113(2026-08-09): Ready化後の新規pushでは、手動メンション無しで自動投稿された
+  (push後約3分)。Ready化そのもの(pushを伴わない`gh pr ready`単体)では8分以上経っても
+  自動投稿が無かった
+- PR #169・#170・#173・#174(2026-08-11)、PR #161: **Ready化そのもの**(新規pushを一切
+  挟まない`gh pr ready`単体)でも約3分後に自動投稿されることを5件連続で確認した。#113との
+  食い違いの原因は特定できていない(推測で埋めない)。より新しく件数の多いこちらを現在の
+  挙動として優先することはIssue #165でPO確認済み
+- **同一HEADに対してCodexの結果が複数投稿されることがある(PR #173実測、`gh pr ready`実行
+  15:43:46Zに対し、同一コミットへ15:38:54Zと15:46:51Zの2件)。**判定・マージ判断の根拠に
+  するのは**最後に到着したもの。**ただし、逆方向(古い結果に指摘があり新しい結果は指摘なし)
+  が起きた場合、「最新が指摘0件だから安全」とは判断しない。同一HEADへの全結果を確認し、
+  いずれかに未解決の指摘があれば分類対象とする(後続の結果がその指摘に明示的に触れて
+  解消済みとしている場合を除く。#180で見落としが実際に発生した)
+- **Codexの投稿は`Reviewed commit`を含む定型文で、issueコメント・レビュー本文の両方に
+  出現しうる。**`commit_id`フィールドでしかSHAが得られないケースは観測していない。短縮SHAは
+  `gh api repos/{owner}/{repo}/commits/<短縮SHA>`でフルSHAに解決してから比較対象のHEADと
+  突き合わせる(前方一致だけでは複数コミットに一致しうる。解決に失敗した場合
+  ——存在しない短縮SHAはHTTP 422等——は「一致」と判定しない、fail-closed)
+- **指摘0件のときも、単独の👍リアクションではなくテキストコメントで`Reviewed commit`を
+  伴って投稿される(PR #168〜#171、Draft中5巡すべてで実測)。**GitHubのリアクションは
+  コミットSHAに紐づかないため、👍単独は「投稿を得た」と判定しない
+
+**実例(#204、PR #207、2026-08-12)。**ローカルCodexが
 `You've hit your usage limit... try again at Aug 18th, 2026 9:20 AM`で失敗し、Draft前
 セルフレビューは`/code-review`に切替(skill既定の手順どおり)。Draft作成直後の
 `@codex review`とReady化契機の自動投稿の両方でCodex Cloudが
-`You have reached your Codex usage limits for code reviews`を返した。上記の判別基準に
-該当するため、claude-review・CodeRabbitの結果で代替してマージする(本PR自身がこの代替の
-第1号適用)。
+`You have reached your Codex usage limits for code reviews`を返した。当時は「Codex上限時は
+claude-review + CodeRabbitの結果で代替してよい」という規定でマージ前の義務を満たした
+(本PR自身がこの代替の第1号適用)。**この規定は#220でDraft必須の(Codexまたは CodeRabbit)の
+ORへ吸収され、別概念としては解消済み。**当時の判定手順の記録として残す。
 
 ### CodeRabbit
 
