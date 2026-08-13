@@ -102,7 +102,7 @@ export const detectRestoredPaths = (files) =>
 // `.claude-pr/${元のパス}` というレイアウト(例: `.claude/x` → `.claude-pr/.claude/x`)は
 // anthropics/claude-code-action@5ef2e550a465a721f4f45e4a7d3c340c873e1dcc の
 // src/github/operations/restore-config.ts、restoreConfigFromBase内
-// `snapshotSensitivePath(p, \`.claude-pr/${p}\`, ...)` で確認済み(2026-08-14)。
+// `snapshotSensitivePath(p, \`.claude-pr/${p}\`, ...)` で確認済み(PR #241)。
 // action更新でレイアウトが変わった場合はこの注意書きが誤った案内になるため、
 // pinned SHAを上げるPRでは同ファイルの該当箇所を合わせて確認すること。
 export const restoredPathsNotice = (restoredPaths) => {
