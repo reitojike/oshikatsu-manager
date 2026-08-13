@@ -144,23 +144,19 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 
 **判別基準(Codexが「利用上限」かどうか)。**この基準は`.claude/skills/pr-review-flow/SKILL.md`
 「Draftフェーズ」のDraft必須レビュー表だけが使う。Ready化以降の表はCodex・CodeRabbitの
-可用性を問わないため対象外。次の両方を満たすこと。
+可用性を問わないため対象外。Draft必須表が必要とするのはCodex CloudのPR自動レビューであり、
+判定はCloud側の結果だけで行う。
 
-- ローカルCodex(`mcp__codex__codex`)が上限到達の文言(`docs/model-routing-details.md`
-  「上限到達時に読む手順」の判別表の「上限到達」行、`You've hit your usage limit`と
-  `try again at <時刻>`の両方)で失敗している
-- 手動`@codex review`が`You have reached your Codex usage limits for code reviews`
-  (実測文言)で失敗している
+**手動`@codex review`が`You have reached your Codex usage limits for code reviews`
+(実測文言)で失敗していれば、それだけで「利用上限」と判定する。**ローカルCodex
+(`mcp__codex__codex`)は別クォータで動く(Draft必須表が問うのはCodex Cloudの可用性のみで、
+ローカルの状態は判定に使わない)。手動`@codex review`が上記の実測文言以外の理由
+(一時的な通信エラー等)で失敗した場合は、この基準を満たさない(満たさない場合の扱いは
+`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」が正本)。
 
 **Draft PRへのpushではCodex Cloudの自動投稿が発火しない**(`.claude/skills/pr-review-flow/SKILL.md`
 「Draftフェーズ」のCodexの項、PR #113で確認済み)。この事実を判別にどう扱うかは
 `.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」が正本(ここには書き写さない)。
-
-**「両方を満たす」とは、両方が同一の利用上限に起因していることを確認できた場合を指す。**
-Cloud側(手動`@codex review`)だけが失敗してローカルは未試行、またはCloud側の失敗が別の理由
-(一時的な通信エラー等、`docs/model-routing-details.md`「失敗の分類」の「不明」相当)である
-可能性を除外できない場合は、この基準を満たさない(満たさない場合の扱いは
-`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」が正本)。
 
 **発火タイミングの実測。**Ready後にCodexの投稿を探す場合の参考情報(#220以降、マージ前に
 能動的に待つ義務は無いが、投稿があれば解釈が必要になる)。
