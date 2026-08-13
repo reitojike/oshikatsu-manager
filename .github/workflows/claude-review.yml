@@ -94,7 +94,7 @@ jobs:
 
             ${{ steps.prompt.outputs.prompt }}
 
-            PRのheadは、下記「復元対象パスの注意」で案内されているものを除き、既にカレントディレクトリにチェックアウト済みです。
+            PRのheadは既にカレントディレクトリにチェックアウト済みです。ただし `.claude`, `.mcp.json`, `.claude.json`, `.gitmodules`, `.ripgreprc`, `CLAUDE.md`, `CLAUDE.local.md`, `.husky` はセキュリティ機構により `origin/main` の内容へ復元されており、PRの内容ではありません。これらのパスに変更がある場合、上記に個別の案内があります(無ければこのPRはこれらのパスを変更していません)。
             全体の総評は `gh pr comment` で投稿すること。
             総評コメントの本文には `<!-- claude-review-head-sha:${{ github.event.pull_request.head.sha }} -->` をそのまま含めること。総評には `commit_id` が無いため、無投稿検知はこのrunの投稿を本文マーカーだけで識別する。マーカーを落とすと、投稿していてもレビュー無しと判定されてcheckが赤くなる。
             特定の行に対する指摘は `mcp__github_inline_comment__create_inline_comment`

@@ -7,10 +7,10 @@ import {
   getGhPosts,
   hasRestoredPathReadAccess,
   headShaMarker,
+  isRestoredPathGateBlocked,
   main,
   MARKER_MISSING_ERROR,
   MISSING_CLAUDE_POSTS_ERROR,
-  restoredPathGateDecision,
   RESTORED_PATH_GATE_ERROR,
   reviewCheckDecision,
 } from "../../.github/scripts/check-claude-review.mjs";
@@ -139,6 +139,64 @@ test.each([
   expect(reads).toEqual([]);
   expect(notices).toEqual([message]);
   expect(summaries).toEqual([`- ${message}\n`]);
+});
+
+describe("main: validation-skippedでも復元対象パスの読み取り手段ゲートを検知する(型c)", () => {
+  // validation-skipped(claude-review.yml自体を変更するPR)はレビューが1回も走らないため
+  // 従来はここで緑になっていたが、復元対象パスを変更しているのにallowedToolsの読み取り手段が
+  // 欠落している状態は静的に判定できるため、この分岐でも検知する(#229 型(c))。
+  const skippedEnv = { ...baseEnv, CLAUDE_OUTCOME: "success", CLAUDE_CONCLUSION: "" };
+  const skipMessage =
+    "Claude actionはworkflow validation skipでした。投稿件数判定は機械では行えません。";
+
+  test("復元対象パスの変更なし → 従来どおり緑(誤検知しないこと)", () => {
+    const env = { ...skippedEnv, RESTORED_PATHS: "" };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    main(dependencies);
+
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([skipMessage]);
+    expect(summaries).toEqual([`- ${skipMessage}\n`]);
+  });
+
+  test("復元対象パスの変更 + 読み取り手段あり → 緑", () => {
+    const env = { ...skippedEnv, RESTORED_PATHS: ".claude" };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    main(dependencies);
+
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([skipMessage]);
+    expect(summaries).toEqual([`- ${skipMessage}\n`]);
+  });
+
+  test("復元対象パスの変更 + 読み取り手段なし → 赤(従来は素通りしていた穴。否定側)", () => {
+    const env = {
+      ...skippedEnv,
+      RESTORED_PATHS: ".claude",
+      ALLOWED_TOOLS: "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)",
+    };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    expect(() => main(dependencies)).toThrow(RESTORED_PATH_GATE_ERROR);
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([skipMessage, RESTORED_PATH_GATE_ERROR]);
+    expect(summaries).toEqual([`- ${skipMessage}\n`, `- ${RESTORED_PATH_GATE_ERROR}\n`]);
+  });
+
+  test.each([
+    ["RESTORED_PATHS", undefined, "RESTORED_PATHS は文字列である必要があります"],
+    ["ALLOWED_TOOLS", "", "ALLOWED_TOOLS が空です"],
+  ])("必須環境値 %s の不正も検知して拒否する", (name, value, message) => {
+    const env = { ...skippedEnv, [name]: value };
+    const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+    expect(() => main(dependencies)).toThrow(message);
+    expect(ghPaths).toEqual([]);
+    expect(notices).toEqual([skipMessage, message]);
+    expect(summaries).toEqual([`- ${skipMessage}\n`, `- ${message}\n`]);
+  });
 });
 
 test.each([
@@ -563,31 +621,36 @@ describe("hasRestoredPathReadAccess", () => {
   test("`.claude-pr`を含まないRead宣言は検出しない(誤検知しないこと)", () => {
     expect(hasRestoredPathReadAccess("Read(docs/**)")).toBe(false);
   });
+
+  test("`.claude-pr`で始まる別パスは検出しない(前方一致の境界。否定側)", () => {
+    expect(hasRestoredPathReadAccess("Read(.claude-pr-decoy/**)")).toBe(false);
+    expect(hasRestoredPathReadAccess("Read(docs/.claude-print/**)")).toBe(false);
+  });
 });
 
-describe("restoredPathGateDecision", () => {
-  test("復元対象パスが無ければ allowedTools を問わず対象外", () => {
+describe("isRestoredPathGateBlocked", () => {
+  test("復元対象パスが無ければ allowedTools を問わず false", () => {
     expect(
-      restoredPathGateDecision({ restoredPaths: [], allowedTools: "Bash(gh pr diff:*)" }),
-    ).toBe("not-applicable");
+      isRestoredPathGateBlocked({ restoredPaths: [], allowedTools: "Bash(gh pr diff:*)" }),
+    ).toBe(false);
   });
 
-  test("復元対象パスがあり読み取り手段があれば ok", () => {
+  test("復元対象パスがあり読み取り手段があれば false", () => {
     expect(
-      restoredPathGateDecision({
+      isRestoredPathGateBlocked({
         restoredPaths: [".claude"],
         allowedTools: ALLOWED_TOOLS_WITH_READ,
       }),
-    ).toBe("ok");
+    ).toBe(false);
   });
 
-  test("復元対象パスがあり読み取り手段が無ければ missing-read-access(否定側)", () => {
+  test("復元対象パスがあり読み取り手段が無ければ true(否定側)", () => {
     expect(
-      restoredPathGateDecision({
+      isRestoredPathGateBlocked({
         restoredPaths: [".claude"],
         allowedTools: "Bash(gh pr diff:*)",
       }),
-    ).toBe("missing-read-access");
+    ).toBe(true);
   });
 });
 
