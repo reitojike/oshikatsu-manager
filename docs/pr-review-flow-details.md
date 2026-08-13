@@ -236,6 +236,19 @@ commit statusのため)。`gh pr view --json statusCheckRollup`には含まれ�
 上記のいずれにも一致しない失敗の扱いは`.claude/skills/pr-review-flow/SKILL.md`
 「Draftフェーズ」が正本(ここには書き写さない)。
 
+**面3(レビュー本文)を全文読むべき理由がもう一つある。**上記のレート制限の`success`罠とは別に、
+GitHubはdiffの範囲外の行にインラインコメントを付けられないため、CodeRabbitはそのような
+指摘をレビュー本文内に「⚠️ Outside diff range comments」という見出しで折りたたんで投稿する。
+`pulls/{n}/comments`(インラインコメント一覧、面4)にはこの折りたたみの中身は出ない。
+
+**実測(PR #237、issue #228)。**round3のレビューで面4のインラインコメントだけを確認して
+いたため、「⚠️ Outside diff range comments」節に折りたたまれたMajor 3件を含む4件を
+取りこぼしかけた([該当レビュー](https://github.com/reitojike/stage-tracker/pull/237#pullrequestreview-4927695966))。
+ユーザーの指摘で気づいた(issue #228の2026-08-13振り返りコメント参照)。
+
+確認手順(面3の取得コマンド、全文読む運用)は`.claude/skills/pr-review-flow/SKILL.md`
+「指摘の扱いとマージ」が正本(ここには書き写さない)。
+
 ### GitHub Copilot
 
 Copilotの最終レビューは「プレミアムリクエストのquota上限に達したため実行できなかった」
