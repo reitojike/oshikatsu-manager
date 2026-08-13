@@ -48,6 +48,14 @@ const codexInlineComment = (reviewId: number, createdAt: string) => ({
   created_at: createdAt,
 });
 
+const claudeInlineComment = (reviewId: number, createdAt: string) => ({
+  user: { login: "claude[bot]" },
+  pull_request_review_id: reviewId,
+  created_at: createdAt,
+});
+
+const claudeFace2Launch = (timestamp: string) => ({ bot: "claude[bot]", timestamp });
+
 const emptyPr = (prNumber: number) =>
   summarizePr({ prNumber, prBody: "", issueComments: [], reviews: [], reviewComments: [] });
 
@@ -275,39 +283,41 @@ describe("countRealFixes", () => {
 });
 
 describe("attachFace2Findings", () => {
-  it("attributes an inline comment to the launch whose time window contains it", () => {
+  it("attributes an inline comment posted BEFORE its own launch, not after (negative)", () => {
+    // claude-reviewの指摘: claude[bot]はインラインコメントを総評コメント(面2)より先に投稿する
+    // (`.github/workflows/claude-review.yml`のprompt指示の順序どおり)。窓は「直前の起動より後、
+    // この起動の時刻まで」でなければならない。
     const launches = [
-      { bot: "claude[bot]", timestamp: "2026-08-12T16:00:00Z" },
-      { bot: "claude[bot]", timestamp: "2026-08-12T17:00:00Z" },
+      claudeFace2Launch("2026-08-12T16:00:00Z"),
+      claudeFace2Launch("2026-08-12T17:00:00Z"),
     ];
     const reviewComments = [
-      {
-        user: { login: "claude[bot]" },
-        pull_request_review_id: 100,
-        created_at: "2026-08-12T16:29:25Z",
-      },
-      {
-        user: { login: "claude[bot]" },
-        pull_request_review_id: 101,
-        created_at: "2026-08-12T17:30:00Z",
-      },
+      claudeInlineComment(100, "2026-08-12T15:59:00Z"),
+      claudeInlineComment(101, "2026-08-12T16:59:00Z"),
     ];
     const result = attachFace2Findings(launches, reviewComments, new Set());
-    expect(result).toEqual([
-      { bot: "claude[bot]", timestamp: "2026-08-12T16:00:00Z", hasFinding: true },
-      { bot: "claude[bot]", timestamp: "2026-08-12T17:00:00Z", hasFinding: true },
-    ]);
+    expect(result.map((launch) => launch.hasFinding)).toEqual([true, true]);
+  });
+
+  it("PR #219 real 4-round shape: reproduces claude-review's expected true/false/false/true (negative)", () => {
+    const launches = [
+      "2026-08-12T16:29:54Z",
+      "2026-08-12T16:34:04Z",
+      "2026-08-12T16:45:57Z",
+      "2026-08-12T16:57:26Z",
+    ].map(claudeFace2Launch);
+    const reviewComments = [
+      claudeInlineComment(1, "2026-08-12T16:29:25Z"),
+      claudeInlineComment(2, "2026-08-12T16:57:05Z"),
+      claudeInlineComment(3, "2026-08-12T16:57:09Z"),
+    ];
+    const result = attachFace2Findings(launches, reviewComments, new Set());
+    expect(result.map((launch) => launch.hasFinding)).toEqual([true, false, false, true]);
   });
 
   it("excludes inline comments already claimed by a counted face-3 launch", () => {
     const launches = [{ bot: "chatgpt-codex-connector[bot]", timestamp: "2026-08-11T10:59:32Z" }];
-    const reviewComments = [
-      {
-        user: { login: "chatgpt-codex-connector[bot]" },
-        pull_request_review_id: 4907460540,
-        created_at: "2026-08-11T14:44:33Z",
-      },
-    ];
+    const reviewComments = [codexInlineComment(4907460540, "2026-08-11T10:00:00Z")];
     const result = attachFace2Findings(launches, reviewComments, new Set([4907460540]));
     expect(result).toEqual([
       { bot: "chatgpt-codex-connector[bot]", timestamp: "2026-08-11T10:59:32Z", hasFinding: false },
@@ -344,19 +354,20 @@ describe("summarizeBotLaunches: integration", () => {
     expect(stats.get("chatgpt-codex-connector[bot]")).toEqual({ launches: 4, findingLaunches: 3 });
   });
 
-  it("claude[bot]: one launch with a linked inline comment is findingLaunches=1, one without is 0", () => {
+  it("claude[bot]: the launch whose window covers a preceding inline comment is findingLaunches=1, the other is 0", () => {
+    // インラインコメントは自分の総評(面2)より先に投稿される(claude-reviewの指摘、PR #219実測)。
     const issueComments = [
       claudeLaunch("2026-08-12T16:00:00Z"),
       claudeLaunch("2026-08-12T18:00:00Z"),
     ];
     const reviews = [
-      { user: { login: "claude[bot]" }, id: 100, submitted_at: "2026-08-12T16:29:25Z" },
+      { user: { login: "claude[bot]" }, id: 100, submitted_at: "2026-08-12T17:59:00Z" },
     ];
     const reviewComments = [
       {
         user: { login: "claude[bot]" },
         pull_request_review_id: 100,
-        created_at: "2026-08-12T16:29:25Z",
+        created_at: "2026-08-12T17:59:00Z",
       },
     ];
     const stats = summarizeBotLaunches({ issueComments, reviews, reviewComments });

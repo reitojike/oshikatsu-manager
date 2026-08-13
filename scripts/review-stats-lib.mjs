@@ -72,7 +72,14 @@ const hasLinkedFinding = (reviewId, reviewComments) =>
 // (claude[bot]は面3起動を持たないため、claimedReviewIdsは空集合となり、その全インラインコメントが
 // ここでの割当対象になる。chatgpt-codex-connector[bot]は面3起動で見つかった指摘のみ面3+面4を使い、
 // 面2は指摘0件のときの定型文にしか使わない実装のため、割当対象は通常空になる)。
-// 起動の境界は「次の面2起動の直前まで」とし、直後の起動が無ければ以降すべてを対象とする。
+//
+// 窓の向きは「このLaunchの直前」であって「直後」ではない。claude[bot]はインラインコメントを
+// 個々の指摘ごとに先に投稿してから、まとめの総評コメント(面2)を最後に投稿する
+// (`.github/workflows/claude-review.yml`のprompt指示の順序どおり)。実測(PR #219): 総評コメントの
+// created_atは16:29:54Zだが、同じラウンドのインラインコメントは16:29:25Z(29秒前)に投稿されている。
+// 次の総評は16:57:26Zで、直前のインラインコメント2件(16:57:05Z/16:57:09Z)を回収する。
+// (claude-reviewの指摘で判明。当初は逆向き(直後まで)で実装しており、実データでは
+// 起動と指摘の対応が体系的にずれていた。)
 export const attachFace2Findings = (face2Launches, reviewComments, claimedReviewIds) => {
   const byBot = new Map();
   for (const launch of face2Launches) {
@@ -88,11 +95,11 @@ export const attachFace2Findings = (face2Launches, reviewComments, claimedReview
         comment.user?.login === bot && !claimedReviewIds.has(comment.pull_request_review_id),
     );
     sorted.forEach((launch, index) => {
-      const start = Date.parse(launch.timestamp);
-      const end = index + 1 < sorted.length ? Date.parse(sorted[index + 1].timestamp) : Infinity;
+      const end = Date.parse(launch.timestamp);
+      const start = index > 0 ? Date.parse(sorted[index - 1].timestamp) : -Infinity;
       const hasFinding = pool.some((comment) => {
         const posted = Date.parse(comment.created_at);
-        return posted >= start && posted < end;
+        return posted > start && posted <= end;
       });
       result.push({ ...launch, hasFinding });
     });
