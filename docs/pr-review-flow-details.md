@@ -142,16 +142,23 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 `.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」「Ready化」のパターン表が正本
 (#220)。ここには書き写さない。**以下は、その表で使う判別基準と、発火タイミングの実測記録。
 
-**判別基準(Codexが「利用上限」かどうか)。**次の両方を満たすこと。
+**判別基準(Codexが「利用上限」かどうか)。**この基準は`.claude/skills/pr-review-flow/SKILL.md`
+「Draftフェーズ」のDraft必須レビュー表だけが使う。Ready化以降の表はCodex・CodeRabbitの
+可用性を問わないため対象外。次の両方を満たすこと。
 
 - ローカルCodex(`mcp__codex__codex`)が上限到達の文言(`docs/model-routing-details.md`
   「上限到達時に読む手順」の判別表の「上限到達」行、`You've hit your usage limit`と
   `try again at <時刻>`の両方)で失敗している
-- Codex Cloudの自動投稿・手動`@codex review`のいずれも
-  `You have reached your Codex usage limits for code reviews`(実測文言)で失敗している
+- 手動`@codex review`が`You have reached your Codex usage limits for code reviews`
+  (実測文言)で失敗している
 
-**両方が同一の利用上限に起因していることを確認できた場合に限る。**Cloud側だけが失敗して
-ローカルは未試行、またはCloud側の失敗が別の理由(一時的な通信エラー等、
+**Draft PRへのpushではCodex Cloudの自動投稿が発火しない**(`.claude/skills/pr-review-flow/SKILL.md`
+「Draftフェーズ」のCodexの項、PR #113で確認済み)ため、自動投稿は判別に使わない。
+**「自動投稿が来ていない」を、利用上限側の証拠としても「使える」側の証拠としても扱わない**
+(起きていないことと失敗したことは別)。判別できるのは手動`@codex review`の結果だけである。
+
+**両方が同一の利用上限に起因していることを確認できた場合に限る。**Cloud側(手動`@codex review`)
+だけが失敗してローカルは未試行、またはCloud側の失敗が別の理由(一時的な通信エラー等、
 `docs/model-routing-details.md`「失敗の分類」の「不明」相当)である可能性を除外できない
 場合は、上限到達とは扱わない。
 
@@ -166,11 +173,9 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
   食い違いの原因は特定できていない(推測で埋めない)。より新しく件数の多いこちらを現在の
   挙動として優先することはIssue #165でPO確認済み
 - **同一HEADに対してCodexの結果が複数投稿されることがある(PR #173実測、`gh pr ready`実行
-  15:43:46Zに対し、同一コミットへ15:38:54Zと15:46:51Zの2件)。**判定・マージ判断の根拠に
-  するのは**最後に到着したもの。**ただし、逆方向(古い結果に指摘があり新しい結果は指摘なし)
-  が起きた場合、「最新が指摘0件だから安全」とは判断しない。同一HEADへの全結果を確認し、
-  いずれかに未解決の指摘があれば分類対象とする(後続の結果がその指摘に明示的に触れて
-  解消済みとしている場合を除く。#180で見落としが実際に発生した)
+  15:43:46Zに対し、同一コミットへ15:38:54Zと15:46:51Zの2件。#180で見落としが実際に発生した)。**
+  採否ルールは`.claude/skills/pr-review-flow/SKILL.md`「指摘の扱いとマージ」が正本
+  (ここには書き写さない)
 - **Codexの投稿は`Reviewed commit`を含む定型文で、issueコメント・レビュー本文の両方に
   出現しうる。**`commit_id`フィールドでしかSHAが得られないケースは観測していない。短縮SHAは
   `gh api repos/{owner}/{repo}/commits/<短縮SHA>`でフルSHAに解決してから比較対象のHEADと
