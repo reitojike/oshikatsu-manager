@@ -28,6 +28,7 @@ const exceptions = [
       ".github/scripts/check-eol.mjs",
       ".github/scripts/build-review-prompt.mjs",
       "scripts/cleanup-worktree.mjs",
+      "scripts/worktree-audit.mjs",
     ],
     rules: { "sonarjs/no-os-command-from-path": "off" },
   },

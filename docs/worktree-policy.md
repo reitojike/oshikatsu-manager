@@ -359,6 +359,29 @@ Projectの選択肢定義自体は変更せず、既存の選択肢IDを使っ�
 読み戻しをリトライしてから`Status`/`Model`の設定に進む**(実測に基づく実装判断。詳細は
 `scripts/register-issue-lib.mjs`のコメント)。
 
+第5弾は、他人の残骸worktree/ブランチを畳む**二次の棚卸し**(上記「使い終わったworktree/ブランチを
+畳む」)を機械化した `yarn worktree:audit [--repo owner/name] [--prune]` とする。判定条件(白の条件)
+は上記「削除してよい条件(白)」が正本で、このスクリプトはそれをそのまま実装する。第3弾の
+`worktree:cleanup`(自分のworktreeを畳む一次の場面)とは対象が異なり、置き換えない。
+
+- **既定は報告のみ。**worktree一覧のうち自分自身以外の全件と、worktreeを持たないローカルブランチ
+  全件を候補とし、候補ごとに白/黒と、黒の理由を標準出力に列挙する。**削除は`--prune`を
+  明示したときだけ行う**(判定と実行を分ける)
+- **`locked`のworktreeは`--unlock`相当のフラグを設けず、常に黒として報告する**
+  (第3弾の`worktree:cleanup --unlock`とはここが異なる。「削除してよい条件(白)」参照)
+- 白判定には`gh pr list --head <branch> --state all`(白の条件2)と、コミットから引く
+  `gh api repos/{owner}/{repo}/commits/<oid>/pulls`(白の条件3)の両方を使う。ブランチ名だけでは
+  「同じ先端を指す別名のオープンPR」を検出できないため
+  (「削除してよい条件(白)」「3はブランチ名では確かめられない」参照)
+- **削除には`git branch -D`ではなく`git update-ref -d refs/heads/<branch> <判定時のOID>`を使う**
+  (worktreeを伴う候補は`git worktree remove`の後に実行する)。判定から実行までの間に先端が
+  動いた場合は失敗し、ブランチは残る
+  (「`git branch --merged`も`git branch -d`も、単独では判定に使えない」参照)
+- `scripts/cleanup-worktree-lib.mjs`の`parseWorktreeList`・`findWorktree`・`parseStatus`を
+  再利用し、白/黒の判定ロジックは複製しない
+- **やらないこと**: 白/黒の判定条件そのものの変更、自分のworktreeを畳む一次の場面
+  (引き続き`yarn worktree:cleanup`が担当)、`git worktree prune`の自動実行
+
 Issue #134で試作した消費実績集計スクリプトを取り込む場合も、この決定に従って `scripts/` に置き、
 `package.json` から呼び出す。集計の意味や対象期間などの方針は、対応する文書を正本にする。
 

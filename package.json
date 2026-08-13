@@ -14,7 +14,8 @@
     "issue:set-agent": "node scripts/sync-agent-model.mjs",
     "issue:set-status": "node scripts/set-issue-status.mjs",
     "issue:register": "node scripts/register-issue.mjs",
-    "worktree:cleanup": "node scripts/cleanup-worktree.mjs"
+    "worktree:cleanup": "node scripts/cleanup-worktree.mjs",
+    "worktree:audit": "node scripts/worktree-audit.mjs"
   },
   "dependencies": {
     "next": "16.3.0",
