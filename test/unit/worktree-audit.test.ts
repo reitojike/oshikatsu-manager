@@ -272,33 +272,39 @@ const statusByPath: Record<string, string> = {
     "# branch.oid fff555\n# branch.head dirty-branch\n? scripts/wip.mjs",
 };
 
-const prListByBranch: Record<
+const prListByBranch = new Map<
   string,
   Array<{ number: number; state: string; headRefOid: string; headRefName: string }>
-> = {
-  "black-branch": [],
-  "white-branch": [
-    { number: 50, state: "MERGED", headRefOid: "ddd333", headRefName: "white-branch" },
+>([
+  ["black-branch", []],
+  [
+    "white-branch",
+    [{ number: 50, state: "MERGED", headRefOid: "ddd333", headRefName: "white-branch" }],
   ],
-  "orphan-white": [
-    { number: 60, state: "MERGED", headRefOid: "ggg666", headRefName: "orphan-white" },
+  [
+    "orphan-white",
+    [{ number: 60, state: "MERGED", headRefOid: "ggg666", headRefName: "orphan-white" }],
   ],
-  "orphan-multi": [
-    { number: 61, state: "MERGED", headRefOid: "hhh777", headRefName: "orphan-multi" },
-    { number: 62, state: "MERGED", headRefOid: "hhh777", headRefName: "orphan-multi" },
+  [
+    "orphan-multi",
+    [
+      { number: 61, state: "MERGED", headRefOid: "hhh777", headRefName: "orphan-multi" },
+      { number: 62, state: "MERGED", headRefOid: "hhh777", headRefName: "orphan-multi" },
+    ],
   ],
-  "orphan-open": [
-    { number: 63, state: "MERGED", headRefOid: "iii888", headRefName: "orphan-open" },
+  [
+    "orphan-open",
+    [{ number: 63, state: "MERGED", headRefOid: "iii888", headRefName: "orphan-open" }],
   ],
-};
+]);
 
-const openPrsByOid: Record<string, number[]> = {
-  ccc222: [],
-  ddd333: [],
-  ggg666: [],
-  hhh777: [],
-  iii888: [99],
-};
+const openPrsByOid = new Map<string, number[]>([
+  ["ccc222", []],
+  ["ddd333", []],
+  ["ggg666", []],
+  ["hhh777", []],
+  ["iii888", [99]],
+]);
 
 const createGit = (options: { deleteFailsFor?: Set<string> } = {}) =>
   vi.fn((args: string[]) => {
@@ -322,12 +328,12 @@ const createGh = () =>
   vi.fn((args: string[]) => {
     if (args[0] === "pr" && args[1] === "list") {
       const branch = args[args.indexOf("--head") + 1];
-      return JSON.stringify(prListByBranch[branch] ?? []);
+      return JSON.stringify(prListByBranch.get(branch) ?? []);
     }
     if (args[0] === "api") {
       const match = /repos\/[^/]+\/[^/]+\/commits\/([^/]+)\/pulls/.exec(args[1]);
       const oid = match?.[1] ?? "";
-      return (openPrsByOid[oid] ?? []).join("\n");
+      return (openPrsByOid.get(oid) ?? []).join("\n");
     }
     throw new Error(`unexpected gh call: ${args.join(" ")}`);
   });
@@ -371,6 +377,28 @@ describe("auditWorktrees: report-only (default)", () => {
     expect(gh).not.toHaveBeenCalledWith(expect.arrayContaining(["--head", "self-branch"]));
     expect(gh).not.toHaveBeenCalledWith(expect.arrayContaining(["--head", "locked-branch"]));
     expect(gh).not.toHaveBeenCalledWith(expect.arrayContaining(["--head", "dirty-branch"]));
+  });
+
+  it("reports a candidate as black when gh fails for it, and still judges the rest (negative)", () => {
+    const git = createGit();
+    const gh = vi.fn((args: string[]) => {
+      if (args[0] === "pr" && args[1] === "list" && args.includes("black-branch"))
+        throw new Error("API rate limit exceeded");
+      return createGh()(args);
+    });
+    const log = vi.fn();
+    const result = auditWorktrees({ repo: REPO, prune: false }, { git, gh, log });
+
+    const byBranch = Object.fromEntries(result.results.map((r) => [r.branch, r]));
+    expect(byBranch["black-branch"]).toMatchObject({
+      white: false,
+      reason: "evaluation-failed",
+      detail: expect.stringContaining("rate limit"),
+    });
+    // one candidate's gh failure must not prevent the others from being judged and reported
+    expect(byBranch["white-branch"]).toMatchObject({ white: true });
+    expect(byBranch["orphan-open"]).toMatchObject({ white: false, reason: "open-pr-at-tip" });
+    expect(result.results).toHaveLength(9);
   });
 });
 

@@ -222,6 +222,18 @@ export const deleteCandidate = (result, { git, log }) => {
   }
 };
 
+// gh呼び出し(API・レート制限あり)が候補の途中で失敗すると、既定モード(報告のみ)の
+// 目的である「その時点までに判定できた白/黒を報告する」ことすらできなくなる。候補単位で
+// 例外を吸収し、その候補だけ黒(evaluation-failed)として報告し、残りの候補の判定を続ける。
+const safelyAudit = (candidate, audit) => {
+  try {
+    return audit();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ...candidate, white: false, reason: "evaluation-failed", detail: message };
+  }
+};
+
 export const auditWorktrees = (options, { git, gh, log }) => {
   const porcelain = git(["worktree", "list", "--porcelain"]);
   const worktrees = parseWorktreeList(porcelain);
@@ -237,10 +249,14 @@ export const auditWorktrees = (options, { git, gh, log }) => {
 
   const results = [
     ...worktreeCandidates.map((candidate) =>
-      auditWorktreeCandidate(candidate, worktrees, { git, gh, repo: options.repo }),
+      safelyAudit(candidate, () =>
+        auditWorktreeCandidate(candidate, worktrees, { git, gh, repo: options.repo }),
+      ),
     ),
     ...branchOnlyCandidates.map((candidate) =>
-      auditBranchOnlyCandidate(candidate, worktrees, { gh, repo: options.repo }),
+      safelyAudit(candidate, () =>
+        auditBranchOnlyCandidate(candidate, worktrees, { gh, repo: options.repo }),
+      ),
     ),
   ];
 
