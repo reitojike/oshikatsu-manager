@@ -7,12 +7,16 @@
 - MVP以降の利用者拡大時期を指す「フェーズ2」の用法を「拡大期」に統一
   (`docs/roadmap.md` フェーズN との混同を避けるため。issue #187)
 
+## v0.7 での主な変更点
+
+- 削除済みイベントの復活を禁止。`deleted_at` を NULL に戻す更新は許可せず、削除は不可逆とする
+  (issue #58)
+
 ## v0.5 での主な変更点
 
 - 論理削除の意味論を明確化。**削除済み(`events.deleted_at is not null`)のイベントには、
   参加登録も招待もできない**(issue #54)。既存の参加行のUPDATE・DELETEは削除後も可能で、
-  変更したのは `event_participants` のINSERTのみ。削除の**取り消し**(`deleted_at` → NULL)は
-  依然ノーガードで、issue #58 で扱う
+  変更したのは `event_participants` のINSERTのみ
 
 ## v0.4 での主な変更点
 
@@ -131,9 +135,8 @@ auth.users (Supabase管理)
   上の2つは削除**時点**の条件でしかなく、削除後に参加者を増やせるとこの不変条件が
   事後的に破れるため、`event_participants` のINSERT側でも塞ぐ
 
-**削除の取り消し(`deleted_at` → NULL)は現状ノーガード。**`guard_event_deletion` は
-NULL → NOT NULL の向きにしか発火せず、`events_update_owner_only` はオーナーのUPDATEを
-無条件に許可する。仕様として認めるかも含めて未決定で、issue #58 で扱う。
+**削除済みイベントの復活という操作は存在しない。**`deleted_at` を NULL に戻す更新は禁止され、
+削除は不可逆である。誤登録・重複登録は別レコードを登録して対応する。
 
 > **拡大期で追加する例外(MVPでは実装しない)**
 > `profiles.is_admin = true` のユーザーが、参加者の有無にかかわらずイベントを

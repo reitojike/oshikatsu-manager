@@ -149,6 +149,30 @@ test("参加者がオーナー以外にいなければ削除できる", async ()
   expect(error).toBeNull();
 });
 
+test("オーナー本人でも削除済みイベントを復活できない", async () => {
+  const owner = await createTestUser();
+  const event = await createEvent(owner);
+  const deleteResult = await owner.client
+    .from("events")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", event.id);
+  expect(deleteResult.error).toBeNull();
+
+  const { error } = await owner.client
+    .from("events")
+    .update({ deleted_at: null })
+    .eq("id", event.id);
+  expect(error).not.toBeNull();
+
+  const { data: stillDeleted, error: selectError } = await owner.client
+    .from("events")
+    .select("deleted_at")
+    .eq("id", event.id)
+    .single();
+  expect(selectError).toBeNull();
+  expect(stillDeleted?.deleted_at).not.toBeNull();
+});
+
 test("削除後もオーナー自身は引き続き閲覧できる", async () => {
   const owner = await createTestUser();
   const event = await createEvent(owner);
