@@ -195,14 +195,32 @@ FreeプランはGitHub連携のPRレビューが**1回/時/開発者**に制限�
 (PR #35で実際にレート制限を確認済み。詳細は`docs/roadmap.md`「CodeRabbitの導入」参照)。
 Draftで短時間に何度もpushしても2回目以降はスキップされうる。
 
-**レート制限通知の実測文言。**発生経路によって文言が異なるため、`.claude/skills/pr-review-flow/SKILL.md`
-「Draftフェーズ」の判別で「レート制限」と確認できるのは次のいずれかに一致する場合に限る。
+**レート制限通知の実測(経路別)。**発生経路によって、どの面に何が出るかが異なるため、
+`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」の判別で「レート制限」と確認できるのは
+次のいずれかに一致する場合に限る。
 
-- 自動レビュー(PR作成時・push時)がレート制限された場合: issueコメントとして
-  「Review limit reached」の見出しと「Next review available in: N minutes」を含む定型文が
-  投稿される(PR #225、2026-08-13実測)
-- 手動`@coderabbitai review`コマンドがレート制限された場合: 「Review rate limited」
-  (PR #35、2026-08-07実測。`docs/roadmap.md`「CodeRabbitの導入」参照)
+1. **PR作成時の自動レビュー**: issueコメントとして「Review limit reached」の見出しと
+   「Next review available in: N minutes」を含む定型文が投稿される(PR #225、
+   2026-08-13T01:25実測)
+2. **push時の自動レビュー**: **issueコメントは投稿されない。commit statusにのみ現れる**
+   (`context: CodeRabbit`、`state: success`、`description: Review rate limited`。
+   PR #225コミット`22ca8bb`、2026-08-13T02:53実測)。**`state`は`success`になるため、
+   `gh pr checks`もGitHub UIも成功として表示する。**レビューが1行も行われていないことは
+   `description`の文言でしか判別できない
+3. **手動`@coderabbitai review`コマンド**: issueコメントの返信として「Review rate limited」
+   (PR #35、2026-08-07実測。`docs/roadmap.md`「CodeRabbitの導入」参照)
+
+**push時のcommit statusの取得コマンド。**
+
+```bash
+gh api repos/{owner}/{repo}/commits/<SHA>/status \
+  --jq '.statuses[] | "\(.context)\t\(.state)\t\(.description)"'
+```
+
+**`gh api repos/{owner}/{repo}/commits/<SHA>/check-runs`には出ない**(check-runではなく
+commit statusのため)。`gh pr view --json statusCheckRollup`には含まれるが、
+`.name`/`.conclusion`は`null`になり、`.context`/`.state`を見る必要がある
+(この取り違えでレート制限を見落とした実例がある。PR #225)。
 
 上記のいずれにも一致しない失敗の扱いは`.claude/skills/pr-review-flow/SKILL.md`
 「Draftフェーズ」が正本(ここには書き写さない)。

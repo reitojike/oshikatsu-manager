@@ -145,6 +145,11 @@ CodeRabbitのレート制限は数十分で解除される。「Codexを待つ�
 認証エラー・通信エラー・空応答など、レート制限と確認できない失敗は「使える」側として扱い、
 通常どおり取得を試みる(再試行して改善しなければ`AGENTS.md`のエスカレーション基準に従う)。
 
+**チェックが緑(success)であることを、CodeRabbitのレビューを受けた根拠にしない。**
+push時のレート制限はissueコメントを投稿せずcommit statusにのみ記録され、その`state`は
+`success`になる(レビュー0行でも成功表示される)。判定は必ずコメント本文・`description`の
+文言で行う(実測は`docs/pr-review-flow-details.md`「CodeRabbit」)。
+
 **Codexへの手動`＠codex review`は毎ラウンド打たない。**Draft作成直後の1回(Codex独自の
 視点を早期に得る)と、反復を打ち切ると判断する巡(governance-docsは下記の打ち切り条件を
 満たす巡、それ以外の分類は指摘が尽きたと判断する巡)の1回、計2回を基本とする。
