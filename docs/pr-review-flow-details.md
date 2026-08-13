@@ -210,15 +210,19 @@ Draftで短時間に何度もpushしても2回目以降はスキップされう�
 3. **手動`@coderabbitai review`コマンド**: issueコメントの返信として「Review rate limited」
    (PR #35、2026-08-07実測。`docs/roadmap.md`「CodeRabbitの導入」参照)
 
-**push時のcommit statusの取得コマンド。**同一SHA・同一`context`のstatusは履歴として
-複数返りうる(古い順)ため、`context`を`CodeRabbit`に絞り、`created_at`が最新の1件だけを
-判定する。
+**push時のcommit statusの取得コマンド。**
 
 ```bash
 gh api repos/{owner}/{repo}/commits/<SHA>/status \
-  --jq '[.statuses[] | select(.context == "CodeRabbit")] | sort_by(.created_at)
-    | if length == 0 then empty else last | "\(.context)\t\(.state)\t\(.description)" end'
+  --jq '.statuses[] | select(.context == "CodeRabbit") | "\(.context)\t\(.state)\t\(.description)"'
 ```
+
+**このエンドポイント(combined status)はcontextごとに最新の1件だけを返す。**
+複数のstatusを履歴として返す別エンドポイント(`GET /repos/{owner}/{repo}/statuses/{sha}`)と
+混同しないこと。実測(コミット`22ca8bb`、2026-08-13): combined statusは`CodeRabbit`が1件、
+history(`/statuses/{sha}`)は3件(`Review queued` → `Review in progress` → `Review rate limited`
+の順、**新しい順**)を返した。ページングや「最新順に並べ替えてから末尾を取る」処理は、
+combined statusを使う限り不要。
 
 **`gh api repos/{owner}/{repo}/commits/<SHA>/check-runs`には出ない**(check-runではなく
 commit statusのため)。`gh pr view --json statusCheckRollup`には含まれるが、
