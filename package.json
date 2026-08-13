@@ -15,7 +15,8 @@
     "issue:set-status": "node scripts/set-issue-status.mjs",
     "issue:register": "node scripts/register-issue.mjs",
     "worktree:cleanup": "node scripts/cleanup-worktree.mjs",
-    "worktree:audit": "node scripts/worktree-audit.mjs"
+    "worktree:audit": "node scripts/worktree-audit.mjs",
+    "review:stats": "node scripts/review-stats.mjs"
   },
   "dependencies": {
     "next": "16.3.0",
