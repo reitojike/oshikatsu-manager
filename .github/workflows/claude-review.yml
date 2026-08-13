@@ -31,6 +31,11 @@ jobs:
     name: ${{ (github.event.action == 'labeled' && github.event.label.name != 'review:full') && 'claude-review-label-ignored' || 'claude-review' }}
     if: github.event.action != 'labeled' || github.event.label.name == 'review:full'
     runs-on: ubuntu-latest
+    env:
+      # 実際にClaude actionへ渡す許可ツールと同じ文字列を「Claude Review 投稿確認」stepへも
+      # 渡すため、1か所にまとめる(#229)。`Read(.claude-pr/**)`は復元対象パスの退避先
+      # (実行されない)に限定した読み取り権限。
+      CLAUDE_REVIEW_ALLOWED_TOOLS: "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read(.claude-pr/**)"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -89,14 +94,14 @@ jobs:
 
             ${{ steps.prompt.outputs.prompt }}
 
-            PRのheadは既にカレントディレクトリにチェックアウト済みです。
+            PRのheadは、下記「復元対象パスの注意」で案内されているものを除き、既にカレントディレクトリにチェックアウト済みです。
             全体の総評は `gh pr comment` で投稿すること。
             総評コメントの本文には `<!-- claude-review-head-sha:${{ github.event.pull_request.head.sha }} -->` をそのまま含めること。総評には `commit_id` が無いため、無投稿検知はこのrunの投稿を本文マーカーだけで識別する。マーカーを落とすと、投稿していてもレビュー無しと判定されてcheckが赤くなる。
             特定の行に対する指摘は `mcp__github_inline_comment__create_inline_comment`
             (`confirmed: true` を指定)でインラインコメントとして投稿すること。
             指摘はGitHubへのコメントとして投稿し、action応答本文だけで済ませないこと。
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)" --max-turns 60
+            --allowedTools "${{ env.CLAUDE_REVIEW_ALLOWED_TOOLS }}" --max-turns 60
 
       # キャンセル経路の実観測用。一般仕様からは「cancel-in-progressで置き換えられたrunで
       # if: always() のstepが必ず開始されるか」「そのとき claude.outcome が cancelled か
@@ -138,6 +143,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           ACTION_STARTED_AT: ${{ steps.claude-started.outputs.started_at }}
+          RESTORED_PATHS: ${{ steps.prompt.outputs.restored_paths }}
+          ALLOWED_TOOLS: ${{ env.CLAUDE_REVIEW_ALLOWED_TOOLS }}
         run: |
           CHECK_SCRIPT="$RUNNER_TEMP/check-claude-review.mjs"
           git show "${BASE_SHA}:.github/scripts/check-claude-review.mjs" > "$CHECK_SCRIPT"

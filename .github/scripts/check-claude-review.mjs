@@ -19,6 +19,22 @@ export const MARKER_MISSING_ERROR =
 
 export const headShaMarker = (headSha) => `<!-- claude-review-head-sha:${headSha} -->`;
 
+// 型(c): 復元対象パスを変更しているのに、`.claude-pr/` を読む手段が --allowedTools に
+// 無い状態。レビューが復元後(origin/main)のツリーを見たまま完了しうる
+// (レビュー内容の正しさは判定しない。読み取り手段の有無だけを見る)。
+export const RESTORED_PATH_GATE_ERROR =
+  "このPRは復元対象パスを変更していますが、.claude-pr/ を読む手段(Read(.claude-pr/**)等)が --allowedTools に含まれていません。レビューは復元後(origin/main)のツリーを見たまま完了した可能性があります。";
+
+const CLAUDE_PR_READ_PATTERN = /\bRead\([^)]*\.claude-pr[^)]*\)/;
+
+export const hasRestoredPathReadAccess = (allowedTools) =>
+  CLAUDE_PR_READ_PATTERN.test(allowedTools);
+
+export const restoredPathGateDecision = ({ restoredPaths, allowedTools }) => {
+  if (restoredPaths.length === 0) return "not-applicable";
+  return hasRestoredPathReadAccess(allowedTools) ? "ok" : "missing-read-access";
+};
+
 // 文字列前提で trim() を呼ぶと、非文字列が来たときTypeErrorになって「空です」に化ける。
 // 赤くはなるが原因が読めないので、型ごと明示的に弾く。
 const environment = (value, name) => {
@@ -259,7 +275,15 @@ const executionDiagnostics = (read, executionFile) => {
 };
 
 // 取得・件数summary・失敗判定をmainから切り出す。判定の順序は変えない。
-const verifyPosts = ({ outcome, enabled, conclusion, executionFile, target, io }) => {
+const verifyPosts = ({
+  outcome,
+  enabled,
+  conclusion,
+  executionFile,
+  target,
+  io,
+  restoredPathGate,
+}) => {
   const { repository, prNumber, headSha, since } = target;
   const { getGhPosts, append, read, outputNotice, summaryPath } = io;
   let counts;
@@ -273,6 +297,17 @@ const verifyPosts = ({ outcome, enabled, conclusion, executionFile, target, io }
   }
   summary(append, summaryPath, `- Claude投稿件数: ${counts.matched}`);
   summary(append, summaryPath, `- 診断: ${executionDiagnostics(read, executionFile)}`);
+  summary(
+    append,
+    summaryPath,
+    `- 復元対象パス: ${restoredPathGate.restoredPaths.join(", ") || "無し"}`,
+  );
+  // 投稿の有無によらず判定する。投稿があっても、復元後のツリーを見たまま書かれた
+  // 可能性を消せないため(#229 型(c))。
+  if (restoredPathGateDecision(restoredPathGate) === "missing-read-access") {
+    report(append, summaryPath, outputNotice, RESTORED_PATH_GATE_ERROR);
+    throw new Error(RESTORED_PATH_GATE_ERROR);
+  }
   if (
     reviewCheckDecision({ outcome, enabled, conclusion, postCount: counts.matched }) !==
     "missing-posts"
@@ -282,6 +317,13 @@ const verifyPosts = ({ outcome, enabled, conclusion, executionFile, target, io }
   const failure = counts.botPostsSince > 0 ? MARKER_MISSING_ERROR : MISSING_CLAUDE_POSTS_ERROR;
   report(append, summaryPath, outputNotice, failure);
   throw new Error(failure);
+};
+
+// 空文字列は「復元対象パスの変更なし」として許容する(他の必須環境値と違い、
+// 非該当が正当な値であるため)。型のみ厳格に見る。
+const restoredPathsEnvironment = (value, name) => {
+  if (typeof value !== "string") throw new Error(`${name} は文字列である必要があります`);
+  return value.trim() === "" ? [] : value.split(",");
 };
 
 export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
@@ -295,6 +337,8 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
     ACTION_STARTED_AT,
     GITHUB_STEP_SUMMARY,
     EXECUTION_FILE,
+    RESTORED_PATHS,
+    ALLOWED_TOOLS,
   } = env;
   // この2つだけはreport()を通さず直接throwする。summaryの出力先が確定する前なので、
   // 構造上どこにも書けない。以降の検証失敗はすべてsummaryとnoticeに残す
@@ -319,11 +363,15 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   let prNumber;
   let headSha;
   let since;
+  let restoredPaths;
+  let allowedTools;
   try {
     repository = environment(REPOSITORY, "REPOSITORY");
     prNumber = prNumberEnvironment(PR_NUMBER);
     headSha = headShaEnvironment(HEAD_SHA);
     since = actionStartedAt(ACTION_STARTED_AT);
+    restoredPaths = restoredPathsEnvironment(RESTORED_PATHS, "RESTORED_PATHS");
+    allowedTools = environment(ALLOWED_TOOLS, "ALLOWED_TOOLS");
   } catch (error) {
     reportValidationError(append, summaryPath, outputNotice, error);
   }
@@ -334,6 +382,7 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
     executionFile: EXECUTION_FILE,
     target: { repository, prNumber, headSha, since },
     io: { getGhPosts, append, read, outputNotice, summaryPath },
+    restoredPathGate: { restoredPaths, allowedTools },
   });
 };
 
