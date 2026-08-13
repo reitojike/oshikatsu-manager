@@ -121,8 +121,8 @@ PRはまず`gh pr create --draft`でDraft作成する。
 
 **Draft PR中の必須レビュー(issue #220)。**`claude-review`は常に必須(上記のとおりpushごとに
 走り、機械的なゲートを持つ。ただし上記「Claude」の項が定める`claude-review.yml`自体を
-変更するPRの例外——workflow検証スキップによりセルフレビュー + CodeRabbit / Copilotで
-代替する——はここでも維持される)。それに加えて、**Codex または CodeRabbit のいずれか1つ**を
+変更するPRの例外はここでも維持される。**Draft中に使える代替はセルフレビューとCodeRabbitのみ**
+——Copilotはdraft中は走らないため対象外)。それに加えて、**Codex または CodeRabbit のいずれか1つ**を
 必須とする(Copilotはdraft中は走らないため、Draft段階で複数モデルの視点を確保する手段は
 この2つしかない)。どちらで必須を満たすかは、両者の可用性で決まる(判別基準は
 `docs/pr-review-flow-details.md`「Codex Cloud」。**「利用上限」と確認できない失敗
