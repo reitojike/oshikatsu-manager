@@ -210,11 +210,14 @@ Draftで短時間に何度もpushしても2回目以降はスキップされう�
 3. **手動`@coderabbitai review`コマンド**: issueコメントの返信として「Review rate limited」
    (PR #35、2026-08-07実測。`docs/roadmap.md`「CodeRabbitの導入」参照)
 
-**push時のcommit statusの取得コマンド。**
+**push時のcommit statusの取得コマンド。**同一SHA・同一`context`のstatusは履歴として
+複数返りうる(古い順)ため、`context`を`CodeRabbit`に絞り、`created_at`が最新の1件だけを
+判定する。
 
 ```bash
 gh api repos/{owner}/{repo}/commits/<SHA>/status \
-  --jq '.statuses[] | "\(.context)\t\(.state)\t\(.description)"'
+  --jq '[.statuses[] | select(.context == "CodeRabbit")] | sort_by(.created_at)
+    | if length == 0 then empty else last | "\(.context)\t\(.state)\t\(.description)" end'
 ```
 
 **`gh api repos/{owner}/{repo}/commits/<SHA>/check-runs`には出ない**(check-runではなく
