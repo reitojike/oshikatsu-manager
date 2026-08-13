@@ -131,8 +131,16 @@ export const summarizeBotLaunches = ({ issueComments, reviews, reviewComments })
 // 見出しを伴わず地の文で「〜は本物の修正として対応済み」とだけ書かれているケースは
 // 数えられない既知の制約(docs/worktree-policy.md「リポジトリ運用スクリプトの置き場所と正本」
 // 第6弾に記載)。有効性の自動判定はしない(既に人間が分類した結果を読み取るだけ)。
-export const REAL_FIX_HEADING = /本物の修正/;
-const OTHER_CLASSIFICATION_HEADING = /(見送り|誤検知|妥当な(?:nitpick|指摘))/;
+//
+// 見出し判定は行頭(先頭の見出し記号`#`・太字`**`のみ許容)に限定する。単に「本物の修正」という
+// 語を含むだけの行(番号付きリストの説明文、この定数自体の説明コメントなど)まで見出しと誤認すると、
+// その行がREAL_FIX_HEADINGに無条件優先でマッチしてcontinueするため、同じ行に閉じ語(見送り/誤検知)が
+// 同居していてもセクションが閉じず、後続の無関係な番号付き項目まで数えてしまう
+// (claude-reviewの指摘・PR #230本文自身で再現: 「1. ...→本物の修正として対応」の行が見出し扱いされ
+// 素通りし、次の「2. ...本物の修正...→見送り(軽微)」の行もセクションを閉じられず、以降の
+// 無関係な番号付き項目まで誤集計された)。
+export const REAL_FIX_HEADING = /^#{0,6}\s*\*{0,2}本物の修正/;
+const OTHER_CLASSIFICATION_HEADING = /^#{0,6}\s*\*{0,2}(見送り|誤検知|妥当な(?:nitpick|指摘))/;
 const NUMBERED_ITEM = /^\d+\.\s+\S/;
 
 export const countRealFixes = (text) => {

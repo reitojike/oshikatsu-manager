@@ -257,6 +257,21 @@ describe("countRealFixes", () => {
   it("returns 0 when there is no 本物の修正 heading at all", () => {
     expect(countRealFixes("1. これはただの箇条書き\n2. 見出しが無い")).toBe(0);
   });
+
+  it("does not treat a numbered item that merely mentions 本物の修正/見送り mid-line as a heading, and does not let it leave the section open (negative)", () => {
+    // claude-reviewの指摘(PR #230本文自身で再現): 見出し判定が行頭以外にもマッチすると、
+    // 「本物の修正」を含む地の文の番号付き項目が見出し扱いされてcontinueし、同じ行の閉じ語
+    // (見送り)にも到達できずセクションが閉じないまま、後続の無関係な番号付き項目まで数えてしまう。
+    const text = [
+      "1. 対応(`abc`)。→ 本物の修正として対応した",
+      "2. `countRealFixes`が「本物の修正」という語に反応する可能性 → 見送り(軽微)",
+      "",
+      "## 別セクション",
+      "1. 無関係な番号付き項目",
+      "2. 無関係な番号付き項目",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
 });
 
 describe("attachFace2Findings", () => {
