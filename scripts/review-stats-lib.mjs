@@ -259,10 +259,23 @@ export const filterMergedSince = (prs, since) => {
   );
 };
 
+// 書式が合っていても存在しない日付はDate.parseで静かに補正されうる
+// (例: "2026-02-30" は月末超過分を繰り上げて2026-03-02になり、NaNにならない。
+// "2026-13-01" のような範囲外の月はNaNになる)。前者はDate.parseのNaN判定だけでは
+// 検出できないため、往復変換(ISO文字列に戻して入力と一致するか)で実在する暦日か確認する。
+// 通さないと、filterMergedSinceの比較が全件falseになりエラーも出さず「対象PR数: 0」を
+// 返す(CodeRabbitの指摘)。
+const isExistingCalendarDate = (value) => {
+  const parsed = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.toISOString().slice(0, 10) === value;
+};
+
 const parseSinceValue = (remaining) => {
   const value = remaining.shift();
   if (value === undefined || value.startsWith("--")) throw new Error("--since requires a value");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("--since must be YYYY-MM-DD");
+  if (!isExistingCalendarDate(value)) throw new Error("--since must be an existing calendar date");
   return value;
 };
 

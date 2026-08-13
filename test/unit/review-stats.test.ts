@@ -78,6 +78,7 @@ describe("parseArguments", () => {
     { args: [], message: "either --since or --pr is required" },
     { args: ["--since", "2026-08-09", "--pr", "227"], message: "mutually exclusive" },
     { args: ["--since", "08-09-2026"], message: "--since must be YYYY-MM-DD" },
+    { args: ["--since", "2026-02-30"], message: "existing calendar date" },
     { args: ["--pr", "abc"], message: "--pr requires a positive integer" },
     { args: ["--repo", "no-slash", "--pr", "1"], message: "--repo must be owner/name" },
     { args: ["--wat"], message: "unknown argument" },
@@ -127,6 +128,24 @@ describe("usage limit messages are not counted as launches (negative)", () => {
       reviewComments: [],
     });
     expect(stats.get("chatgpt-codex-connector[bot]")).toEqual({ launches: 1, findingLaunches: 0 });
+  });
+
+  it("a target bot's own non-review comment (no marker / no prefix) contributes zero launches (negative)", () => {
+    // CodeRabbitの指摘: マーカー/プレフィックス判定を緩めても既存テストは緑のままだった
+    // (静かな過大集計を検知できるテストが不足していた)。
+    const launches = collectFace2Launches([
+      {
+        user: { login: "claude[bot]" },
+        body: "作業を開始します。",
+        created_at: "2026-08-13T01:00:00Z",
+      },
+      {
+        user: { login: "chatgpt-codex-connector[bot]" },
+        body: "承知しました。",
+        created_at: "2026-08-13T02:00:00Z",
+      },
+    ]);
+    expect(launches).toEqual([]);
   });
 });
 
