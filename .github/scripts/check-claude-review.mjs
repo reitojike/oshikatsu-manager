@@ -107,7 +107,8 @@ export const reviewCheckDecision = ({ outcome, enabled, conclusion, postCount })
   // #83のworkflow検証スキップ。注記のみでpassさせるのはissue #95 決定3 (i)の既決
   // (機械では埋められない。判定は参考であり最終判断は人間 —— docs/prd.md 8.6)。
   // 残存リスク: claude-review.yml を変更するPRはここに落ち、Claudeレビューを受けずにcheckが緑になる。
-  // 埋め合わせはセルフレビュー + CodeRabbit / Copilotで、どれで満たしたかをPR本文に書く(#95の不変条件)。
+  // 埋め合わせはセルフレビュー + CodeRabbit(Draft中はCopilotが走らないため対象外)で、
+  // どれで満たしたかをPR本文に書く(#95の不変条件。.claude/skills/pr-review-flow/SKILL.md「Claude」項)。
   if (conclusion === undefined || conclusion === "") return "validation-skipped";
   if (postCount === undefined) return "check-posts";
   return postCount === 0 ? "missing-posts" : "posts-found";
