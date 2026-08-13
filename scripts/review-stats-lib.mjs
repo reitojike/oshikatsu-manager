@@ -50,9 +50,14 @@ export const collectFace2Launches = (issueComments) =>
     .filter((comment) => isFace2ReviewResult(comment.user.login, comment.body ?? ""))
     .map((comment) => ({ bot: comment.user.login, timestamp: comment.created_at }));
 
+// PENDING状態(未submitのレビュー下書き)はsubmitted_atがnullになる。gh apiは認証ユーザー自身の
+// PENDINGレビューだけを返す制約があるため通常は起きないが、実行アカウント自身がそのPRに
+// レビュー下書きを残していると発生しうる。nullのまま扱うとDate.parse(null)がNaNになり、
+// attachFace2Findingsの時系列ソート・窓判定が静かに壊れるため、起動として数える前に弾く。
 export const collectFace3Launches = (reviews) =>
   reviews
     .filter((review) => FACE3_LAUNCH_BOTS.includes(review.user?.login))
+    .filter((review) => typeof review.submitted_at === "string")
     .map((review) => ({
       bot: review.user.login,
       timestamp: review.submitted_at,

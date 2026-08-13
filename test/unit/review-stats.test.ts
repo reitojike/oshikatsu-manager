@@ -134,6 +134,16 @@ describe("face-4 inline comments do not add extra launches (negative)", () => {
     ]);
   });
 
+  it("ignores a PENDING review (submitted_at: null) instead of letting it corrupt the timeline (negative)", () => {
+    const reviews = [
+      { user: { login: "coderabbitai[bot]" }, id: 1, state: "PENDING", submitted_at: null },
+      { user: { login: "coderabbitai[bot]" }, id: 2, submitted_at: "2026-08-13T01:22:30Z" },
+    ];
+    expect(collectFace3Launches(reviews)).toEqual([
+      { bot: "coderabbitai[bot]", timestamp: "2026-08-13T01:22:30Z", reviewId: 2 },
+    ]);
+  });
+
   it("summarizeBotLaunches: 6 linked inline comments still count as 1 launch (CodeRabbit shape from PR #224)", () => {
     const reviews = [
       {
