@@ -195,6 +195,19 @@ FreeプランはGitHub連携のPRレビューが**1回/時/開発者**に制限�
 (PR #35で実際にレート制限を確認済み。詳細は`docs/roadmap.md`「CodeRabbitの導入」参照)。
 Draftで短時間に何度もpushしても2回目以降はスキップされうる。
 
+**レート制限通知の実測文言。**発生経路によって文言が異なるため、`.claude/skills/pr-review-flow/SKILL.md`
+「Draftフェーズ」の判別で「レート制限」と確認できるのは次のいずれかに一致する場合に限る。
+
+- 自動レビュー(PR作成時・push時)がレート制限された場合: issueコメントとして
+  「Review limit reached」の見出しと「Next review available in: N minutes」を含む定型文が
+  投稿される(PR #225、2026-08-13実測)
+- 手動`@coderabbitai review`コマンドがレート制限された場合: 「Review rate limited」
+  (PR #35、2026-08-07実測。`docs/roadmap.md`「CodeRabbitの導入」参照)
+
+上記のいずれにも一致しない失敗(認証エラー・通信エラー・空応答等)は、レート制限とは
+確認できないため「使える」側として扱う(`.claude/skills/pr-review-flow/SKILL.md`
+「Draftフェーズ」)。
+
 ### GitHub Copilot
 
 Copilotの最終レビューは「プレミアムリクエストのquota上限に達したため実行できなかった」
