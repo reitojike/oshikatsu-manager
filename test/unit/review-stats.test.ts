@@ -303,6 +303,14 @@ describe("countRealFixes", () => {
     );
   });
 
+  it("does not treat an undecorated line starting with 本物の修正 as a heading (negative)", () => {
+    // Copilotの指摘(抑制コメント): `#`・`**`のどちらも省略可能だと、装飾のない地の文
+    // (例:「本物の修正がどれかを判断するのは難しい」)まで見出しと誤認しうる。
+    expect(
+      countRealFixes("本物の修正がどれかを判断するのは難しい\n1. これは無関係な箇条書き"),
+    ).toBe(0);
+  });
+
   it("returns 0 when there is no 本物の修正 heading at all", () => {
     expect(countRealFixes("1. これはただの箇条書き\n2. 見出しが無い")).toBe(0);
   });
