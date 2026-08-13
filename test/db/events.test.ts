@@ -163,6 +163,7 @@ test("オーナー本人でも削除済みイベントを復活できない", as
     .update({ deleted_at: null })
     .eq("id", event.id);
   expect(error).not.toBeNull();
+  expect(error?.message).toContain("cannot be undeleted");
 
   const { data: stillDeleted, error: selectError } = await owner.client
     .from("events")
