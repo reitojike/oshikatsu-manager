@@ -141,7 +141,8 @@ service_roleキーがテストコードに出現しない(grepで確認できる
 - issue #33: `test/db/` の `auth.signUp` 呼び出し回数がSupabaseのrate limitに接近 → 対応済み(CLOSED)
 - issue #34: オーナーが未参加の場合の招待可否について権限マトリクスとRLS実装の不整合 → 対応済み(CLOSED。`docs/decision-policy.md` の実例)
 - issue #54: 論理削除済みイベントへの招待経路が塞がれていない → 対応済み(CLOSED)
-- **issue #58: 削除済みイベントの復活(`deleted_at` → NULL)にガードがない → OPEN。仕様として認めるかも含めて未決定**
+- issue #58: 削除済みイベントの復活(`deleted_at` → NULL)にガードがない → 対応済み(CLOSED)。
+  PO決定(2026-08-13): 復活は仕様として認めず、削除は不可逆とする(`docs/data-model.md` 2章)
 
 **決定済み: `profiles.is_admin` の扱い**
 
