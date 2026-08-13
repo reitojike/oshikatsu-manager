@@ -204,9 +204,8 @@ Draftで短時間に何度もpushしても2回目以降はスキップされう�
 - 手動`@coderabbitai review`コマンドがレート制限された場合: 「Review rate limited」
   (PR #35、2026-08-07実測。`docs/roadmap.md`「CodeRabbitの導入」参照)
 
-上記のいずれにも一致しない失敗(認証エラー・通信エラー・空応答等)は、レート制限とは
-確認できないため「使える」側として扱う(`.claude/skills/pr-review-flow/SKILL.md`
-「Draftフェーズ」)。
+上記のいずれにも一致しない失敗の扱いは`.claude/skills/pr-review-flow/SKILL.md`
+「Draftフェーズ」が正本(ここには書き写さない)。
 
 ### GitHub Copilot
 
