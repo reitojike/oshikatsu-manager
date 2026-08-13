@@ -146,8 +146,16 @@ export const summarizeBotLaunches = ({ issueComments, reviews, reviewComments })
 // (claude-reviewの指摘・PR #230本文自身で再現: 「1. ...→本物の修正として対応」の行が見出し扱いされ
 // 素通りし、次の「2. ...本物の修正...→見送り(軽微)」の行もセクションを閉じられず、以降の
 // 無関係な番号付き項目まで誤集計された)。
-export const REAL_FIX_HEADING = /^#{0,6}\s*\*{0,2}本物の修正/;
-const OTHER_CLASSIFICATION_HEADING = /^#{0,6}\s*\*{0,2}(見送り|誤検知|妥当な(?:nitpick|指摘))/;
+// `\*{0,2}`(0〜2個の`*`)ではなく`(?:\*\*)?`(0個または2個)にする。前者は単一の`*`
+// (Markdownの箇条書きマーカー、例:「*本物の修正...」)も見出しと誤認する
+// (Copilotの指摘。コメントが謳う「行頭の#・**のみ許容」と実装が食い違っていた)。
+export const REAL_FIX_HEADING = /^#{0,6}\s*(?:\*\*)?本物の修正/;
+// 「本物の修正」セクションを閉じる境界は、見送り/誤検知等の分類見出しに限らない。
+// Markdown見出し(`#`)や太字見出し(`**...**`)であれば、分類とは無関係な見出し
+// (例: 「## 検証」に続く番号付きのコマンド手順)でもセクションを閉じる必要がある
+// (Codex Cloudの指摘: 見送り/誤検知だけを閉じ語にすると、それ以外の見出しの下に
+// たまたま番号付きリストがあるだけで誤集計される)。
+const HEADING_LIKE = /^#{1,6}\s|^\*\*/;
 const NUMBERED_ITEM = /^\d+\.\s+\S/;
 
 export const countRealFixes = (text) => {
@@ -160,7 +168,7 @@ export const countRealFixes = (text) => {
       inSection = true;
       continue;
     }
-    if (inSection && OTHER_CLASSIFICATION_HEADING.test(line)) {
+    if (inSection && HEADING_LIKE.test(line)) {
       inSection = false;
       continue;
     }

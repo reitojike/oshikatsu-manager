@@ -281,6 +281,28 @@ describe("countRealFixes", () => {
     expect(countRealFixes(text)).toBe(1);
   });
 
+  it("stops counting at ANY heading, not just the known classification headings (negative)", () => {
+    // Codex Cloudの指摘: 「見送り/誤検知」以外の見出し(検証手順など)ではセクションが
+    // 閉じず、その下の無関係な番号付き項目まで数えてしまっていた。
+    const text = [
+      "**本物の修正**",
+      "1. 対応済み",
+      "",
+      "## 検証",
+      "1. `curl https://example.com`",
+      "2. `curl https://example.com/health`",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
+
+  it("does not treat a single leading * (Markdown bullet marker) as a bold heading opener (negative)", () => {
+    // Copilotの指摘: `\*{0,2}`は0〜2個の`*`を許すため、単一の`*`(箇条書きマーカー)も
+    // 見出しと誤認しうる。行頭の`*`は0個か2個(太字)のみ見出しとして扱う。
+    expect(countRealFixes("*本物の修正について検討する余地がある\n1. これは無関係な箇条書き")).toBe(
+      0,
+    );
+  });
+
   it("returns 0 when there is no 本物の修正 heading at all", () => {
     expect(countRealFixes("1. これはただの箇条書き\n2. 見出しが無い")).toBe(0);
   });
