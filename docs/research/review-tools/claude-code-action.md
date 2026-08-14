@@ -18,6 +18,21 @@
 
 状態は `確認済み` / `公式に未文書化` / `取得不能` / `未調査` のいずれか(空欄なし)。
 
+## 出典欄の略記について
+
+出典欄の `action.yml`・`docs/...`・`src/...`・`base-action/...` のようなリポジトリ相対パスは、
+すべて **`anthropics/claude-code-action`** リポジトリ内のパスを指す(このリポジトリ `stage-tracker` の
+同名ディレクトリではない)。参照した ref は次のコミットSHAに固定する。
+
+- ref: `e63208cb983318a44e3f945e959ef894b707dcfa`(`gh api repos/anthropics/claude-code-action/commits/main --jq .sha` で取得。
+  タグ `v1` および `v1.0.192` もこの同一コミットへ解決する。軸「その他」参照)
+- ベースURL: `https://github.com/anthropics/claude-code-action/blob/e63208cb983318a44e3f945e959ef894b707dcfa/`
+  (例: `action.yml` → `https://github.com/anthropics/claude-code-action/blob/e63208cb983318a44e3f945e959ef894b707dcfa/action.yml`)
+- 取得日: 2026-08-15
+
+各行の出典欄はこのベースURLからの相対パスとして読む。行番号(`L170-252`等)を付記した行は
+上記コミット時点のものであり、`main` の以後の更新で行番号がずれる可能性がある。
+
 ## 台帳
 
 | 軸 | 主張 | 出典(URL・参照先) | 等級 | 確認日 | 状態 |
