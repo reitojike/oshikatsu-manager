@@ -75,7 +75,7 @@ const skippedLabelCases = [["bug"], ["documentation"]] satisfies ReadonlyArray<r
 
 describe("claude-review.yml: labeled行動ごとの起動可否(否定側を含む)", () => {
   it.each(runnableCases)(
-    "%s(label=%s)はjobを実行しcheck名は%s",
+    "%s(label=%s)はjobを実行し(実行結果=%s)check名は%s",
     (action, labelName, expectedRuns, expectedName) => {
       expect(jobRuns(action, labelName)).toBe(expectedRuns);
       expect(jobName(action, labelName)).toBe(expectedName);
