@@ -68,7 +68,9 @@ required status checksに`PR Template Check`のjob `check`が含まれる)。`pr
 
 ### Claude Review
 
-**発火は`opened`/`reopened`と、明示的な`review:full`ラベル付け直しに限る(#244)。**
+**実レビュー(job実行)は`opened`/`reopened`と、明示的な`review:full`ラベル付け直しに限る(#244)。**
+(`labeled`イベント自体は`review:full`以外のラベルでも起動するが、job条件でskipされる。
+`#95`の穴の再導入防止のため、skip時は`claude-review`とは別名のcheckとして報告する)
 以前は`synchronize`(push)のたびに自動発火していたが、起動回数の実測(2026-08-13時点で
 161起動、`governance-docs`を含むPR上位6本に集中)から起動コストが最大の要因と判明したため
 止めた。規則そのものは`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」
@@ -220,7 +222,7 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 `.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」「Ready化」のパターン表が正本
 (#220)。ここには書き写さない。**以下は、発火タイミングの実測記録。**旧来あったDraft必須表の
 判別基準(Codexが「利用上限」かどうかを手動`@codex review`の結果で判定する仕組み)は、
-次の段落のとおり#244で廃止した。**
+次の段落のとおり#244で廃止した。
 
 **自動発火するのは`ready_for_review`のときだけ(#244で訂正)。**Draft作成時の`opened`、
 Draft中の`synchronize`のいずれでも自動発火しない。以前の記載(`opened`で発火する、#186決定4)
