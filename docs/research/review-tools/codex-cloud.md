@@ -1,0 +1,335 @@
+# Codex Cloud(Automatic Reviews) 仕様台帳
+
+OpenAI / ChatGPT Codex の GitHub PR 自動コードレビュー(Codex code review / Automatic reviews)の公開仕様を、
+一次情報から台帳化したもの。一次情報の在処は公式ドキュメント `https://learn.chatgpt.com/docs/third-party/github.md`
+(旧 `https://developers.openai.com/codex/cloud/code-review.md` からの 308 リダイレクト先)、公開GitHub App マニフェスト
+`GET /apps/chatgpt-codex-connector`、および第三者の公開リポジトリでの実測。
+
+## 等級の凡例
+
+| 等級 | 定義 |
+| --- | --- |
+| A | 公式ドキュメントを一次情報として確認した(記載の有無は状態列が示す) |
+| B | API仕様・設定スキーマ・公開ソースの定義を一次情報として確認した(観測はここに含めない) |
+| C1 | 我々の環境での実測(本調査では対象外。空) |
+| C2 | 第三者の公開リポジトリでの実測 |
+| D | 推測・未確認 |
+
+状態は `確認済み` / `公式に未文書化` / `取得不能` / `未調査` の4値。等級と状態は独立で、組で読む。
+
+## 台帳
+
+| 軸 | 主張 | 出典(URL・参照先) | 等級 | 確認日 | 状態 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 手動トリガはPRコメントに `@codex review` とメンションすること | <https://learn.chatgpt.com/docs/third-party/github.md> 「Request a Codex review」節: "In a pull request comment, mention `@codex review`." | A | 2026-08-15 | 確認済み |
+| 1 | トリガ文字列は完全一致が要求される | 同上「Troubleshoot code review」節: "Use the exact trigger `@codex review` in a pull request comment." | A | 2026-08-15 | 確認済み |
+| 1 | 自動発火は Codex 設定の **Automatic reviews** をONにすると、誰かが新規PRをレビュー用にopenした時点で `@codex review` なしに走る | 同上「Enable automatic reviews」節: "Codex will post a review whenever someone opens a new PR for review, without needing an `@codex review` comment." | A | 2026-08-15 | 確認済み |
+| 1 | Security Review の手動トリガは `@codex security review` | 同上「Request a Security Review」節 | A | 2026-08-15 | 確認済み |
+| 1 | `@codex` に `review` 以外を続けたコメントは code review ではなく cloud chat を起動する | 同上「Give Codex other tasks」節: "If you mention `@codex` in a comment with anything other than `review`, Codex starts a cloud chat using your pull request as context." | A | 2026-08-15 | 確認済み |
+| 1 | レビュー後に `@codex fix the P1 issue` とコメントすると、同じPRに対する修正タスクが起動する | 同上「Act on review findings」節 | A | 2026-08-15 | 確認済み |
+| 1 | ボット自身が出力する説明文では、発火契機は3つに列挙される(PRをレビュー用にopen / draftをready化 / `@codex review` コメント) | 観測: <https://github.com/can1357/oh-my-pi/pull/6401> の review body 内 `<details>` ブロック。観測環境の文脈: publicリポジトリ(fork=false, stars=24784)、プラン表記なし、観測日 2026-08-15(投稿は 2026-07-23〜2026-08-09) | C2 | 2026-08-15 | 確認済み |
+| 1 | draftをready化した時点が発火契機になることは、公式ページ本文には列挙されていない(ボットの出力文言にのみ現れる) | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節を通読し `draft` / `ready` を検索。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 1 | 同一PRに `@codex review` を連続して複数回投稿すると、その都度新しいレビュー実行が走る(2回目以降も発火し、重複排除されない) | 観測: <https://github.com/Gabriel300p/hermes-agent/pull/12> で `@codex review` コメント20件超に対し review オブジェクトが個別に生成。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15(投稿は 2026-08-12〜13) | C2 | 2026-08-15 | 確認済み |
+| 1 | 再依頼の冪等性(同じ手段を続けて2回使ったときの2回目の扱い、発火しない条件)について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、および <https://learn.chatgpt.com/docs/cloud.md>。検索語 `again` / `duplicate` / `idempotent` / `re-run`。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 1 | push(コミット追加)そのものが Code Review の発火契機になるかは公式に記載がない(Security Review 側にのみ `Every push` 設定が存在する) | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> の「Enable automatic reviews」「Troubleshoot code review」両節、および <https://learn.chatgpt.com/docs/security/security-review.md>。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 2 | Code review の有効/無効はリポジトリ単位で、外部の設定画面 `https://chatgpt.com/codex/settings/code-review` で切り替える | <https://learn.chatgpt.com/docs/third-party/github.md> 「Set up Codex code review」節 | A | 2026-08-15 | 確認済み |
+| 2 | 設定変更には GitHub の push または admin 権限が必要 | 同上: "To configure automatic reviews, you need a connected GitHub repository and GitHub push or admin permission for its settings." | A | 2026-08-15 | 確認済み |
+| 2 | 設定の所在はリポジトリ内ファイルではなく外部の設定画面。リポジトリ内の `AGENTS.md` で変えられるのはレビュー観点のみで、発火契機は変えられない | 同上「Customize what Codex reviews」節が `AGENTS.md` の役割をレビュールールに限定している | A | 2026-08-15 | 確認済み |
+| 2 | Security Review の対象PR選択は3値 `Follow personal` / `Review all PRs` / `Review team PRs` | <https://learn.chatgpt.com/docs/security/security-review.md> 「Review trigger settings」 | A | 2026-08-15 | 確認済み |
+| 2 | Security Review の実行タイミングは3値 `On PR open` / `Every push` / `Whenever code review runs` | 同上 | A | 2026-08-15 | 確認済み |
+| 2 | Security Review の報告閾値の既定は、自動レビューが High / Critical、手動レビューが Medium / High / Critical。個別に変更でき、パス単位の上書きも可能 | 同上 | A | 2026-08-15 | 確認済み |
+| 2 | Code Review 側の「review trigger settings」の選択肢が公式ページに列挙されていない(トラブルシュート節が存在を前提に言及するのみ) | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節。"check that you turned on **Automatic reviews** and that the pull request event matches your review trigger settings." という言及はあるが選択肢の列挙が無い。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 2 | 変更できないものの明示的な列挙(出力先の面、botアカウント、コメント書式、優先度分類の粒度、対象パスの除外)が公式に無い | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、<https://learn.chatgpt.com/docs/security/security-review.md>、<https://learn.chatgpt.com/docs/agent-configuration/agents-md.md>。検索語 `exclude` / `ignore` / `path` / `cannot`。Code Review の設定項目を網羅列挙したスキーマ文書が公開されていないため、**開いた情報源**での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 2 | GitHub 上の code review に使われるモデル、およびその選択可否について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/models.md> 全節(desktop app / web / CLI / IDE / cloud chats のモデル選択は扱うが GitHub レビューの記述なし)、<https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `model`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 2 | GitHub Ruleset / required check として Codex のレビューを必須化する手段について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `branch protection` / `required`。"Code review rules guide Codex; they don't replace tests, branch protections, or required approvals." という言及はあるが必須化手段の記載は無い。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 2 | Code Review の前提として Codex cloud のセットアップが必要 | <https://learn.chatgpt.com/docs/third-party/github.md>「Before you start」節: "Codex cloud set up for the repository you want to review." | A | 2026-08-15 | 確認済み |
+| 2 | Code Review が cloud chat と同じ環境(setup script 等)を要求するかについて公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/environments/cloud-environment.md> 全節(cloud chats のみを扱う)、<https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `environment` / `setup script`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 2 | 実測では環境未作成のリポジトリでレビューを依頼すると環境作成を促す通知が返るため、環境の存在が前提になっている | 観測: issue comment `To use Codex here, [create an environment for this repo](https://chatgpt.com/codex/cloud/settings/environments).`。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 2 | GitHub App の権限セットは固定で、リポジトリ側から絞り込む項目は公開マニフェストに存在しない | `gh api apps/chatgpt-codex-connector` の `permissions` は単一の固定セット。App マニフェストは**閉じた(網羅的な)情報源**であり、ここに無い権限は**存在しない** | B | 2026-08-15 | 確認済み |
+| 3 | レビュー対象は PR の diff | <https://learn.chatgpt.com/docs/third-party/github.md> 冒頭: "Codex reviews the pull request diff, follows your repository guidance, and posts a standard GitHub code review focused on serious issues." | A | 2026-08-15 | 確認済み |
+| 3 | diff に加えて、変更ファイルに掛かる `AGENTS.md` 群(ルートおよびより深い階層)を読む | 同上「Customize what Codex reviews」節: "Codex applies the root and more-specific guidance that covers each changed file" | A | 2026-08-15 | 確認済み |
+| 3 | Security Review は diff に加えて supporting repository context と configured threat models / security guidance を読む | 同上「Security Review」節 | A | 2026-08-15 | 確認済み |
+| 3 | Codex は既定でエージェントフェーズ中のインターネットアクセスを遮断する。有効化時はドメイン許可リスト(プリセット `None` / `Common dependencies` / `All`)と HTTP メソッド制限(`GET, HEAD, OPTIONS` のみ / 無制限)で絞れる | <https://learn.chatgpt.com/docs/cloud/internet-access.md>: "By default, Codex blocks internet access during the agent phase." | A | 2026-08-15 | 確認済み |
+| 3 | 上記のインターネットアクセス設定が code review の実行にも適用されるかについて公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/cloud/internet-access.md> 全節。検索語 `review`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 3 | 参照範囲が設定・プラン・呼び出し方のどれで変わるかについて公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、<https://learn.chatgpt.com/docs/cloud.md>。検索語 `context` / `whole repository` / `history`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 3 | 実測では diff 範囲外のディレクトリを検索した旨を所見本文に書くことがある(所見内に `rg 'commands\..*subcommands'` を実行して `packages/coding-agent/src/i18n/lang` を確認した旨の記述) | 観測: <https://github.com/can1357/oh-my-pi/pull/6401> の inline comment。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 3 | 1回の実行が対象とするコミットは1つで、出力本文に `Reviewed commit` として明示される | 観測: 同上および150件の公開PR横断コーパス。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 4 | 観点は `AGENTS.md` の `## Code Review Rules` セクションで指定する | <https://learn.chatgpt.com/docs/third-party/github.md> 「Customize what Codex reviews」節 | A | 2026-08-15 | 確認済み |
+| 4 | `###` 見出しで関連チェックをグループ化できる | 同上: "Use `###` headings to group related checks when helpful." | A | 2026-08-15 | 確認済み |
+| 4 | パス単位の観点指定は、設定ファイルのグロブではなく `AGENTS.md` の配置場所(ネスト)で行う | 同上: "Put repository-wide rules in the root `AGENTS.md` and service-specific rules in a nested file, such as `services/experiment_reporting/AGENTS.md`." | A | 2026-08-15 | 確認済み |
+| 4 | `AGENTS.md` に形式スキーマは無く、自由記述のMarkdown。`## Code Review Rules` は慣習的な節名 | <https://learn.chatgpt.com/docs/agent-configuration/agents-md.md> | A | 2026-08-15 | 確認済み |
+| 4 | `AGENTS.md` の探索は global スコープ(既定 `~/.codex`)→ project スコープ(Gitルートから作業ディレクトリへ下降)の順で、各階層で `AGENTS.override.md` → `AGENTS.md` の順に見る。ルートから下へ連結され、深い階層が後に来るため上書きになる | 同上 | A | 2026-08-15 | 確認済み |
+| 4 | 連結後の指示ファイルの既定サイズ上限は 32 KiB で、`project_doc_max_bytes` で変更できる。空ファイルはスキップし、上限に達した時点で追加を止める | 同上 | A | 2026-08-15 | 確認済み |
+| 4 | 一回限りの観点はPRコメントに自然言語で追記できる(例 `@codex review for issues in the database migration`) | <https://learn.chatgpt.com/docs/third-party/github.md> 「Customize what Codex reviews」節末尾 | A | 2026-08-15 | 確認済み |
+| 4 | 所見はその根拠となった `AGENTS.md` のガイダンスを引用できる | <https://developers.openai.com/blog/custom-code-review-rules-for-codex>: "can apply the rules that matter to a change and cite them in a finding" | A | 2026-08-15 | 確認済み |
+| 4 | Codex の `Rules`(`.rules` ファイル、Starlark 構文、`prefix_rule()`)はサンドボックス外でのコマンド実行可否を制御する仕組みであり、レビュー観点の指定手段ではない。`AGENTS.md` の `## Code Review Rules` とは別物 | <https://learn.chatgpt.com/docs/agent-configuration/rules.md>。`decision` は `allow` / `prompt` / `forbidden` の3値。実験的機能と明記 | A | 2026-08-15 | 確認済み |
+| 4 | `.rules` が GitHub 上の Codex code review に適用されるかどうかについて公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/agent-configuration/rules.md> 全節。検索語 `review` / `pull request` / `GitHub`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 4 | `AGENTS.md` 上限の 32 KiB が GitHub 上の Codex Cloud レビューにも同じ値で適用されるかは公式に記載がない(当該記述は Codex 全般の設定ページにある) | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節に size / limit の記載なし、<https://learn.chatgpt.com/docs/agent-configuration/agents-md.md> は面を限定していない。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 5 | 出力に使うアカウントの login は `chatgpt-codex-connector[bot]`、user id は `199175422`、node_id は `BOT_kgDOC98s_g`、type は `Bot` | `gh api users/chatgpt-codex-connector%5Bbot%5D`。GitHub の user オブジェクトは**閉じた情報源**で、これらは安定した識別子 | B | 2026-08-15 | 確認済み |
+| 5 | GitHub App の slug は `chatgpt-codex-connector`、app id は `1144995`、name は `ChatGPT Codex Connector`、owner は `openai` | `gh api apps/chatgpt-codex-connector`(未認証で取得可) | B | 2026-08-15 | 確認済み |
+| 5 | App の権限は actions:write / checks:read / contents:write / emails:read / issues:write / metadata:read / pull_requests:write / statuses:read / workflows:write | 同上 `permissions`。App マニフェストは**閉じた情報源** | B | 2026-08-15 | 確認済み |
+| 5 | `checks` と `statuses` が read のみであるため、Codex は check run も commit status も作成できない。したがって annotation も出せない | 同上。権限セットは**閉じた情報源**であり、write が無い以上これらの出力は**存在しない** | B | 2026-08-15 | 確認済み |
+| 5 | App が購読するイベントは check_run / check_suite / commit_comment / issues / issue_comment / pull_request / pull_request_review / pull_request_review_comment / pull_request_review_thread / repository / status / sub_issues | 同上 `events`。**閉じた情報源** | B | 2026-08-15 | 確認済み |
+| 5 | 指摘ありのレビューは PR review オブジェクトとして出る。取得は `GET /repos/{o}/{r}/pulls/{n}/reviews`、state は `COMMENTED`(`APPROVED` / `CHANGES_REQUESTED` は観測されない) | 観測: 150件の公開PR横断コーパスで review 1036件すべて `COMMENTED`。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 5 | 個別の所見は inline review comment として出る。取得は `GET /repos/{o}/{r}/pulls/{n}/comments` | 観測: <https://github.com/can1357/oh-my-pi/pull/6401> で Codex 由来の inline comment 90件。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 5 | 所見が review body に直接埋め込まれる形態もある(blob permalink + 優先度バッジ + タイトル + 本文) | 観測: 同PR review id 4767722487。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 5 | 指摘0件のときは review ではなく issue comment として出る。取得は `GET /repos/{o}/{r}/issues/{n}/comments` | 観測: 150件横断コーパスで `Codex Review: Didn't find any major issues.` 系 344件がすべて issue comment。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 5 | レート制限・エラー・未接続・環境未作成の通知はすべて issue comment として出る | 観測: 同コーパス。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 5 | Security Review の完了通知(0件時)は issue comment、指摘ありのときは review オブジェクト | 観測: 同コーパス(`Security review completed.` 14件 / `### 💡 Codex Security Review` review 1件)。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 5 | トリガコメントに対して reaction を付けて受付を示す | <https://learn.chatgpt.com/docs/third-party/github.md> 「Request a Codex review」節: "Wait for Codex to react (👀) and post a review." | A | 2026-08-15 | 確認済み |
+| 5 | 👀 reaction の付与主体は `chatgpt-codex-connector[bot]` 自身で、`GET /repos/{o}/{r}/issues/comments/{id}/reactions` で `content: "eyes"` として取得できる | 観測: <https://github.com/avala-ai/4dgs> issue comment 5286396363。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 5 | Codex は commit status も check run も作らない(PR head SHA に対する `/status` の contexts が空、`/check-runs` が空) | 観測: <https://github.com/can1357/oh-my-pi/pull/6401> head `24c3070592655b26dedcac6099f89db45363536e`。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15。軸5のB等級行(権限 read のみ)と整合 | C2 | 2026-08-15 | 確認済み |
+| 6 | 完了の機械的判定手段について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `status` / `check` / `complete` / `finished` / `API`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 6 | 公式が示す「動かなかったとき」の確認項目は4つ(リポジトリで **Code review** がONか / そのリポジトリで Codex cloud がセットアップ済みか / トリガ文字列が厳密に `@codex review` か / **Automatic reviews** がONでPRイベントが review trigger settings と一致するか) | <https://learn.chatgpt.com/docs/third-party/github.md>「Troubleshoot code review」節。判定材料はこの4項目に限定して列挙されている | A | 2026-08-15 | 確認済み |
+| 6 | 公式が示す未実行の兆候は「reactしない、またはreviewを投稿しない」という不在ベースの記述のみ("If Codex doesn't react or post a review:") | 同上 | A | 2026-08-15 | 確認済み |
+| 6 | Security Review は実行中に react し、完了後に所見をPRへ投稿すると公式が記述 | 同上「Request a Security Review」節: "Codex reacts while the review is running, then posts security findings directly on the pull request." | A | 2026-08-15 | 確認済み |
+| 6 | 汎用トラブルシューティングページには GitHub 上の Codex code review に関する状態文言・エラー文言が無い | 検索範囲: <https://learn.chatgpt.com/docs/reference/troubleshooting.md> の全17見出しを列挙して確認。`rate limit` / `usage limit` は0件、`code review` はローカルの review pane へのリンク1件のみ。見出しの列挙は**閉じた情報源**であり、GitHub レビューの項目は**存在しない** | A | 2026-08-15 | 公式に未文書化 |
+| 6 | 「成功(指摘あり)」は review body が `### 💡 Codex Review` で始まることで判定できる | 観測: 150件横断コーパスの review 1036件中1019件が当該接頭辞。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 6 | 「成功(指摘0件)」は issue comment が `Codex Review: Didn't find any major issues.` で始まることで判定できる | 観測: 同コーパス。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 6 | 指摘0件メッセージの末尾は18種類以上のランダムな一言で終わるため、完全一致では判定できず接頭辞一致が必要 | 観測: 同コーパスで18種の異なる末尾を確認(出力パターン表に全種を列挙)。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 6 | 「レート制限で未実行」は専用の issue comment 文言で判定でき、少なくとも2系統の異なる文言がある(アカウント枠系とリポジトリ管理者クレジット系) | 観測: 同コーパス。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 6 | 「エラー」は issue comment が `Codex Review: Something went wrong.` で始まり、直後のコードフェンスに原因文字列が入ることで判定できる | 観測: 同コーパスで9件。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 6 | 「スキップ」(設定OFF・対象外・トリガ不一致)は GitHub 側に痕跡を一切残さないため、「実行されなかった」と「まだ実行中」を区別できない | 観測: 150件横断コーパスにスキップを示す文言が存在しない。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 6 | 「実行中」を示す専用の出力は無い。👀 reaction の有無が唯一の進行中シグナルだが、完了後も剥がされずに残る | 観測: <https://github.com/Gabriel300p/hermes-agent/pull/12> ほかで完了済みトリガコメントに `eyes` が残存。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 6 | check run / commit status を作らないため、GitHub の標準CI面には完了シグナルが存在しない | `gh api apps/chatgpt-codex-connector` の権限(checks:read / statuses:read)。**閉じた情報源** | B | 2026-08-15 | 確認済み |
+| 7 | 料金ページの使用量表に `Code Reviews / 5h` という列が存在する | <https://learn.chatgpt.com/docs/pricing.md> 各プランの usage limits 表 | A | 2026-08-15 | 確認済み |
+| 7 | Plus プランの `Code Reviews / 5h` は全モデル行が `Not available` | 同上 Plus 表 | A | 2026-08-15 | 確認済み |
+| 7 | Pro 5x プランの `Code Reviews / 5h` は全モデル行が `Not available` | 同上 Pro 5x 表 | A | 2026-08-15 | 確認済み |
+| 7 | Pro 20x プランの `Code Reviews / 5h` は全モデル行が `Not available` | 同上 Pro 20x 表 | A | 2026-08-15 | 確認済み |
+| 7 | Business プランの `Code Reviews / 5h` は全モデル行が `Not available` | 同上 Business 表 | A | 2026-08-15 | 確認済み |
+| 7 | API Key の `Code Reviews / 5h` は全モデル行が `Not available` | 同上 API Key 表 | A | 2026-08-15 | 確認済み |
+| 7 | 消費の単位は5時間ウィンドウ | 同上(表見出しが `/ 5h`) | A | 2026-08-15 | 確認済み |
+| 7 | Code Review の消費が計上されるのは GitHub 経由でCodexがレビューを走らせた場合に限る | 同上: "Code Review usage applies only when Codex runs reviews through GitHub—for example, when you tag `@Codex` for review in a pull request or enable automatic reviews on your repository." | A | 2026-08-15 | 確認済み |
+| 7 | GitHub 外・ローカルで走らせたレビューは一般の使用量上限に計上される | 同上: "Reviews run locally or outside of GitHub count toward your general usage limits." | A | 2026-08-15 | 確認済み |
+| 7 | 上限到達中のターンは継続でき、fair use limits に従う | 同上: "If you reach your usage limits during an active turn, the agent will be able to continue working on that turn, subject to fair use limits." | A | 2026-08-15 | 確認済み |
+| 7 | Plus / Pro はクレジットを追加購入して継続できる。Business / Enterprise は workspace credits を追加購入できる | 同上 | A | 2026-08-15 | 確認済み |
+| 7 | プランごとの Code Review 実行回数の具体的な数値が公開されていない(列は存在するが全セルが `Not available`) | 検索範囲: <https://learn.chatgpt.com/docs/pricing.md> の Plus / Pro 5x / Pro 20x / Business / API Key の全 usage limits 表。表は**閉じた(網羅的な)情報源**であり、数値セルは**存在しない** | A | 2026-08-15 | 公式に未文書化 |
+| 7 | 枠の共有範囲(リポジトリ / ユーザー / 組織)の明示的な定義が公式に無い | 検索範囲: <https://learn.chatgpt.com/docs/pricing.md> 全体、<https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `shared` / `per repository` / `workspace`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 7 | 超過時の表示は issue comment の文言として現れ、少なくとも「アカウント枠の超過」と「リポジトリ全体レビューにクレジットが必要」の2系統がある | 観測: 150件横断コーパス(`You have reached your Codex usage limits for code reviews.` 8件 / `Codex usage limits have been reached for code reviews.` 5件)。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 7 | リポジトリ全体のレビューを有効化するにはクレジットの使用が必要と、ボットの文言が述べる | 観測: <https://github.com/trymirai/uzu/pull/704> の issue comment `Credits must be used to enable repository wide code reviews.`。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 7 | 使用量コントロールは機能の entitlement や権限を設定するものではないが、上限を使い切ると対象機能へのアクセスが一時停止しうる | <https://learn.chatgpt.com/docs/enterprise/usage-limits.md>: "Usage controls don't configure feature entitlement or permissions, although exhausted limits can pause access to eligible features" | A | 2026-08-15 | 確認済み |
+| 7 | Enterprise 管理者向けページに Code Review 固有の枠・クレジット・残量確認手順の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/enterprise/usage-limits.md> 全節。検索語 `code review` / `credit` / `repository`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 7 | Security Review は ChatGPT Enterprise / Business / Edu / Pro が対象で、Plus は対象外 | <https://learn.chatgpt.com/docs/security/security-review.md> | A | 2026-08-15 | 確認済み |
+| 8 | GitHub 上では P0 と P1 の問題のみをフラグすると公式が明記 | <https://learn.chatgpt.com/docs/third-party/github.md>: "In GitHub, Codex flags only P0 and P1 issues so review comments stay focused on high-priority risks." | A | 2026-08-15 | 確認済み |
+| 8 | 実測では P1 / P2 / P3 のバッジが出ており、公式記述(P0/P1のみ)と一致しない。P0 は本サンプルでは観測されなかった | 観測: 50件の公開PRから収集した Codex inline comment 459件中、P1 164件 / P2 293件 / P3 2件 / P0 0件。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、`AGENTS.md` の有無は未確認、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 8 | Code Review Rules は tests / branch protections / required approvals を置き換えないと公式が明記 | <https://learn.chatgpt.com/docs/third-party/github.md>: "Code review rules guide Codex; they don't replace tests, branch protections, or required approvals." | A | 2026-08-15 | 確認済み |
+| 8 | 公式は formatting / lint などの決定論的チェックをレビュールールから外して CI に残すよう記述している | 同上: "**Leave mechanical checks in CI.** Keep formatting, lint, and other deterministic checks out of review rules." | A | 2026-08-15 | 確認済み |
+| 8 | Security Review は research preview であると公式が明記 | 同上および <https://learn.chatgpt.com/docs/security/security-review.md> | A | 2026-08-15 | 確認済み |
+| 8 | Code Review と Security Review の所見は重複しうると公式が明記 | <https://learn.chatgpt.com/docs/third-party/github.md>: "Code Review can also identify security-related issues as part of its general review, so you may see occasional overlap" | A | 2026-08-15 | 確認済み |
+| 8 | 所要時間・SLA・同時実行数の上限について公式の言及がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、<https://learn.chatgpt.com/docs/pricing.md>。検索語 `SLA` / `minutes` / `concurrent` / `queue`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 8 | fork からのPRでの挙動について公式の言及がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `fork`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 8 | 対象外となるファイル種別・生成物・サイズ上限について公式の言及がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `large` / `skip` / `exclude` / `binary`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 9 | 指摘0件の実行は review オブジェクトを作らないため、`/pulls/{n}/reviews` だけを見ると実行を取りこぼす | 観測: 150件横断コーパス。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 9 | inline comment のみを持つ review は body が空文字になるため、body 文字列で判定すると取りこぼす | 観測: 同コーパスの review 1036件中5件が body 空文字。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 9 | `About Codex in GitHub` の説明は `<details>` で折りたたまれるため、GitHub UI 上では既定で非表示 | 観測: 同コーパス。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 9 | inline comment の `line` / `start_line` は後続 push で差分が変わると `null` になる。`original_line` / `original_start_line` / `original_commit_id` は残る | 観測: <https://github.com/can1357/oh-my-pi/pull/6401> の Codex inline comment で `line: null` かつ `original_line: 294`。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 9 | review のタイムスタンプは `submitted_at`(提出時刻)。issue comment は `created_at` と `updated_at` を持ち、本文が編集されると `updated_at` のみ進む | 観測: 同コーパス(inline comment で `created_at` 2026-08-09T16:34:45Z / `updated_at` 2026-08-09T16:34:46Z の1秒差を確認)。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 9 | review / inline comment / issue comment はいずれも100件超でページネーションが必要 | GitHub REST の `per_page` 上限100。REST 仕様は**閉じた情報源** | B | 2026-08-15 | 確認済み |
+| 9 | 出力本文に HTMLコメント等の機械可読マーカーは含まれない。判定は見出し文字列に依存するしかない | 観測: 150件横断コーパスの review / inline / issue comment 全文に `<!-- -->` が0件。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 9 | 所見の重大度はバッジ画像のURL文字列にしか現れず、プレーンテキストの重大度フィールドが無い | 観測: 同コーパス。重大度は `![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)` の形でのみ出現。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 9 | 同一の所見が review body 埋め込み型と inline comment 型の2形態を取りうるため、両方を取得しないと重複または欠落が起きる | 観測: 同コーパス。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 9 | 既定の取得経路では見えない出力の有無について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `API` / `fetch` / `retrieve`。GitHub API での取得方法を扱う節自体が存在しない。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 10 | 1回の実行は1つの review オブジェクトに対応し、その実行が出した inline comment は `pull_request_review_id` で親 review に紐づく | 観測: <https://github.com/can1357/oh-my-pi/pull/6401> で inline comment 群が `pull_request_review_id: 4767275223` を共有。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 10 | ただし指摘0件・レート制限・エラーの実行は review を作らないため、review 数だけでは実行回数を数え落とす。issue comment 側も併せて数える必要がある | 観測: 同コーパス。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 10 | 実行の識別子として最も安定するのは本文中の `Reviewed commit` の SHA(1実行1個) | 観測: 同コーパスで review / 0件通知 / Security Review 完了通知のいずれにも出現。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 10 | 実行コスト・所要時間・使用モデル・トークン数は GitHub 側の痕跡に一切現れない | 観測: 同コーパスの全出力面(review / inline / issue comment / reaction)に該当フィールド・文言なし。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 10 | Codex task へのリンクは Security Review の出力にのみ現れ、しかも起動者本人しか閲覧できない | 観測: `[View security finding report](https://chatgpt.com/codex/cloud/tasks/task_e_6a7cafa6324c83299f3be42ddc7b96bf)` と `_Only the user who started this review can view the report in Codex._`。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 10 | 通常の Code Review の出力には Codex task へのリンクが含まれないため、GitHub 側から実行ログに到達できない | 観測: 同コーパスの `### 💡 Codex Review` 系 review 本文に task リンクなし。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 10 | エラー・権限拒否は issue comment の自然言語文字列としてのみ観測でき、構造化されたエラーコードのフィールドが無い | 観測: 同コーパス(`Unknown error` / `Provided git ref ... does not exist` がコードフェンス内の素の文字列)。観測環境の文脈: すべてpublicリポジトリ、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 10 | Compliance API / 監査イベントのイベント名・スキーマは認証必須の Admin API リファレンスにあり、公開ページからは取得できない。Code Review の実行が監査イベントとして取れるかも当該ページでは判定できない | <https://learn.chatgpt.com/docs/enterprise/compliance-api.md>: "The authenticated Admin API reference is the source of truth for current access requirements, event coverage, routes, schemas, filters, retention, and request behavior." | A | 2026-08-15 | 取得不能 |
+| 10 | 実行メタデータを機械的に取得するAPIについて公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、<https://learn.chatgpt.com/docs/cloud.md>。検索語 `API` / `webhook` / `export`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 11 | Code review 設定の現在値は `https://chatgpt.com/codex/settings/code-review` にある | <https://learn.chatgpt.com/docs/third-party/github.md> が当該URLを設定の所在として案内 | A | 2026-08-15 | 確認済み |
+| 11 | 同設定画面は未認証では取得できない(HTTP 403) | `https://chatgpt.com/codex/settings/code-review` を WebFetch して 403 Forbidden。在処は判明しているが認証が必要 | A | 2026-08-15 | 取得不能 |
+| 11 | 設定の現在値を読む公開REST APIについて公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、<https://learn.chatgpt.com/docs/security/security-review.md>、<https://learn.chatgpt.com/llms.txt> の全ページ一覧を走査し Codex code review 設定APIのリファレンスページが存在しないことを確認。ページ一覧は**閉じた情報源**であり、公開ドキュメント上に該当リファレンスは**存在しない** | A | 2026-08-15 | 公式に未文書化 |
+| 11 | `config.toml` / `requirements.toml` の設定キー一覧に、GitHub の code review / pull request に関わるキーは1つも無い。したがってローカル設定ファイルから Codex Cloud のレビュー設定を読むことも書くこともできない | <https://learn.chatgpt.com/docs/config-file/config-reference.md>。設定キーの網羅表は**閉じた情報源**であり、該当キーは**存在しない**(`review_model` はローカルの `/review` 用のモデル上書きで別物) | A | 2026-08-15 | 確認済み |
+| 11 | リポジトリ側からは GitHub App のインストール有無で間接的に有効/無効を確認できる(`GET /repos/{o}/{r}/installation`。admin 権限が必要) | GitHub REST 仕様。**閉じた情報源** | B | 2026-08-15 | 確認済み |
+| 11 | App のメタデータ(権限・購読イベント)は未認証で `GET /apps/chatgpt-codex-connector` から読める | `gh api apps/chatgpt-codex-connector` が未認証でも200を返す | B | 2026-08-15 | 確認済み |
+| 11 | 残枠・使用量は `https://chatgpt.com/codex/cloud/settings/usage` のダッシュボードで確認する、とボットの文言が案内する | 観測: `You have reached your Codex usage limits for code reviews. You can see your limits in the [Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage).`。観測環境の文脈: publicリポジトリ(`szl-holdings/docs-site` ほか)、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| 11 | Codex Analytics API が集計指標を提供するとされるが、ルート・スキーマ・指標名は認証必須のリファレンスにあり公開ページからは取得できない | <https://learn.chatgpt.com/docs/enterprise/analytics-api.md>: "The authenticated Codex Analytics API reference is the source of truth for current access requirements, routes, request and response schemas, metrics, time semantics, and pagination." | A | 2026-08-15 | 取得不能 |
+| 11 | 契約プラン・残クレジットの現在値を機械的に読む手段について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/pricing.md>、<https://learn.chatgpt.com/docs/enterprise/analytics-api.md>、<https://learn.chatgpt.com/llms.txt> のページ一覧。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 11 | 取得APIの癖: `GET /search/issues` の結果アイテムで `.number` が `null` になる場合があり、PR番号は `.html_url` から取る必要がある | 観測: `gh api "search/issues?q=...&type:pr"` で `.number` が null、`.html_url` は正常。観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| その他 | ローカル/IDE/CLI の `/review` は Codex Cloud の GitHub 自動レビューとは別の面であり、別ページで定義されている | <https://learn.chatgpt.com/docs/code-review.md>(`Review against a base branch` / `Review uncommitted changes` / `Review a commit` / `Custom review instructions` のプリセットを持つ) | A | 2026-08-15 | 確認済み |
+| その他 | `Codex GitHub Action` は自前の GitHub Actions ワークフローから Codex CLI を走らせる別経路で、レビューを投稿することもできる。認証は `openai-api-key` で、Codex Cloud の Automatic Reviews とは設定・課金・トリガの経路が別 | <https://learn.chatgpt.com/docs/github-action.md>。入力は `openai-api-key` / `prompt` / `prompt-file` / `output-file` / `model` / `effort` / `sandbox` / `safety-strategy` / `codex-version` / `codex-args` / `allow-users` / `allow-bots` / `codex-home` | A | 2026-08-15 | 確認済み |
+| その他 | `Codex GitHub Action` と Codex Cloud の Automatic Reviews の関係(併用時の重複、枠の別立て)について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/github-action.md> 全節、<https://learn.chatgpt.com/docs/third-party/github.md> 全節。相互参照が双方に無い。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| その他 | 公式の成熟度区分は `Under development` / `Experimental` / `Beta` / `Stable` の4値で、`research preview` はこの一覧に含まれない。Security Review に付された `research preview` は成熟度区分の外にある呼称 | <https://learn.chatgpt.com/docs/feature-maturity.md>。同ページに code review / Security Review / GitHub 連携の行は無い。成熟度の一覧は**閉じた情報源**であり `research preview` は**存在しない** | A | 2026-08-15 | 確認済み |
+| その他 | Code Review 本体(Security Review を除く)の成熟度区分が公式に示されていない | 検索範囲: <https://learn.chatgpt.com/docs/feature-maturity.md> の区分表全体、<https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `beta` / `experimental` / `preview`。成熟度表は**閉じた情報源**だが Code Review の行自体が無いため、区分の割り当ては**存在しない** | A | 2026-08-15 | 公式に未文書化 |
+| その他 | サンドボックスの承認自動レビュー(`Auto-review`)は同名だが別機能 | <https://learn.chatgpt.com/docs/sandboxing/auto-review.md>(`llms.txt` のページ一覧に掲載。本調査では本文未取得) | A | 2026-08-15 | 未調査 |
+| その他 | Codex は Linear / Slack からも起動でき、GitHub 以外の起動面が存在する | <https://learn.chatgpt.com/docs/third-party/linear.md>、<https://learn.chatgpt.com/docs/third-party/slack.md> | A | 2026-08-15 | 未調査 |
+| その他 | レビュー完了時の通知経路(メール・デスクトップ通知等)が Codex Cloud のレビューに適用されるか | <https://learn.chatgpt.com/docs/notifications.md>(`llms.txt` のページ一覧に掲載。本調査では本文未取得) | A | 2026-08-15 | 未調査 |
+| その他 | Hooks が Codex Cloud のレビュー実行に掛かるか | <https://learn.chatgpt.com/docs/hooks.md>(同上) | A | 2026-08-15 | 未調査 |
+| その他 | レビュー実行時のサンドボックス権限モードの扱い | <https://learn.chatgpt.com/docs/permissions.md>、<https://learn.chatgpt.com/docs/permission-modes.md>、<https://learn.chatgpt.com/docs/agent-approvals-security.md>(同上) | A | 2026-08-15 | 未調査 |
+| その他 | 誰が Codex code review 設定を変更できるかのワークスペース権限定義 | <https://learn.chatgpt.com/docs/enterprise/roles-and-workspace-permissions.md>、<https://learn.chatgpt.com/docs/enterprise/governance.md>、<https://learn.chatgpt.com/docs/security-administration.md>(同上) | A | 2026-08-15 | 未調査 |
+| その他 | Codex SDK でレビューを自前実装する経路(Automatic Reviews とは別) | <https://learn.chatgpt.com/docs/codex-sdk.md>、<https://developers.openai.com/cookbook/examples/codex/build_code_review_with_codex_sdk>(同上) | A | 2026-08-15 | 未調査 |
+| その他 | 用語定義(`cloud chat` / `task` / `review` の公式な区別) | <https://learn.chatgpt.com/docs/glossary.md>(同上) | A | 2026-08-15 | 未調査 |
+| その他 | 長時間実行タスクの扱いがレビューのタイムアウトに関係するか | <https://learn.chatgpt.com/docs/long-running-work.md>(同上) | A | 2026-08-15 | 未調査 |
+| その他 | Codex Security の CLI / plugin / workbench 系(全16ページ)は Security Review と隣接するが本調査では未取得 | <https://learn.chatgpt.com/llms.txt> の `## Security` 節に列挙された各ページ(`security/cli.md`、`security/plugin.md`、`security/setup.md`、`security/faq.md`、`security/threat-model.md` ほか) | A | 2026-08-15 | 未調査 |
+
+## 出力パターン
+
+| 面 | フィールド | 逐語文字列 | 意味する状態 | 出典(URL・観測環境の文脈) | 等級 | 確認日 | 状態 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| PR review(`pulls/{n}/reviews`) | `body` 冒頭 | `### 💡 Codex Review` | 正常・指摘あり | <https://github.com/can1357/oh-my-pi/pull/6401> ほか150件の公開PR横断。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| PR review | `body` 2行目 | `Here are some automated review suggestions for this pull request.` | 正常・サマリ文 | 同上 | C2 | 2026-08-15 | 確認済み |
+| PR review | `body` | ``**Reviewed commit:** `83a49c79be` `` | 対象コミットの明示 | 同上 | C2 | 2026-08-15 | 確認済み |
+| PR review | `body` の `state` | `COMMENTED` | レビュー種別(承認でも変更要求でもない) | 同上。review 1036件すべて | C2 | 2026-08-15 | 確認済み |
+| PR review | `body` | (空文字) | inline comment のみを伴う実行 | 同上。review 1036件中5件 | C2 | 2026-08-15 | 確認済み |
+| PR review | `body` 内 `<details>` の `<summary>` | `ℹ️ About Codex in GitHub` | 折りたたみ説明の見出し | 同上 | C2 | 2026-08-15 | 確認済み |
+| PR review | `<details>` 本文(変種A) | `Codex has been enabled to automatically review pull requests in this repo. Reviews are triggered when you` | 発火契機の説明 | <https://github.com/can1357/oh-my-pi/pull/6401>。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| PR review | `<details>` 本文(変種B) | `[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you` | 発火契機の説明(組織設定時) | 150件横断コーパス。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| PR review | `<details>` 本文 | `- Open a pull request for review` | 発火契機1 | 同上 | C2 | 2026-08-15 | 確認済み |
+| PR review | `<details>` 本文 | `- Mark a draft as ready` | 発火契機2 | 同上 | C2 | 2026-08-15 | 確認済み |
+| PR review | `<details>` 本文 | `- Comment "@codex review".` | 発火契機3 | 同上 | C2 | 2026-08-15 | 確認済み |
+| PR review | `<details>` 本文 | `If Codex has suggestions, it will comment; otherwise it will react with 👍.` | 指摘0件時の挙動の説明 | 同上 | C2 | 2026-08-15 | 確認済み |
+| PR review | `<details>` 本文 | `When you [sign up for Codex through ChatGPT](https://openai.com/codex), Codex can also answer questions or update the PR, like "@codex address that feedback".` | 追加機能の案内(未契約者向け) | 同上 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 末尾 | `Codex can also answer questions or update the PR. Try commenting "@codex address that feedback".` | 追加機能の案内(契約者向け) | 同上。296件 | C2 | 2026-08-15 | 確認済み |
+| inline comment(`pulls/{n}/comments`) | `body` 冒頭 | `**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  <所見タイトル>**`(`</sub>` と所見タイトルの間は半角空白2つ) | P1所見の見出し | 50件の公開PRから収集した inline comment 459件中164件。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| inline comment | `body` 冒頭 | `**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  <所見タイトル>**`(同じく半角空白2つ) | P2所見の見出し | 同上。293件 | C2 | 2026-08-15 | 確認済み |
+| inline comment | `body` 冒頭 | `**<sub><sub>![P3 Badge](https://img.shields.io/badge/P3-lightgrey?style=flat)</sub></sub>  <所見タイトル>**`(同じく半角空白2つ) | P3所見の見出し | 同上。2件 | C2 | 2026-08-15 | 確認済み |
+| inline comment | `body` 末尾 | `Useful? React with 👍 / 👎.` | フィードバック導線 | 同上。459件すべて | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Delightful!` | 正常・指摘0件 | 150件横断コーパス。23件。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Swish!` | 正常・指摘0件 | 同上。22件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Bravo.` | 正常・指摘0件 | 同上。22件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. :rocket:` | 正常・指摘0件 | 同上。22件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Keep it up!` | 正常・指摘0件 | 同上。21件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Already looking forward to the next diff.` | 正常・指摘0件 | 同上。21件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. You're on a roll.` | 正常・指摘0件 | 同上。20件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Chef's kiss.` | 正常・指摘0件 | 同上。20件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. :+1:` | 正常・指摘0件 | 同上。20件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Can't wait for the next one!` | 正常・指摘0件 | 同上。19件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. :tada:` | 正常・指摘0件 | 同上。19件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Nice work!` | 正常・指摘0件 | 同上。18件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. More of your lovely PRs please.` | 正常・指摘0件 | 同上。18件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. What shall we delve into next?` | 正常・指摘0件 | 同上。17件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Breezy!` | 正常・指摘0件 | 同上。17件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Another round soon, please!` | 正常・指摘0件 | 同上。16件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Hooray!` | 正常・指摘0件 | 同上。15件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Didn't find any major issues. Keep them coming!` | 正常・指摘0件 | 同上。14件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `You have reached your Codex usage limits for code reviews. You can see your limits in the [Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage).` | レート制限・未実行(アカウント枠) | 同上。8件。`nats-io/jsm.go`、`szl-holdings/docs-site` ほか。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 2行目(変種A) | `To continue using code reviews, you can upgrade your account or add credits to your account and enable them for code reviews in your [settings](https://chatgpt.com/codex/cloud/settings/code-review).` | レート制限時の復旧案内 | 同上。3件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 2行目(変種B) | `To continue using code reviews, add credits to your account and enable them for code reviews in your [settings](https://chatgpt.com/codex/cloud/settings/code-review).` | レート制限時の復旧案内 | 同上。5件。`szl-holdings/docs-site#69` | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex usage limits have been reached for code reviews. Please check with the admins of this repo to increase the limits by adding credits.` | レート制限・未実行(リポジトリ枠) | 同上。5件。`can1357/oh-my-pi`、`trymirai/uzu`。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 2行目(変種A) | `Repo admins can enable using credits for code reviews in their [settings](https://chatgpt.com/codex/cloud/settings/code-review).` | リポジトリ枠超過時の復旧案内 | <https://github.com/can1357/oh-my-pi/pull/6401>。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 2行目(変種B) | `Credits must be used to enable repository wide code reviews.` | リポジトリ全体レビューにクレジットが必要 | <https://github.com/trymirai/uzu/pull/704>。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Codex Review: Something went wrong. Try again later by commenting “@codex review”.` | エラー(引用符は全角の左右引用符) | 150件横断コーパス。9件。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| issue comment | エラー直後のコードフェンス内 | `Unknown error` | エラー原因が特定されていない | 同上。8件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | エラー直後のコードフェンス内 | `Provided git ref cbf884b9cf75ba123c6e28595e981c269a913088 does not exist` | 対象コミットが消えている(force push 等) | 同上。1件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 全文 | `To use Codex here, [create a Codex account and connect to github](https://chatgpt.com/codex/cloud/settings/connectors).` | 未接続・未実行 | 同上。94件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 全文 | `To use Codex here, [create an environment for this repo](https://chatgpt.com/codex/cloud/settings/environments).` | 環境未作成・未実行 | 同上。1件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` 冒頭 | `Security review completed. No security issues were found in this pull request.` | Security Review 正常・指摘0件 | 同上。14件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` | `[View security finding report](https://chatgpt.com/codex/cloud/tasks/task_e_6a7cafa6324c83299f3be42ddc7b96bf)` | Security Report へのリンク | 同上 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `body` | `_Only the user who started this review can view the report in Codex._` | レポートの閲覧制限 | 同上。14件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `<details>` の `<summary>` | `ℹ️ About Codex security reviews in GitHub` | Security Review 説明の見出し | 同上 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `<details>` 本文 | `This is an experimental Codex feature. Security reviews are triggered when:` | research preview の明示 | 同上。14件 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `<details>` 本文 | `- You comment "@codex security review"` | Security Review 発火契機1 | 同上 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `<details>` 本文 | `- A regular code review gets triggered (for example, "@codex review" or when a PR is opened), and you’re opted in so security review runs alongside code review` | Security Review 発火契機2(アポストロフィは全角右引用符) | 同上 | C2 | 2026-08-15 | 確認済み |
+| issue comment | `<details>` 本文 | `Once complete, Codex will leave suggestions, or a comment if no findings are found.` | Security Review の完了時挙動 | 同上。14件 | C2 | 2026-08-15 | 確認済み |
+| PR review | `body` 冒頭 | `### 💡 Codex Security Review` | Security Review・指摘あり | 同上。1件 | C2 | 2026-08-15 | 確認済み |
+| PR review | `body` 2行目 | `Here are some automated security review suggestions for this pull request.` | Security Review・サマリ文 | 同上 | C2 | 2026-08-15 | 確認済み |
+| reaction(`issues/comments/{id}/reactions`) | `content` | `eyes` | 受付・実行開始(👀) | <https://learn.chatgpt.com/docs/third-party/github.md> "Wait for Codex to react (👀) and post a review." および観測 <https://github.com/avala-ai/4dgs> comment 5286396363。public、プラン表記なし、観測日 2026-08-15 | A | 2026-08-15 | 確認済み |
+| reaction | `content` | `+1` | 指摘0件(👍) | <https://learn.chatgpt.com/docs/third-party/github.md> には記載がなく、ボットの `<details>` 文言 `If Codex has suggestions, it will comment; otherwise it will react with 👍.` にのみ現れる。実測サンプルでは 0件通知が issue comment として出ており reaction 単独のケースは未観測。public、プラン表記なし、観測日 2026-08-15 | C2 | 2026-08-15 | 確認済み |
+| PR コメント(人間側) | 手動トリガ | `@codex review` | レビュー依頼 | <https://learn.chatgpt.com/docs/third-party/github.md> | A | 2026-08-15 | 確認済み |
+| PR コメント(人間側) | 手動トリガ | `@codex security review` | Security Review 依頼 | 同上 | A | 2026-08-15 | 確認済み |
+| PR コメント(人間側) | 観点付きトリガ | `@codex review for issues in the database migration` | 一回限りの観点指定 | 同上 | A | 2026-08-15 | 確認済み |
+| PR コメント(人間側) | 修正依頼 | `@codex fix the P1 issue` | 指摘の修正依頼(cloud chat 起動) | 同上 | A | 2026-08-15 | 確認済み |
+| PR コメント(人間側) | 任意タスク | `@codex fix the CI failures` | review 以外のタスク(cloud chat 起動) | 同上 | A | 2026-08-15 | 確認済み |
+| check run / commit status | — | (出力なし) | Codex は check run も commit status も作らない | `gh api apps/chatgpt-codex-connector` の権限が `checks: read` / `statuses: read`(**閉じた情報源**)。観測でも PR head SHA の `/check-runs` と `/status` が空 | B | 2026-08-15 | 確認済み |
+| annotation | — | (出力なし) | annotation は check run 経由でしか作れないため出ない | 同上 | B | 2026-08-15 | 確認済み |
+
+## 出力の構造
+
+文言よりも構造のほうが安定しているため、判定に使える構造要素を別に記録する。
+
+- **見出し(review body 冒頭)** — `### 💡 Codex Review` / `### 💡 Codex Security Review`。`###` レベル、絵文字 `💡` を含む
+- **接頭辞(issue comment 冒頭)** — `Codex Review:` が正常0件とエラーの共通接頭辞。
+  半角空白を1つ挟んで続く語で分岐する(`Didn't find any major issues.` / `Something went wrong.`)
+- **固定セクション名** — ``**Reviewed commit:** `83a49c79be` `` の形。太字ラベルの後に半角空白1つ、
+  続けてバッククォート囲みの短縮SHA(10桁)。review / 0件通知 / Security Review 完了通知に共通で現れる
+- **折りたたみブロック** — `<details> <summary>ℹ️ About Codex in GitHub</summary>` および
+  `<details> <summary>ℹ️ About Codex security reviews in GitHub</summary>`。
+  `<summary>` 直後に `<br/>` が入る
+- **重大度マーカー** — `![P<N> Badge](https://img.shields.io/badge/P<N>-<color>?style=flat)` を
+  `**<sub><sub>` と `</sub></sub>` で挟む。色は P1=`orange` / P2=`yellow` / P3=`lightgrey`。
+  閉じ `</sub></sub>` の直後に半角空白2つを挟んで所見タイトルが続き、`**` で閉じる
+- **所見の位置指定** — review body 埋め込み型では所見の直前に GitHub blob permalink
+  (`https://github.com/<owner>/<repo>/blob/<sha>/<path>#L<n>`)を単独行で置く
+- **フィードバック導線** — inline comment の末尾は必ず `Useful? React with 👍 / 👎.`
+- **エラー詳細** — `Codex Review: Something went wrong.` の次に言語指定なしのコードフェンスが来て、
+  その中に素の原因文字列が入る
+- **HTMLコメント等の機械可読マーカーは存在しない** — 収集した全出力に `<!-- -->` は0件。
+  判定は上記の見出し・接頭辞・固定セクション名に依存するしかない
+
+## 網羅性パス
+
+### 公式ドキュメントの目次
+
+正本は <https://learn.chatgpt.com/llms.txt>(ページ一覧。`.md` を付けると各ページのMarkdownが取れる)。
+節見出しは次の通り。Documentation Sets / Administration / Agent Approvals Security / Agent Configuration /
+Amazon Bedrock / App / App Server / Appshots / Artifacts Viewer / Auth / Automations / Browser / Build Plugins /
+Build Skills / Chrome Extension / CLI / CLI Customization / Cloud / Code Review / Codex SDK / Community /
+Computer Use / Config File / Configuration / Custom Prompts / Customization / Cyber Safety / Developers /
+Enterprise / Environments / Extend / Feature Maturity / Features / Get Started With Work / GitHub Action /
+Glossary / Guides / Hooks / IDE / Image Generation / Image Inputs / Import / Integrated Terminal / Learn /
+Linux / Long Running Work / MCP Server / Models / Non Interactive Mode / Notifications / Open Source /
+Overview / Permission Modes / Permissions / Personalize / Pets / Plugins / Pricing / Projects / Prompting /
+Quickstart / Reference / Remote / Remote Connections / Resources / Sandboxing / Security /
+Security Administration / Sites / Skills And Plugins / Third Party / Use ChatGPT / Videos / Visualizations /
+Web / Web Search / What's New / Windows。
+
+本単位の一次情報は `Third Party` 節の <https://learn.chatgpt.com/docs/third-party/github.md> 1ページに集約されている。
+
+### 設定項目の一覧
+
+公開ドキュメントから確認できる設定項目は次のとおり。Code Review 設定の網羅スキーマは公開されていないため、
+この一覧自体が閉じている保証はない。
+
+| 設定項目 | 所在 | 取りうる値 | 台帳での扱い |
+| --- | --- | --- | --- |
+| **Code review**(リポジトリ単位の有効化) | `https://chatgpt.com/codex/settings/code-review` | ON / OFF | 軸2に行あり |
+| **Automatic reviews** | 同上 | ON / OFF | 軸1・軸2に行あり |
+| review trigger settings | 同上 | 選択肢は非公開 | 軸2に `公式に未文書化` の行あり |
+| Security Review の対象PR(**Repository preferences**) | 同上 | `Follow personal` / `Review all PRs` / `Review team PRs` | 軸2に行あり |
+| Security Review の実行タイミング | 同上 | `On PR open` / `Every push` / `Whenever code review runs` | 軸2に行あり |
+| Security Review の報告閾値 | 同上 | 自動は既定 High / Critical、手動は既定 Medium / High / Critical。パス単位の上書き可 | 軸2に行あり |
+| code reviews へのクレジット使用の有効化 | 同上 | ON / OFF(ボットの文言から所在を確認) | 軸7に行あり |
+| レビュー観点 | リポジトリ内 `AGENTS.md` の `## Code Review Rules` | 自由記述のMarkdown | 軸4に行あり |
+| 一回限りの観点 | PRコメント本文 | 自由記述の自然言語 | 軸4に行あり |
+| ローカル設定ファイル | `config.toml` / `requirements.toml` | GitHub レビュー関連キーは**存在しない** | 軸11に行あり |
+
+### 台帳が触れていなかった項目とその処置
+
+目次のうち本単位に関係しうるにもかかわらず台帳が触れていなかった項目は次のとおり。すべて行にした。
+
+- Agent Configuration / Rules(`.rules`) → **調べて足した**(軸4。レビュー観点ではなくコマンド実行制御と判明)
+- Feature Maturity → **調べて足した**(その他。`research preview` は公式の4段階区分の外)
+- GitHub Action → **調べて足した**(その他。別経路であることを確定)
+- Config File / Configuration Reference → **調べて足した**(軸11。GitHubレビュー関連キーが存在しないことを確定)
+- Cloud / Agent internet access → **調べて足した**(軸3)
+- Enterprise / usage-limits → **調べて足した**(軸7)
+- Enterprise / compliance-api → **調べて足した**(軸10。`取得不能`)
+- Environments / Cloud environments → **調べて足した**(軸2)
+- Reference / Troubleshooting → **調べて足した**(軸6。GitHubレビューの状態文言が無いことを確定)
+- Models → **調べて足した**(軸2。レビュー用モデルが非公開)
+- Notifications / Hooks / Permissions / Permission Modes / Agent Approvals Security /
+  Enterprise の権限系 / Codex SDK / Glossary / Long Running Work / Sandboxing の Auto-review /
+  Third Party の Linear・Slack / Security の CLI・plugin 系16ページ → **`未調査` として行にした**
+
+明らかに別単位(ChatGPT本体のUI・音声・画像生成・ブラウザ・デスクトップアプリ等)である次の節は、
+Codex Cloud の GitHub 自動レビューに接続する記述を持たないため台帳の行にしていない ——
+App / Appshots / Artifacts Viewer / Automations / Browser / Chrome Extension / Computer Use /
+Customization / Image Generation / Image Inputs / Import / Integrated Terminal / Linux / Personalize /
+Pets / Projects / Sites / Use ChatGPT / Videos / Visualizations / Web / Web Search / Windows /
+Amazon Bedrock / Get Started With Work / Quickstart / Resources / Guides / Community / Open Source。
+
+### 公式ドキュメントに現れる状態文言のうち、出力パターン表に無かったもの
+
+- `Wait for Codex to react (👀) and post a review.` → 👀 の行として**出力パターン表にあり**
+- `If Codex has suggestions, it will comment; otherwise it will react with 👍.`(ボット出力)→ **表にあり**
+- `Codex reacts while the review is running, then posts security findings directly on the pull request.`
+  → 逐語の出力文字列ではなく挙動の記述のため、**軸6の行として台帳本体に足した**
+- `If Codex doesn't react or post a review:`(トラブルシュート節の見出し)
+  → 未実行の兆候を不在で定義する記述のため、**軸6の行として台帳本体に足した**
+- 公式ドキュメントには、レート制限・エラー・キュー待ち・実行中・対象ファイルなしの逐語文言が
+  **1つも掲載されていない**。検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、
+  <https://learn.chatgpt.com/docs/reference/troubleshooting.md> の全17見出し、
+  <https://learn.chatgpt.com/docs/pricing.md>。散文の解説ページ(**開いた情報源**)での不在のため
+  「文書化されていない」にとどまる。出力パターン表の当該行がすべて等級 C2 なのはこのため
