@@ -377,7 +377,7 @@ describe("countRealFixes: table format (#243)", () => {
     expect(countRealFixes(text)).toBe(0);
   });
 
-  it("does not double-count when both heading+list and table formats appear in the same text (negative)", () => {
+  it("sums heading+list and table counts independently without either scan re-counting the other's rows (negative)", () => {
     const text = [
       "**本物の修正**",
       "1. 直した",
