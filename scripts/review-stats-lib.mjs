@@ -190,12 +190,18 @@ const countHeadingListRealFixes = (text) => {
 // 超線形になりうる)ため、prefix切り出し→残り部分の単純判定という手続き的な形に分ける。
 const REAL_FIX_PREFIX = /^\*{0,2}本物の修正/;
 const REAL_FIX_MULTIPLIER = /^×(\d+)$/;
-const REAL_FIX_ANNOTATION = /^\([^)]*\)$/;
+const REAL_FIX_ANNOTATION = /^\(([^)]*)\)$/;
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
+// 括弧の中身を問わず1件と数めると、「(要検討)」「(保留)」のようなまだ確定していない
+// ことを示す注記まで無条件に1件扱いになり、fail-closedの効果がこの経路だけ効かなくなる
+// (CodeRabbitの指摘・2026-08-14)。実際に観測された確定表記だけを許可リストにする。
+// 新しい確定表記が実際に使われたら、ここに追加する。
+const KNOWN_ANNOTATIONS = new Set(["自己訂正"]);
+
 // PO/実装者が実際に書いている形(実例: PR #225「本物の修正」「本物の修正×2」
-// 「本物の修正(自己訂正)」)だけを1件として数える。それ以外の後置(地の文の継続など)は
-// 「本物の修正」への言及はあるが構造化できなかったものとして0を返す
+// 「本物の修正(自己訂正)」)だけを1件として数える。それ以外の後置(地の文の継続、
+// 未知の注記など)は「本物の修正」への言及はあるが構造化できなかったものとして0を返す
 // (呼び出し元がrealFixUnparsableの判定に使う)。
 const parseRealFixCell = (rawCell) => {
   const prefixMatch = REAL_FIX_PREFIX.exec(rawCell);
@@ -205,7 +211,8 @@ const parseRealFixCell = (rawCell) => {
   if (rest === "") return 1;
   const multiplierMatch = REAL_FIX_MULTIPLIER.exec(rest);
   if (multiplierMatch !== null) return Number(multiplierMatch[1]);
-  if (REAL_FIX_ANNOTATION.test(rest)) return 1;
+  const annotationMatch = REAL_FIX_ANNOTATION.exec(rest);
+  if (annotationMatch !== null && KNOWN_ANNOTATIONS.has(annotationMatch[1])) return 1;
   return 0;
 };
 

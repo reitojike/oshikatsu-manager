@@ -431,6 +431,18 @@ describe("countRealFixes: 分類列限定・セル書式の判定 (#243)", () =>
     ].join("\n");
     expect(countRealFixes(text)).toBe(5);
   });
+
+  it("rejects an unconfirmed parenthetical annotation such as (要検討)/(保留) (negative)", () => {
+    // claude-reviewの指摘: 括弧の中身を問わず1件と数めていたため、まだ確定していない
+    // ことを示す注記まで無条件に本物の修正として数えてしまっていた。
+    const text = [
+      "| # | 分類 |",
+      "| --- | --- |",
+      "| 1 | 本物の修正(要検討) |",
+      "| 2 | 本物の修正(保留) |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
 });
 
 describe("countRealFixes: PR #225 fixture regression (#243)", () => {
