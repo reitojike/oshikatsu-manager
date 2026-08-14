@@ -304,6 +304,14 @@ const countTableRealFixes = (text) => {
     // 2026-08-14)。比較前に、末尾区切りが作る空セルだけを取り除く。
     if (cells[cells.length - 1] === "") cells.pop();
     if (classificationColumnIndex === null) {
+      // 次の行が区切り行(`| --- | --- |`)であることを確認してからでないと、この行を
+      // ヘッダとして確定させない。確認前にclassificationColumnIndexを立てると、区切り行を
+      // 欠いた(=Markdownの表として成立していない)行の並びまで表として解析してしまい、
+      // 実際にある「本物の修正」への言及をgenuine 0件と誤認する(CodeRabbitの指摘・
+      // 2026-08-14)。区切り行が無ければヘッダ候補ごと未構造化のまま全体フォールバックに
+      // 委ねる(このifを素通りしてforEachの次の行へ進むだけで、状態は変えない)。
+      const nextLine = (lines[index + 1] ?? "").trim();
+      if (!TABLE_SEPARATOR_ROW.test(nextLine)) return;
       classificationColumnIndex = cells.indexOf("分類");
       headerCellCount = cells.length;
       coveredLines.add(index);

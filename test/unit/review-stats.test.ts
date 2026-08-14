@@ -445,6 +445,23 @@ describe("countRealFixes: table format robustness against malformed rows (#243)"
   });
 });
 
+describe("countRealFixes: 区切り行を欠いた表は表として扱わない (#243)", () => {
+  it("does not treat a header-like row as a table header without a following separator row (negative)", () => {
+    // CodeRabbitの指摘(2026-08-14): 次の行が区切り行(`| --- | --- |`)であることを
+    // 確認せずにヘッダを確定させると、区切り行を欠いた(=Markdownの表として成立して
+    // いない)行の並びまで表として解析してしまい、実際にある「本物の修正」への言及を
+    // genuine 0件と誤認していた(区切り行が無ければ表として認識せず、全体フォールバックに
+    // 委ねて判定不能に上げる必要がある)。
+    const text = ["| # | 分類 |", "| 1 | 本物の修正 |"].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
+  });
+});
+
 describe("countRealFixes: 分類列限定・セル書式の判定 (#243)", () => {
   it("counts only the 分類 column, not a description column that happens to start with 本物の修正 (negative)", () => {
     // /code-reviewのセルフレビューで発見: 全セルを無条件に走査すると、分類列以外の
