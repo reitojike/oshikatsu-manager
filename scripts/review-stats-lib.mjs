@@ -173,12 +173,14 @@ const REAL_FIX_MENTION = /本物の修正/;
 const countHeadingListRealFixes = (text) => {
   const lines = text.split(/\r?\n/);
   let inSection = false;
+  let hasStructure = false;
   let count = 0;
   let hasUnparsedMention = false;
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (REAL_FIX_HEADING.test(line)) {
       inSection = true;
+      hasStructure = true;
       continue;
     }
     if (inSection && HEADING_LIKE.test(line)) {
@@ -189,7 +191,7 @@ const countHeadingListRealFixes = (text) => {
     if (NUMBERED_ITEM.test(line)) count += 1;
     else if (line !== "" && REAL_FIX_MENTION.test(line)) hasUnparsedMention = true;
   }
-  return { count, hasUnparsedMention };
+  return { count, hasUnparsedMention, hasStructure };
 };
 
 // 表形式の分類記録(実例: PR #225「レビュー巡の記録」)。「分類」列のセル値が
@@ -238,10 +240,21 @@ const parseRealFixCell = (rawCell) => {
 // あっても取り違えない。セルごとにhasUnparsedMentionも判定する(理由は
 // countHeadingListRealFixesと同じ。claude-reviewの指摘・2026-08-14: 同じテキスト内の
 // 別の行が正しく数えられていると、この行の未パースが握りつぶされていた)。
+// 「分類」列が特定できているデータ行1件を判定する(ヘッダ行・列不明の表は
+// countTableRealFixes側でスキップ済み)。ループ本体の分岐を減らすための切り出し。
+const parseTableDataRow = (cells, classificationColumnIndex) => {
+  if (classificationColumnIndex === -1) return { count: 0, hasUnparsedMention: false };
+  const cell = cells[classificationColumnIndex];
+  if (cell === undefined) return { count: 0, hasUnparsedMention: false };
+  const cellCount = parseRealFixCell(cell);
+  return { count: cellCount, hasUnparsedMention: cellCount === 0 && REAL_FIX_MENTION.test(cell) };
+};
+
 const countTableRealFixes = (text) => {
   const lines = text.split(/\r?\n/);
   let count = 0;
   let hasUnparsedMention = false;
+  let hasStructure = false;
   let classificationColumnIndex = null;
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -253,27 +266,35 @@ const countTableRealFixes = (text) => {
     const cells = line.split("|").map((cell) => cell.trim());
     if (classificationColumnIndex === null) {
       classificationColumnIndex = cells.indexOf("分類");
+      if (classificationColumnIndex !== -1) hasStructure = true;
       continue;
     }
-    if (classificationColumnIndex === -1) continue;
-    const cell = cells[classificationColumnIndex];
-    if (cell === undefined) continue;
-    const cellCount = parseRealFixCell(cell);
-    count += cellCount;
-    if (cellCount === 0 && REAL_FIX_MENTION.test(cell)) hasUnparsedMention = true;
+    const row = parseTableDataRow(cells, classificationColumnIndex);
+    count += row.count;
+    if (row.hasUnparsedMention) hasUnparsedMention = true;
   }
-  return { count, hasUnparsedMention };
+  return { count, hasUnparsedMention, hasStructure };
 };
 
 // 見出し+番号付きリストと表、両方の集計を合わせる。count・hasUnparsedMentionとも
 // 行(項目)単位で判定した結果を合算するため、一方の形式にだけ未パースな言及があっても
 // もう一方の正しく数えられた分に隠れて握りつぶされない。
+//
+// どちらかの構造(本物の修正見出し・分類列を持つ表)が実際に見つかった場合は、その構造の
+// 行/セル単位の判定だけを信用し、テキスト全体を再スキャンしない。全体を再スキャンすると、
+// 「分類」列以外のセルや構造の外側にある無関係な地の文の「本物の修正」という語まで
+// 拾ってしまい、分類列限定の原則(countTableRealFixesのコメント参照)をfail-closed側で
+// 迂回してしまう(claude-reviewの指摘・2026-08-14、3巡目)。構造が一切見つからない
+// テキスト(見出しも表も無い地の文だけの言及)のときだけ、テキスト全体を対象にする。
 const analyzeRealFixes = (text) => {
   const heading = countHeadingListRealFixes(text);
   const table = countTableRealFixes(text);
+  const hasStructure = heading.hasStructure || table.hasStructure;
   return {
     count: heading.count + table.count,
-    hasUnparsedMention: heading.hasUnparsedMention || table.hasUnparsedMention,
+    hasUnparsedMention: hasStructure
+      ? heading.hasUnparsedMention || table.hasUnparsedMention
+      : REAL_FIX_MENTION.test(text),
   };
 };
 
@@ -292,12 +313,7 @@ export const summarizeClassification = ({ prBody, issueComments, botLogins }) =>
   const hasRecord = humanTexts.some((text) => CLASSIFICATION_VOCABULARY.test(text));
   const perText = humanTexts.map((text) => analyzeRealFixes(text));
   const realFixCount = perText.reduce((sum, entry) => sum + entry.count, 0);
-  // 行・セル単位でhasUnparsedMentionを判定済みのperTextに加えて、どちらの構造(見出し+
-  // リスト・表)にも一切当てはまらない地の文だけの言及(構造そのものが無いケース)も拾う。
-  const realFixUnparsable = perText.some(
-    (entry, index) =>
-      entry.hasUnparsedMention || (entry.count === 0 && REAL_FIX_MENTION.test(humanTexts[index])),
-  );
+  const realFixUnparsable = perText.some((entry) => entry.hasUnparsedMention);
   return { hasRecord, realFixCount, realFixUnparsable };
 };
 

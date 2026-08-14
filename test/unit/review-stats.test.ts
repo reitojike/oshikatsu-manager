@@ -503,7 +503,9 @@ describe("realFixUnparsable: fail-closed distinction between 0件 and 判定不�
     });
     expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: false });
   });
+});
 
+describe("realFixUnparsable: 複数テキスト・複数行にまたがる握りつぶしを防ぐ (#243)", () => {
   it("stays true even when a different human text's count makes the PR total non-zero (negative)", () => {
     // claude-reviewの指摘: PR全体を合算してから0判定すると、prBodyの表形式で1件正しく
     // 数えられた場合、別のissueCommentにある未パースの言及(地の文)が握りつぶされ、
@@ -546,6 +548,24 @@ describe("realFixUnparsable: fail-closed distinction between 0件 and 判定不�
       botLogins: TARGET_BOTS,
     });
     expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
+  });
+
+  it("is false when the 分類 column resolves cleanly even if another column mentions 本物の修正 (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、3巡目): hasUnparsedMentionのフォールバックが
+    // テキスト全体を再スキャンしていたため、「分類」列は明確に0件(見送り)と読み取れて
+    // いても、無関係な別の列(指摘概要等)にある「本物の修正」という語のせいで
+    // 判定不能扱いになっていた。分類列限定の原則はhasUnparsedMention側でも守る必要がある。
+    const text = [
+      "| # | 分類 | 指摘概要 |",
+      "| --- | --- | --- |",
+      "| 1 | 見送り | 本物の修正が必要か再検討中 |",
+    ].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: false });
   });
 });
 
