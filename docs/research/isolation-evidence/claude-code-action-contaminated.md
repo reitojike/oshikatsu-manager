@@ -1,4 +1,15 @@
-# claude-code-action 仕様台帳
+# claude-code-action 仕様台帳(隔離破れ版・納品物ではない)
+
+> **これは納品物ではない。**この版を書いたエージェントは、調査の途中で共有の一時ディレクトリに対して
+> 広域の再帰grepを実行し、その出力に我々の運用に関する内容(Issue #252 本文の1行、`model-routing` の
+> フェイルオーバー規則、`pr-review-flow` への参照、我々のPR本文、
+> 「`claude-review.yml` を変更するPRではClaude actionが実レビューせず `success` になる」という
+> 我々の観測結果)が混入した。混入は tool_result 1件・grep出力28行で、台帳を書く前の時点である。
+>
+> **行ごとの再検証では「何を書いたか」は検証できても「何に注目したか」の偏りは検出できない**ため、
+> 隔離された新しいエージェントで作り直し、この版は**測定器として**残す。
+> 新版 `docs/research/review-tools/claude-code-action.md` との差分が、
+> 混入が結果に効いたかどうかの観測になる。差分の結果は Issue #252 にコメントする。
 
 調査対象は GitHub Action `anthropics/claude-code-action`(公開リポジトリ)の公開仕様。一次情報は同リポジトリの
 `action.yml`(inputs/outputs 定義)、`README.md`・`docs/**/*.md`、公開ソース(TypeScript)、および第三者公開リポジトリでの実測。
