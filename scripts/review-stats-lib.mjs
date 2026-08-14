@@ -180,23 +180,38 @@ const countHeadingListRealFixes = (text) => {
 
 // 表形式の分類記録(実例: PR #225「レビュー巡の記録」)。「分類」列のセル値が
 // `本物の修正`単体、または`本物の修正×2`のように乗数を伴う(1回の指摘に複数件の
-// 修正が対応する場合の表記。見出し+番号付きリスト形式には無い概念)。
-// 表構造(ヘッダ・区切り行の位置)は解析せず、`|`で始まる行の各セルを独立に走査する
-// (見出し+番号付きリスト用のパーサーとは判定対象の行の形が重ならないため、二重集計しない)。
-const TABLE_REAL_FIX_CELL = /^\*{0,2}本物の修正(?:×(\d+))?/;
+// 修正が対応する場合の表記。見出し+番号付きリスト形式には無い概念)。`×`の前の空白は
+// 許容する(`本物の修正 ×2`のような表記ゆれも数える。/code-reviewのセルフレビューで発見)。
+const TABLE_REAL_FIX_CELL = /^\*{0,2}本物の修正\s*(?:×(\d+))?/;
+const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
+// 「分類」列だけを対象にする(全セルを無条件に走査しない)。ヘッダ行から「分類」列の
+// 位置を特定し、以降のデータ行はその列だけを見る。全セル走査だと、指摘概要・対応列に
+// たまたま「本物の修正」で始まる説明文があるだけで誤集計する(/code-reviewのセルフレビューで
+// 発見。例: 「本物の修正が必要か再検討中」という説明文が分類欄以外にあるケース)。
+// 表を抜けた(`|`で始まらない行が来た)ら列位置をリセットし、複数の表が同じテキストに
+// あっても取り違えない。
 const countTableRealFixes = (text) => {
   const lines = text.split(/\r?\n/);
   let count = 0;
+  let classificationColumnIndex = null;
   for (const rawLine of lines) {
     const line = rawLine.trim();
-    if (!line.startsWith("|")) continue;
-    for (const rawCell of line.split("|")) {
-      const cell = rawCell.trim();
-      const match = TABLE_REAL_FIX_CELL.exec(cell);
-      if (match === null) continue;
-      count += match[1] === undefined ? 1 : Number(match[1]);
+    if (!line.startsWith("|")) {
+      classificationColumnIndex = null;
+      continue;
     }
+    if (TABLE_SEPARATOR_ROW.test(line)) continue;
+    const cells = line.split("|").map((cell) => cell.trim());
+    if (classificationColumnIndex === null) {
+      classificationColumnIndex = cells.indexOf("分類");
+      continue;
+    }
+    if (classificationColumnIndex === -1) continue;
+    const cell = cells[classificationColumnIndex];
+    const match = cell === undefined ? null : TABLE_REAL_FIX_CELL.exec(cell);
+    if (match === null) continue;
+    count += match[1] === undefined ? 1 : Number(match[1]);
   }
   return count;
 };

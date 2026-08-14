@@ -388,6 +388,28 @@ describe("countRealFixes: table format (#243)", () => {
     ].join("\n");
     expect(countRealFixes(text)).toBe(3);
   });
+
+  it("counts only the 分類 column, not a description column that happens to start with 本物の修正 (negative)", () => {
+    // /code-reviewのセルフレビューで発見: 全セルを無条件に走査すると、分類列以外の
+    // 説明文がたまたま「本物の修正」で始まるだけで誤集計する。
+    const text = [
+      "| # | 分類 | 指摘概要 |",
+      "| --- | --- | --- |",
+      "| 1 | 見送り | 本物の修正が必要か再検討中 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
+
+  it("tolerates whitespace before the ×N multiplier (negative)", () => {
+    // /code-reviewのセルフレビューで発見: `×`の前に空白があると乗数を読み落としていた。
+    const text = ["| # | 分類 |", "| --- | --- |", "| 1 | 本物の修正 ×2 |"].join("\n");
+    expect(countRealFixes(text)).toBe(2);
+  });
+
+  it("does not count anything in a table with no 分類 header column (negative)", () => {
+    const text = ["| # | 状態 |", "| --- | --- |", "| 1 | 本物の修正 |"].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
 });
 
 describe("countRealFixes: PR #225 fixture regression (#243)", () => {
