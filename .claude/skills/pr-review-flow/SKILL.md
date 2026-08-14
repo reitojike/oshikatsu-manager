@@ -200,8 +200,9 @@ CodeRabbitがレート制限でも問題としない**(Codex Cloudは`ready_for_
 
 **「マージ前に、その時点のHEADのSHAに対するCodexの結果を最低1回得ることを義務とする」という
 以前の規定と、#204で追加した「Codex上限時はclaude-review + CodeRabbitの結果で代替してよい」
-という規定は、上記の必須要件に置き換わった。**「代替」という別概念はDraft必須の
-(Codexまたは CodeRabbit)のORに吸収され解消済み。**Codex Cloudは Ready後も自動投稿される
+という規定は、上記の必須要件に置き換わった。**「代替」という別概念は、当時のDraft必須
+(Codexまたは CodeRabbit)のORに吸収されて解消済みであり、そのORも#244でCodeRabbit単独必須へ
+一本化されている(現行の正本は上記「Draft PR中の必須レビュー」)。**Codex Cloudは Ready後も自動投稿される
 ことがあるが**(発火条件・タイミングの実測は`docs/pr-review-flow-details.md`「Codex Cloud」を
 参照)、投稿があれば下記「指摘の扱いとマージ」の通常の分類対象にするだけで、マージ前に
 能動的に待つ・取りに行く対象ではない。

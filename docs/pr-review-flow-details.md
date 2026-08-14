@@ -261,7 +261,9 @@ Draft必須の非claude-review枠はCodeRabbit単独になった(`.claude/skills
 `You have reached your Codex usage limits for code reviews`を返した。当時は「Codex上限時は
 claude-review + CodeRabbitの結果で代替してよい」という規定でマージ前の義務を満たした
 (本PR自身がこの代替の第1号適用)。**この規定は#220でDraft必須の(Codexまたは CodeRabbit)の
-ORへ吸収され、別概念としては解消済み。**当時の判定手順の記録として残す。
+ORへ吸収され、別概念としては解消済み。そのORも#244でCodeRabbit単独必須へ一本化されている
+(現行の正本は`.claude/skills/pr-review-flow/SKILL.md`「Draft PR中の必須レビュー」)。**
+当時の判定手順の記録として残す。
 
 ### CodeRabbit
 
