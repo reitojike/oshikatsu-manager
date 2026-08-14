@@ -91,6 +91,20 @@ required status checksに`PR Template Check`のjob `check`が含まれる)。`pr
 (`gh api repos/{owner}/{repo}/check-runs/{check_run_id}/annotations`)から個別runのコストを
 機械参照できる。複数runをまたいだ自動集計は未対応(2026-08-14時点。必要になれば別途起票)。
 
+`{check_run_id}`は対象SHAに対する`claude-review`のcheck runを`check-runs` API(`SKILL.md`
+「マージ直前」の照合コマンドと同じ形)で特定する。`review:full`を同一SHAに複数回付け直した
+場合は`started_at`が最も新しいrunを選ぶ(CodeRabbitの指摘・2026-08-14)。該当runが1件も
+無い場合は診断値を取得できなかったものとして扱う(取得失敗を成功扱いにしない)。
+
+```bash
+CHECK_RUN_ID=$(gh api "repos/{owner}/{repo}/commits/$HEAD_OID/check-runs" --paginate --slurp |
+  jq -r --arg sha "$HEAD_OID" '
+    [.[].check_runs[] | select(.name == "claude-review" and .head_sha == $sha)]
+    | sort_by(.started_at) | last | .id // empty')
+test -n "$CHECK_RUN_ID"
+gh api "repos/{owner}/{repo}/check-runs/$CHECK_RUN_ID/annotations" --paginate
+```
+
 `claude-review.yml`自体を変更するPRでは、GitHub Actions側のワークフロー保護機構
 (PRがワークフローファイル自体を書き換えて昇格した権限で任意のコードを実行するのを防ぐもの)
 により、`anthropics/claude-code-action`が実際にはレビューを実行せず正常終了する

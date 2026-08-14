@@ -208,14 +208,20 @@ CodeRabbitがレート制限でも問題としない**(Codex Cloudは`ready_for_
 
 ## Ready後の運用
 
-**claude-review + CodeRabbitの反復。**Ready化以降の`synchronize`(push)ではclaude-reviewは
-自動発火しない(#244。CodeRabbitは`drafts: true`のため引き続き自動発火する)。修正のたびに
-次のサイクルを回す。
+**claude-reviewの反復。**Ready化以降の`synchronize`(push)ではclaude-reviewは自動発火しない
+(#244)。修正のたびに次のサイクルを回す。
 
-1. ローカルで修正してpushする(CodeRabbitは自動的にレビューする)
+1. ローカルで修正してpushする(CodeRabbitは`drafts: true`のため引き続き自動発火するが、
+   Ready化以降の必須要件には含まれない。下記の扱いを参照)
 2. `review:full`ラベルを付け外し、claude-reviewへ明示的に再依頼する(上記「明示的な
    レビュー依頼」)
-3. 両方の指摘を確認し、修正が必要なら1に戻る
+3. claude-reviewの指摘を確認し、修正が必要なら1に戻る
+
+**CodeRabbitはベストエフォートとして扱う。**Ready化以降の必須レビューは
+`claude-review` + Copilotであり(下記「Ready化以降の必須レビュー」)、CodeRabbitは含まれない。
+取得できていれば追加の視点として確認するが、レート制限・通信エラー・空応答の場合でも
+待機や再試行はせず、claude-reviewの指摘確認だけでこのサイクルを完了してよい
+(3回のカウントにも影響しない)。
 
 **`ready_for_review`以降、この「push→明示依頼→修正」のサイクルを3回行った時点で
 P0/P1指摘が枯れていなければ、その場でBlockedにしてPOへエスカレーションする**
@@ -272,12 +278,26 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
 **マージ直前には、まずHEAD OID(`gh pr view {number} --json headRefOid --jq .headRefOid`)
 を記録する。**
 
-**続けて、claude-reviewが記録したHEAD OIDに対する結果を持っているか`gh pr checks {number}`で
-確認する。**`synchronize`の自動発火を止めたため(#244)、`opened`または最後の`review:full`
-実行より後にheadが進んでいれば、`claude-review`(required check)は未達のままになる。
-**無ければ`review:full`ラベルを付け直し、結果が出てから先へ進む**(確認せずマージを試みると
-required checkの未達でGitHub側にブロックされる。永久にpendingにはならないが、
-気づいてからの手戻りを避けるため先に確認する)。
+**続けて、claude-reviewが記録したHEAD OIDに対する結果を持っているか確認する。**
+`synchronize`の自動発火を止めたため(#244)、`opened`または最後の`review:full`実行より後に
+headが進んでいれば、`claude-review`(required check)は未達のままになる。**`gh pr checks`は
+使わず、`check-runs` APIで`head_sha`・`name`・`status`・`conclusion`を直接確認する**
+(同一SHAに対して`review:full`を複数回付け直すと同名runが複数でき、`gh pr checks`のrollup表示に
+頼ると新しい失敗runより古い成功runを拾う可能性がある。CodeRabbitの指摘・2026-08-14)。
+
+```bash
+HEAD_OID=$(gh pr view {number} --json headRefOid --jq .headRefOid)
+RUN=$(gh api "repos/{owner}/{repo}/commits/$HEAD_OID/check-runs" --paginate --slurp |
+  jq -r --arg sha "$HEAD_OID" '
+    [.[].check_runs[] | select(.name == "claude-review" and .head_sha == $sha)]
+    | sort_by(.started_at) | last')
+echo "$RUN" | jq -e '.status == "completed" and .conclusion == "success"'
+```
+
+**対象SHAに一致するrunが1件も無い場合も「未達」として扱う**(取得失敗を成功扱いにしない、
+fail-closed)。上記が失敗した場合は`review:full`ラベルを付け直し、結果が出てから先へ進む
+(確認せずマージを試みるとrequired checkの未達でGitHub側にブロックされる。永久にpendingには
+ならないが、気づいてからの手戻りを避けるため先に確認する)。
 
 その上で、次の4面をすべて再取得する。
 
