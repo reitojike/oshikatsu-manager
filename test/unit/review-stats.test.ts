@@ -460,6 +460,15 @@ describe("countRealFixes: 区切り行を欠いた表は表として扱わない
     });
     expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
   });
+
+  it("recognizes a separator row with an omitted trailing pipe (negative)", () => {
+    // Copilotの指摘(2026-08-14): 区切り行も末尾の`|`を省略できる有効なMarkdown記法(GFM)。
+    // TABLE_SEPARATOR_ROWが末尾パイプを必須にしていると、この区切り行を区切り行と
+    // 認識できず、ヘッダ確定(次の行が区切り行かの先読み)ごと失敗し、正しく書かれた
+    // 表形式の分類記録まで判定不能に上げてしまっていた。
+    const text = ["| # | 分類 |", "| --- | ---", "| 1 | 本物の修正 |"].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
 });
 
 describe("countRealFixes: 分類列限定・セル書式の判定 (#243)", () => {

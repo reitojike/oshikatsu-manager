@@ -211,7 +211,11 @@ const countHeadingListRealFixes = (text) => {
 const REAL_FIX_PREFIX = /^\*{0,2}本物の修正/;
 const REAL_FIX_MULTIPLIER = /^×(\d+)$/;
 const REAL_FIX_ANNOTATION = /^\(([^)]*)\)$/;
-const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
+// 末尾の`|`はデータ行・ヘッダ行と同様、区切り行でも省略可能な有効なMarkdown記法(GFM)。
+// 必須にしていると、末尾パイプを省略した区切り行を区切り行として認識できず、
+// ヘッダ確定(次の行が区切り行かどうかの先読み判定)ごと失敗し、正しく書かれた表形式の
+// 分類記録が判定不能に上がってしまう(Copilotの指摘・2026-08-14)。
+const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|?$/;
 
 // Markdownの表はセル内に`\|`でエスケープしたパイプを含められる。単純な`split("|")`だと
 // そのセルが2つに割れてしまい、以降のセルが1つずつ右へずれる。ずれた状態で
