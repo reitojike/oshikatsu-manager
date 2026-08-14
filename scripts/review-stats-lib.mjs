@@ -213,6 +213,14 @@ const REAL_FIX_MULTIPLIER = /^×(\d+)$/;
 const REAL_FIX_ANNOTATION = /^\(([^)]*)\)$/;
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 
+// Markdownの表はセル内に`\|`でエスケープしたパイプを含められる。単純な`split("|")`だと
+// そのセルが2つに割れてしまい、以降のセルが1つずつ右へずれる。ずれた状態で
+// classificationColumnIndexを適用すると「分類」列と違うセルを読んでしまい、fail-closedの
+// 前提(分類列を正しく特定できていること)が崩れる(Codex Cloudの指摘・2026-08-14)。
+// エスケープされていないパイプでだけ分割する。
+const UNESCAPED_PIPE = /(?<!\\)\|/;
+const splitTableRow = (line) => line.split(UNESCAPED_PIPE).map((cell) => cell.trim());
+
 // 括弧の中身を問わず1件と数めると、「(要検討)」「(保留)」のようなまだ確定していない
 // ことを示す注記まで無条件に1件扱いになり、fail-closedの効果がこの経路だけ効かなくなる
 // (CodeRabbitの指摘・2026-08-14)。実際に観測された確定表記だけを許可リストにする。
@@ -269,7 +277,7 @@ const countTableRealFixes = (text) => {
       coveredLines.add(index);
       return;
     }
-    const cells = line.split("|").map((cell) => cell.trim());
+    const cells = splitTableRow(line);
     if (classificationColumnIndex === null) {
       classificationColumnIndex = cells.indexOf("分類");
       coveredLines.add(index);

@@ -388,6 +388,18 @@ describe("countRealFixes: table format (#243)", () => {
     ].join("\n");
     expect(countRealFixes(text)).toBe(3);
   });
+
+  it("handles an escaped pipe in an earlier column without misaligning the 分類 column (negative)", () => {
+    // Codex Cloudの指摘(2026-08-14): 単純なsplit("|")だとセル内の`\|`(エスケープされた
+    // パイプ)で余分に分割され、以降のセルが1つずつ右へずれる。分類列を正しく特定できず
+    // fail-closedの前提が崩れる(この行がcoveredLinesに入るのに分類列を誤読する)。
+    const text = [
+      "| # | 指摘概要 | 分類 |",
+      "| --- | --- | --- |",
+      "| 1 | a \\| b | 本物の修正 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
 });
 
 describe("countRealFixes: 分類列限定・セル書式の判定 (#243)", () => {
