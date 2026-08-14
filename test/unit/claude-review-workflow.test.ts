@@ -65,12 +65,16 @@ const jobName = (action: string, labelName: string | undefined) =>
     ? "claude-review-label-ignored"
     : "claude-review";
 
+const runnableCases = [
+  ["opened", undefined, true, "claude-review"],
+  ["reopened", undefined, true, "claude-review"],
+  ["labeled", "review:full", true, "claude-review"],
+] satisfies ReadonlyArray<readonly [string, string | undefined, boolean, string]>;
+
+const skippedLabelCases = [["bug"], ["documentation"]] satisfies ReadonlyArray<readonly [string]>;
+
 describe("claude-review.yml: labeled行動ごとの起動可否(否定側を含む)", () => {
-  it.each([
-    ["opened", undefined, true, "claude-review"],
-    ["reopened", undefined, true, "claude-review"],
-    ["labeled", "review:full", true, "claude-review"],
-  ] as const)(
+  it.each(runnableCases)(
     "%s(label=%s)はjobを実行しcheck名は%s",
     (action, labelName, expectedRuns, expectedName) => {
       expect(jobRuns(action, labelName)).toBe(expectedRuns);
@@ -78,7 +82,7 @@ describe("claude-review.yml: labeled行動ごとの起動可否(否定側を含�
     },
   );
 
-  it.each([["bug"], ["documentation"]] as const)(
+  it.each(skippedLabelCases)(
     "labeled(label=%s、review:full以外)はjobをskipし、required check名(claude-review)を上書きしない(negative)",
     (labelName) => {
       expect(jobRuns("labeled", labelName)).toBe(false);
