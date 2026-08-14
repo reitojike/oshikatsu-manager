@@ -116,8 +116,8 @@
 | 追跡コメント(初期) | body本文 | `I'll analyze this and get back to you.` | 初期コメントの固定文言 | src/github/operations/comments/common.ts `createCommentBody()` | B | 2026-08-15 | 確認済み |
 | 追跡コメント(初期) | body末尾リンク | `[View job run](...)` | ジョブへのリンク(初期/追跡段階の文言。最終ヘッダの `[View job]` とは表記が異なる) | src/github/operations/comments/common.ts `createJobRunLink()` | B | 2026-08-15 | 確認済み |
 | 追跡コメント(初期、issue時のみ) | body追加行 | `[View branch](...)` | ブランチ作成済みであることの表示(issueのみ、PRには付かない) | src/github/operations/comments/common.ts `createBranchLink()` | B | 2026-08-15 | 確認済み |
-| 追跡コメント(最終、成功) | bodyヘッダ | `**Claude finished @{username}'s task**` (durationがあれば ` in {Xm Ys}` を挿入) | 成功完了 | src/github/operations/comment-logic.ts `updateCommentBody()` header構築部 | B | 2026-08-15 | 確認済み |
-| 追跡コメント(最終、失敗) | bodyヘッダ | `**Claude encountered an error**` (durationがあれば ` after {Xm Ys}` を挿入) | 失敗完了 | src/github/operations/comment-logic.ts `updateCommentBody()` header構築部 | B | 2026-08-15 | 確認済み |
+| 追跡コメント(最終、成功) | bodyヘッダ | `**Claude finished @{username}'s task**`(durationがあれば `␣in {Xm Ys}` を挿入。`␣`は半角スペース1つ) | 成功完了 | src/github/operations/comment-logic.ts `updateCommentBody()` header構築部 | B | 2026-08-15 | 確認済み |
+| 追跡コメント(最終、失敗) | bodyヘッダ | `**Claude encountered an error**`(durationがあれば `␣after {Xm Ys}` を挿入。`␣`は半角スペース1つ) | 失敗完了 | src/github/operations/comment-logic.ts `updateCommentBody()` header構築部 | B | 2026-08-15 | 確認済み |
 | 追跡コメント(最終) | bodyリンク区切り | `␣—— [View job]({jobUrl})`(`␣`は半角スペース1つ。emダッシュ2連 `——` を含む) | ジョブリンクの区切り記法 | src/github/operations/comment-logic.ts `updateCommentBody()` | B | 2026-08-15 | 確認済み |
 | 追跡コメント(最終、ブランチあり) | bodyブランチ表記 | `␣␣• [{branchName}]({branchUrl})␣`(`␣`は半角スペース1つ。`{branchName}` の部分は原文ではバッククォートで囲まれている) | ブランチへのリンク | src/github/operations/comment-logic.ts `updateCommentBody()` | B | 2026-08-15 | 確認済み |
 | 追跡コメント(最終、新規PR候補あり) | body PRリンク | `␣• [Create PR ➔]({prUrl})`(`␣`は半角スペース1つ。矢印文字 `➔` U+2794 を含む) | PR作成ページへの誘導リンク | src/github/operations/comment-logic.ts `updateCommentBody()` | B | 2026-08-15 | 確認済み |
