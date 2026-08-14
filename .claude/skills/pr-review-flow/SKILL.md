@@ -114,54 +114,39 @@ CIのrequired checkとしての強制状況を確認する必要がある場合�
 
 PRはまず`gh pr create --draft`でDraft作成する。
 
-- **Claude**(`claude-review.yml`): draftのpushごとに走る。観点は`AGENTS.md`の`## Code Review Rules`から変更ファイルの分類に応じて抽出される(`review:full`ラベルを付けると全分類を当てる)。**「workflowが成功した」を「実レビューが完了した」と読み替えないための機械的なゲートが入っている**(issue #95) —— `CLAUDE_CODE_OAUTH_TOKEN`未設定・実行されたのに投稿0件・総評のマーカー不一致はいずれも**checkが赤**になる。**`claude-review.yml`自体を変更するPRだけは注記のみで緑になる**ため、その回は下記「Draft PR中の必須レビュー」のパターン表にかかわらず**セルフレビュー + CodeRabbitを必須とする**(Draft中はCopilotが走らないため対象外)。**CodeRabbitを取得できない場合はReady化しない**(Codexが使えることは代わりにならない。claude-review自体が欠けている回なので、通常のCodex-or-CodeRabbitのORより厳しくする)。どれで満たしたかをPR本文に書く。**赤になる条件の一覧と、Rulesetへの配線状況は`docs/pr-review-flow-details.md`「Claude Review」を参照**
-- **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10 JST、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点とP0/P1定義の正本は`AGENTS.md`の`## Code Review Rules`節にある。**Draft PRへのpushでは自動発火しない**(PR #113で複数回のpushで確認済み)。`@codex review`と手動コメントすれば即座に投稿されることも確認済み。Draft中に投稿が欲しい場合は、PRコメント欄でcodexへメンションして手動リクエストする(誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は削除済み(見送りの根拠は`docs/roadmap.md`「保留: 外部アカウント待ち」を参照)
-- **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。反復の主力はClaude/Codexだが、**Codexが利用上限のときはDraft必須の一角をCodeRabbitが担う**(下記のパターン表)。レート制限は`docs/pr-review-flow-details.md`「CodeRabbit」を参照
+- **Claude**(`claude-review.yml`): `opened`/`reopened`で自動的に走る。**push(`synchronize`)では発火しない**(Draft・Ready問わず。#244。起動コストが最大の要因だったため)。Draft・Ready中に再チェックしたい場合は`review:full`ラベルを付け外しして明示的に依頼する(下記「明示的なレビュー依頼」)。観点は`AGENTS.md`の`## Code Review Rules`から変更ファイルの分類に応じて抽出される(`review:full`ラベルを付けると全分類を当てる)。**差分の外は読まない**(`--allowedTools`が`gh pr diff`/`gh pr view`/`gh pr comment`と`Read(.claude-pr/**)`(復元対象パスの退避先限定)のみで、汎用`Read`/`Grep`/`Glob`を持たないため。`common/`への複製、型の二重定義、成果物間の矛盾など差分の外を読まないと判定できない観点はCodeRabbit・Codex Cloud・Draft前セルフレビューが担う。**指摘0件は「差分の外を確認した」を意味しない**。#242)。**「workflowが成功した」を「実レビューが完了した」と読み替えないための機械的なゲートが入っている**(issue #95) —— `CLAUDE_CODE_OAUTH_TOKEN`未設定・実行されたのに投稿0件・総評のマーカー不一致はいずれも**checkが赤**になる。**`claude-review.yml`自体を変更するPRだけは注記のみで緑になる**ため、その回は下記「Draft PR中の必須レビュー」のパターン表にかかわらず**セルフレビュー + CodeRabbitを必須とする**(Draft中はCopilotが走らないため対象外)。**CodeRabbitを取得できない場合はReady化しない**(claude-review自体が欠けている回なので、通常のDraft必須(CodeRabbit単独必須)より厳しくし、セルフレビューも合わせて要求する)。どれで満たしたかをPR本文に書く。**赤になる条件の一覧と、Rulesetへの配線状況は`docs/pr-review-flow-details.md`「Claude Review」を参照**
+- **Codex**(Codex CloudのPR自動レビュー): Codex settingsで Automatic reviews を有効化済み(2026-08-10 JST、issue #101)。ワークフローファイルもAPIキーも不要で、ChatGPT Plusの枠内で動く。**GitHub上ではP0/P1の指摘のみ**が投稿されるので、指摘が0件でも「全観点を通過した」とは読まないこと。レビュー観点とP0/P1定義の正本は`AGENTS.md`の`## Code Review Rules`節にある。**自動発火するのは`ready_for_review`のときだけ**(Draft作成時の`opened`、Draft中のpushのいずれでも発火しない。#244で判明。以前の記載は誤りだった)。**Draft中に手動で`＠codex review`を打つ運用はしない**(結局`ready_for_review`で確実に自動発火するため、Draft中に先取りする意味がない。誤発火を避けるためこの文書では全角で`＠codex review`と表記する。実際に打つときは半角`@`に置き換える)。GitHub Actions版の`codex-review.yml`は削除済み(見送りの根拠は`docs/roadmap.md`「保留: 外部アカウント待ち」を参照)
+- **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。pushのたびに自動発火する(claude-reviewと違い明示要求は不要)。**Codex Cloudが`ready_for_review`でしか自動発火しないため、Draft必須のうちclaude-review以外の一角はCodeRabbitが単独で担う**(下記「Draft PR中の必須レビュー」)。レート制限は`docs/pr-review-flow-details.md`「CodeRabbit」を参照
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
 
-**Draft PR中の必須レビュー(issue #220)。**`claude-review`は常に必須(上記のとおりpushごとに
-走り、機械的なゲートを持つ。ただし上記「Claude」の項が定める`claude-review.yml`自体を
-変更するPRの例外はここでも維持される。**Draft中に使える代替はセルフレビューとCodeRabbitのみ**
-——Copilotはdraft中は走らないため対象外)。それに加えて、**Codex または CodeRabbit のいずれか1つ**を
-必須とする(Copilotはdraft中は走らないため、Draft段階で複数モデルの視点を確保する手段は
-この2つしかない)。どちらで必須を満たすかは、両者の可用性で決まる(判別基準は
-`docs/pr-review-flow-details.md`「Codex Cloud」。**「利用上限」と確認できない失敗
-(通信エラー等)は「使える」側として扱い、通常どおりCodexの取得を試みる。**この判定は
-Codex CloudのPR自動レビューが可用かどうかだけを問うものであり、`docs/model-routing-details.md`
-「上限到達時に読む手順」が定めるエージェント実行のルーティング判定(3回ルール・Blocked化)
-とは対象が別で、そちらの「不明」時の扱いを継承しない。**Draft中は自動投稿自体が発火しない
-ため(上記「Draftフェーズ」のCodexの項)、「自動投稿が来ていない」はこの「確認できない失敗」
-には含めない**(起きていないことと失敗したことは別。判別に使えるのは手動`＠codex review`の
-結果のみ)。
+**Draft PR中の必須レビュー(issue #220)。**`claude-review`は`opened`(Draft作成時)・`reopened`、
+または明示的な`review:full`ラベル付け直し(下記「明示的なレビュー依頼」)のいずれかで満たす
+(pushごとの自動発火はしない。#244)。ただし上記「Claude」の項が定める`claude-review.yml`
+自体を変更するPRの例外はここでも維持される(**Draft中に使える代替はセルフレビューと
+CodeRabbitのみ**——Copilotはdraft中は走らないため対象外)。それに加えて、**CodeRabbit**を
+必須とする。Copilotはdraft中は走らず、Codex Cloudも`ready_for_review`でしか自動発火しない
+ため(上記「Draftフェーズ」のCodexの項)、Draft段階でclaude-review以外に視点を確保する
+手段はCodeRabbitのみになる。**#244でDraft中の手動`＠codex review`運用も廃止したため、
+以前あった「CodexまたはCodeRabbit」のORはCodeRabbit単独必須に一本化された。**
 
-| Codex | CodeRabbit | 必須を満たす経路 | 行動 |
-| --- | --- | --- | --- |
-| 使える | 使える | Codex | CodeRabbitは任意(取れれば追加の視点) |
-| 使える | レート制限中 | Codex | CodeRabbitの復帰は待たない |
-| 利用上限 | 使える | **CodeRabbit(必須)** | CodeRabbitの結果を必ず得てからReady化する |
-| 利用上限 | レート制限中 | なし | **CodeRabbitの復帰を待つ**(数十分。Codexは待たない) |
-
-**待つ/待たないが非対称な理由。**Codexの利用上限は数日単位で解除されない場合があるのに対し、
-CodeRabbitのレート制限は数十分で解除される。「Codexを待つ」は現実的でないが
-「CodeRabbitを待つ」は現実的である。
-
-**CodeRabbit側も同じ判別を適用する。**「レート制限中」と判定するのは`docs/pr-review-flow-details.md`
-「CodeRabbit」が挙げる明確なレート制限メッセージ(`Review limit reached`等)で失敗した場合に限る。
-認証エラー・通信エラー・空応答など、レート制限と確認できない失敗は「使える」側として扱い、
-通常どおり取得を試みる(再試行して改善しなければ`AGENTS.md`のエスカレーション基準に従う)。
+**CodeRabbitがレート制限中の場合は復帰を待つ**(数十分)。「レート制限中」と判定するのは
+`docs/pr-review-flow-details.md`「CodeRabbit」が挙げる明確なレート制限メッセージ
+(`Review limit reached`等)で失敗した場合に限る。認証エラー・通信エラー・空応答など、
+レート制限と確認できない失敗は「使える」側として扱い、通常どおり取得を試みる
+(再試行して改善しなければ`AGENTS.md`のエスカレーション基準に従う)。
 
 **チェックが緑(success)であることを、CodeRabbitのレビューを受けた根拠にしない。**
 push時のレート制限はissueコメントを投稿せずcommit statusにのみ記録され、その`state`は
 `success`になる(レビュー0行でも成功表示される)。判定は必ずコメント本文・`description`の
 文言で行う(実測は`docs/pr-review-flow-details.md`「CodeRabbit」)。
 
-**Codexへの手動`＠codex review`は毎ラウンド打たない。**Draft作成直後の1回(Codex独自の
-視点を早期に得る)と、反復を打ち切ると判断する巡(governance-docsは下記の打ち切り条件を
-満たす巡、それ以外の分類は指摘が尽きたと判断する巡)の1回、計2回を基本とする。
-中間ラウンドはpush起動のclaude-review・CodeRabbitに任せ、Codexへの再依頼はしない
-(PR #135実測。手動再依頼4回中3回が「Didn't find any major issues.」で、以降のラウンドに
-追加情報をもたらさなかった)。打ち切り判定の後に新たな行動が変わる修正が発生した場合は、
-そのラウンドが新しい「打ち切り判定をする巡」になるので、そこでもう一度1回呼ぶ。
+**明示的なレビュー依頼(`review:full`ラベル)。**claude-reviewを狙って再実行させる手段は
+このラベルの付け外ししかない。**GitHubは同じラベルが既に付いている状態では`labeled`
+イベントを再発火しない**ため、再依頼のたびに一度外してから付け直す
+(`gh pr edit {number} --remove-label review:full` → `gh pr edit {number} --add-label review:full`)。
+ラベル名のとおり、これは常に**全分類の観点**を当てるフルレビューになる(該当ファイルが
+無い分類は素通りするだけなので実害は小さい)。Draft・Ready両方の反復で使う共通の
+再依頼手段である(Ready中の反復は下記「Ready後の運用」を参照)。
 
 **governance-docsのみに分類されるPRに限り、Draftでの反復はP0と、実行者の行動が変わる
 P1が0になるまで続ける。**他の分類(code・automation-config)のPRでは、従来どおり
@@ -186,13 +171,6 @@ governance-docs側の扱いを適用しない(「複数の分類にまたがるP
 マージ時の分類コメントに記録する(下記「指摘の扱いとマージ」)。直せばそのpushにまた1巡必要になり、
 打ち切り条件が消えるのと同じになる。
 
-**分類を問わず、5巡を超えたら警報として読む。上限ではない。**粒度超過(1つのIssueに判断が
-多すぎる、ラリーの途中で足したものが大きすぎる)を疑い、Issueの分割を検討する。
-`AGENTS.md`「Issueの粒度と、Issue内でのモデル階層の分担」の300行目安と同型で、
-**これはlintではない。CIで強制しない。束ねPRでは「Issueの分割」ではなく「束ねを解く」の
-検討トリガーとして読み替える(`docs/task-management.md`「Issueを束ねて1本のPRにする」
-「束ねを解く」が正本)。**
-
 **指摘を直すときは、指摘された箇所だけを直してpushしない。**指摘の根拠を一般化し、
 このPRの差分の中に同じ根拠が当てはまる他のファイル・箇所がないかを確認してから、
 まとめて直して1回でpushする。同一根拠の指摘がファイルごとに1件ずつ返ってくる状態
@@ -207,30 +185,55 @@ governance-docs側の扱いを適用しない(「複数の分類にまたがるP
 
 **Ready化以降の必須レビュー。**`claude-review` + **Copilot** を必須とする(#220。
 `claude-review`側の`claude-review.yml`自体を変更するPRの例外は上記「Draft PR中の必須
-レビュー」のとおり維持される)。
+レビュー」のとおり維持される)。**`claude-review`は`ready_for_review`でも自動発火しない
+ため(#244)、Ready化後にマージするまでの間に`review:full`ラベルで最低1回は明示的に
+依頼すること**(具体的な回し方は下記「Ready後の運用」)。
 
 | Copilot | 行動 |
 | --- | --- |
 | レビューを得られた(`Copilot wasn't able to review any files in this pull request.`のように、対象コードファイルが無いだけの応答を含む。下記「Ready後の運用」参照) | 必須充足。**Codex・CodeRabbitの可用性は問わない** |
 | quota失敗等で得られない | 下記「Ready後の運用」の再リクエスト手順(マージ直前に手動で1回まで)を先に尽くす。**それでも得られなければPOにエスカレーションして判断を仰ぐ**(自分で代替を決めない) |
 
-**Draft中に(Codex または CodeRabbit)のいずれかのレビューを受けたうえでReady化しているはず
-なので、Ready以降にCodexとCodeRabbitの両方がレート制限でも問題としない。**
+**Draft中にCodeRabbitのレビューを受けたうえでReady化しているはずなので、Ready以降に
+CodeRabbitがレート制限でも問題としない**(Codex Cloudは`ready_for_review`で新たに
+自動発火する)。
 
 **「マージ前に、その時点のHEADのSHAに対するCodexの結果を最低1回得ることを義務とする」という
 以前の規定と、#204で追加した「Codex上限時はclaude-review + CodeRabbitの結果で代替してよい」
-という規定は、上記の必須要件に置き換わった。**「代替」という別概念はDraft必須の
-(Codexまたは CodeRabbit)のORに吸収され解消済み。**Codex Cloudは Ready後も自動投稿される
+という規定は、上記の必須要件に置き換わった。**「代替」という別概念は、当時のDraft必須
+(Codexまたは CodeRabbit)のORに吸収されて解消済みであり、そのORも#244でCodeRabbit単独必須へ
+一本化されている(現行の正本は上記「Draft PR中の必須レビュー」)。**Codex Cloudは Ready後も自動投稿される
 ことがあるが**(発火条件・タイミングの実測は`docs/pr-review-flow-details.md`「Codex Cloud」を
 参照)、投稿があれば下記「指摘の扱いとマージ」の通常の分類対象にするだけで、マージ前に
 能動的に待つ・取りに行く対象ではない。
 
 ## Ready後の運用
 
+**claude-reviewの反復。**Ready化以降の`synchronize`(push)ではclaude-reviewは自動発火しない
+(#244)。修正のたびに次のサイクルを回す。
+
+1. ローカルで修正してpushする(CodeRabbitは`drafts: true`のため引き続き自動発火するが、
+   Ready化以降の必須要件には含まれない。下記の扱いを参照)
+2. `review:full`ラベルを付け外し、claude-reviewへ明示的に再依頼する(上記「明示的な
+   レビュー依頼」)
+3. claude-reviewの指摘を確認し、修正が必要なら1に戻る
+
+**CodeRabbitはベストエフォートとして扱う。**Ready化以降の必須レビューは
+`claude-review` + Copilotであり(下記「Ready化以降の必須レビュー」)、CodeRabbitは含まれない。
+取得できていれば追加の視点として確認するが、レート制限・通信エラー・空応答の場合でも
+待機や再試行はせず、claude-reviewの指摘確認だけでこのサイクルを完了してよい
+(3回のカウントにも影響しない)。
+
+**`ready_for_review`以降、この「push→明示依頼→修正」のサイクルを3回行った時点で
+P0/P1指摘が枯れていなければ、その場でBlockedにしてPOへエスカレーションする**
+(旧「5巡警報」を置き換える基準。3回はReady化以降の回数だけを数え、Draft中の回数は
+含めない)。束ねPRで「束ねを解く」を検討する契機も、この基準を流用する
+(`docs/task-management.md`「Issueを束ねて1本のPRにする」「束ねを解く」参照)。
+
 Ready化後の追加修正は、ローカルで全部直してからまとめて1回でpushする。
 `copilot_code_review` Rulesetの`review_on_push`は`false`に設定済み(2026-08-07適用)なので、
-Ready後のpushではCopilotの自動レビューは走らない(CIとClaudeレビュー、CodeRabbitは
-上記のとおり通常どおり走るので、機械的なバックストップは失われない)。
+Ready後のpushではCopilotの自動レビューは走らない(CIは通常どおり走るので、機械的な
+バックストップは失われない)。
 Rulesetの適用状況を確認・変更する必要がある場合は
 `docs/pr-review-flow-details.md`「GitHub Copilot」を参照。
 
@@ -274,7 +277,30 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
   mainに直接pushしない
 
 **マージ直前には、まずHEAD OID(`gh pr view {number} --json headRefOid --jq .headRefOid`)
-を記録してから、次の4面をすべて再取得する。**
+を記録する。**
+
+**続けて、claude-reviewが記録したHEAD OIDに対する結果を持っているか確認する。**
+`synchronize`の自動発火を止めたため(#244)、`opened`または最後の`review:full`実行より後に
+headが進んでいれば、`claude-review`(required check)は未達のままになる。**`gh pr checks`は
+使わず、`check-runs` APIで`head_sha`・`name`・`status`・`conclusion`を直接確認する**
+(同一SHAに対して`review:full`を複数回付け直すと同名runが複数でき、`gh pr checks`のrollup表示に
+頼ると新しい失敗runより古い成功runを拾う可能性がある。CodeRabbitの指摘・2026-08-14)。
+
+```bash
+HEAD_OID=$(gh pr view {number} --json headRefOid --jq .headRefOid)
+RUN=$(gh api "repos/{owner}/{repo}/commits/$HEAD_OID/check-runs" --paginate --slurp |
+  jq -r --arg sha "$HEAD_OID" '
+    [.[].check_runs[] | select(.name == "claude-review" and .head_sha == $sha)]
+    | sort_by(.started_at) | last')
+echo "$RUN" | jq -e '.status == "completed" and .conclusion == "success"'
+```
+
+**対象SHAに一致するrunが1件も無い場合も「未達」として扱う**(取得失敗を成功扱いにしない、
+fail-closed)。上記が失敗した場合は`review:full`ラベルを付け直し、結果が出てから先へ進む
+(確認せずマージを試みるとrequired checkの未達でGitHub側にブロックされる。永久にpendingには
+ならないが、気づいてからの手戻りを避けるため先に確認する)。
+
+その上で、次の4面をすべて再取得する。
 
 1. CI: `gh pr checks {number}`
 2. issueコメント(総評・案内文): `gh api repos/{owner}/{repo}/issues/{number}/comments --paginate`
@@ -282,6 +308,9 @@ gh api repos/{owner}/{repo}/pulls/{number}/requested_reviewers -X POST \
    `gh api repos/{owner}/{repo}/pulls/{number}/reviews --paginate`
 4. インラインレビューコメント(行に紐づく個別指摘。Codex・CodeRabbit・Copilotが使う):
    `gh api repos/{owner}/{repo}/pulls/{number}/comments --paginate`
+
+**加えて `yarn review:stats --pr {number}` でボット投稿の分類記録(本物の修正/妥当なnitpick/
+誤検知/見送り)を機械集計し、PR本文の記載と食い違っていないか確認する。**
 
 **2・3は`gh pr view {number} --json comments`/`--json reviews`でも取得できるが、
 これらは100件を超えると同じくページネーションされずに欠落しうる。**4と揃えて

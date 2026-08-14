@@ -1,12 +1,16 @@
 # 何を守っているか:
 # PRの自己チェックとしてClaudeにレビューさせる。実装したモデルとは別視点でのレビューを
-# 全PRで自動発火させ、人間が起動を依頼する工程を挟まない(docs/prd.md 8.5)。
-# 判定はあくまで参考。マージ可否の最終判断は人間が行う(docs/prd.md 8.6)。
+# 少なくとも1回(opened/reopened)は自動発火させ、人間が起動を依頼する工程を必須にしない
+# (docs/prd.md 8.5)。判定はあくまで参考。マージ可否の最終判断は人間が行う(docs/prd.md 8.6)。
+#
+# synchronize(push)は起動コストが最大の要因だったため、typesから外して発火自体させない
+# (#244)。Draft・Ready双方の反復は review:full ラベルの付け外しによる明示要求で行う
+# (.claude/skills/pr-review-flow/SKILL.md「Draftフェーズ」「Ready中の反復」参照)。
 name: Claude Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, reopened, labeled]
 
 permissions:
   contents: read

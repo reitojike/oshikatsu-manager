@@ -339,7 +339,10 @@ const verifyPosts = ({
     throw error;
   }
   summary(append, summaryPath, `- Claude投稿件数: ${counts.matched}`);
-  summary(append, summaryPath, `- 診断: ${executionDiagnostics(read, executionFile)}`);
+  // review:full運用のコスト確認用(#244)。summary()だけだとGITHUB_STEP_SUMMARYにしか
+  // 残らずAPIで取得できないため、report()でnoticeにも出しCheck Runs Annotations API
+  // (`gh api repos/{owner}/{repo}/check-runs/{id}/annotations`)から機械参照できるようにする。
+  report(append, summaryPath, outputNotice, `診断: ${executionDiagnostics(read, executionFile)}`);
   summary(
     append,
     summaryPath,

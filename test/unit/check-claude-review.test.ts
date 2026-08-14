@@ -92,7 +92,7 @@ test("main: success時は正しい3 APIを各1回読み、投稿と診断をsumm
   ];
 
   for (const posts of cases) {
-    const { dependencies, ghPaths, reads, summaries } = createDependencies({ posts });
+    const { dependencies, ghPaths, notices, reads, summaries } = createDependencies({ posts });
     main(dependencies);
     expect(ghPaths).toEqual(apiPaths());
     expect(reads).toEqual(["execution-path"]);
@@ -101,6 +101,8 @@ test("main: success時は正しい3 APIを各1回読み、投稿と診断をsumm
       "- 診断: num_turns: 1\n",
       "- 復元対象パス: 無し\n",
     ]);
+    // 診断はsummaryだけでなくnoticeにも出す(#244。Annotations APIから機械参照するため)
+    expect(notices).toEqual(["診断: num_turns: 1"]);
   }
 });
 
@@ -467,7 +469,7 @@ test("main: マーカーだけが無い投稿は、無投稿ではなくマー�
   const { dependencies, notices, summaries } = createDependencies({ posts });
 
   expect(() => main(dependencies)).toThrow(MARKER_MISSING_ERROR);
-  expect(notices).toEqual([MARKER_MISSING_ERROR]);
+  expect(notices).toEqual(["診断: num_turns: 1", MARKER_MISSING_ERROR]);
   expect(summaries).toEqual([
     "- Claude投稿件数: 0\n",
     "- 診断: num_turns: 1\n",
@@ -488,7 +490,7 @@ test("main: bot投稿が1件も無いときはマーカー不一致ではなく�
   const { dependencies, notices } = createDependencies({ posts });
 
   expect(() => main(dependencies)).toThrow(MISSING_CLAUDE_POSTS_ERROR);
-  expect(notices).toEqual([MISSING_CLAUDE_POSTS_ERROR]);
+  expect(notices).toEqual(["診断: num_turns: 1", MISSING_CLAUDE_POSTS_ERROR]);
 });
 
 describe("review commentのhead固定", () => {
@@ -690,7 +692,7 @@ describe("main: 復元対象パスの読み取り手段ゲート(型c)", () => {
     const { dependencies, notices, summaries } = createDependencies({ env, posts: postedPosts });
 
     expect(() => main(dependencies)).toThrow(RESTORED_PATH_GATE_ERROR);
-    expect(notices).toEqual([RESTORED_PATH_GATE_ERROR]);
+    expect(notices).toEqual(["診断: num_turns: 1", RESTORED_PATH_GATE_ERROR]);
     expect(summaries).toContainEqual(`- ${RESTORED_PATH_GATE_ERROR}\n`);
   });
 

@@ -68,6 +68,47 @@ required status checksに`PR Template Check`のjob `check`が含まれる)。`pr
 
 ### Claude Review
 
+**実レビュー(job実行)は`opened`/`reopened`と、明示的な`review:full`ラベル付け直しに限る(#244)。**
+(`labeled`イベント自体は`review:full`以外のラベルでも起動するが、job条件でskipされる。
+`#95`の穴の再導入防止のため、skip時は`claude-review`とは別名のcheckとして報告する)
+以前は`synchronize`(push)のたびに自動発火していたが、起動回数の実測(2026-08-13時点で
+161起動、`governance-docs`を含むPR上位6本に集中)から起動コストが最大の要因と判明したため
+止めた。規則そのものは`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」
+「Ready後の運用」が正本(ここには書き写さない)。
+
+**claude-reviewは差分の外を読まない(#242)。**`--allowedTools`は`gh pr diff`/`gh pr view`/
+`gh pr comment`と`Read(.claude-pr/**)`(復元対象パスの退避先限定)だけで、`Read`/`Grep`/
+`Glob`/`Bash(git ...)`を持たない。したがってclaude-reviewの指摘0件は「差分の外を確認した」
+ことを意味しない。`AGENTS.md`の`## Code Review Rules`がP0/P1と定める観点のうち、差分の外を
+読まないと判定できないもの(`common/`への複製、型の二重定義、成果物間の矛盾、正本の
+複数配置、automation-configの関連文書整合)は、CodeRabbit・Codex Cloud・Draft前
+セルフレビューが担う。これは役割分担であって欠陥ではない(#186決定4)。実測の指摘あり率
+41.0%が4面最低なのは、この構造の帰結として説明できる。**汎用`Read`/`Grep`/`Glob`は
+付与しない方針**(#242。`claude-review.yml`が`pull-requests: write`/`issues: write`/
+`id-token: write`とOAuthトークンを持つワークフローであるため、権限拡大には別途の
+根拠が要ると判断した)。
+
+**review:full運用のコスト確認。**`check-claude-review.mjs`の診断行(`total_cost_usd`等)は
+`GITHUB_STEP_SUMMARY`だけでなく`::notice::`にも出す(#244)。Check Runs Annotations API
+(`gh api repos/{owner}/{repo}/check-runs/{check_run_id}/annotations`)から個別runのコストを
+機械参照できる。複数runをまたいだ自動集計は未対応(2026-08-14時点。必要になれば別途起票)。
+
+`{check_run_id}`は対象SHAに対する`claude-review`のcheck runを`check-runs` API(`SKILL.md`
+「マージ直前」の照合コマンドと同じ形)で特定する。`review:full`を同一SHAに複数回付け直した
+場合は`started_at`が最も新しいrunを選ぶ(CodeRabbitの指摘・2026-08-14)。該当runが1件も
+無い場合は診断値を取得できなかったものとして扱う(取得失敗を成功扱いにしない)。
+
+```bash
+# HEAD_OIDは`SKILL.md`「マージ直前」で記録したものと同じ値(このスニペット単体では未定義)
+HEAD_OID=$(gh pr view {number} --json headRefOid --jq .headRefOid)
+CHECK_RUN_ID=$(gh api "repos/{owner}/{repo}/commits/$HEAD_OID/check-runs" --paginate --slurp |
+  jq -r --arg sha "$HEAD_OID" '
+    [.[].check_runs[] | select(.name == "claude-review" and .head_sha == $sha)]
+    | sort_by(.started_at) | last | .id // empty')
+test -n "$CHECK_RUN_ID"
+gh api "repos/{owner}/{repo}/check-runs/$CHECK_RUN_ID/annotations" --paginate
+```
+
 `claude-review.yml`自体を変更するPRでは、GitHub Actions側のワークフロー保護機構
 (PRがワークフローファイル自体を書き換えて昇格した権限で任意のコードを実行するのを防ぐもの)
 により、`anthropics/claude-code-action`が実際にはレビューを実行せず正常終了する
@@ -179,23 +220,18 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 
 **Draft中・Ready以降で必須とするレビューの組み合わせは
 `.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」「Ready化」のパターン表が正本
-(#220)。ここには書き写さない。**以下は、その表で使う判別基準と、発火タイミングの実測記録。
+(#220)。ここには書き写さない。**以下は、発火タイミングの実測記録。**旧来あったDraft必須表の
+判別基準(Codexが「利用上限」かどうかを手動`@codex review`の結果で判定する仕組み)は、
+次の段落のとおり#244で廃止した。
 
-**判別基準(Codexが「利用上限」かどうか)。**この基準は`.claude/skills/pr-review-flow/SKILL.md`
-「Draftフェーズ」のDraft必須レビュー表だけが使う。Ready化以降の表はCodex・CodeRabbitの
-可用性を問わないため対象外。Draft必須表が必要とするのはCodex CloudのPR自動レビューであり、
-判定はCloud側の結果だけで行う。
-
-**手動`@codex review`が`You have reached your Codex usage limits for code reviews`
-(実測文言)で失敗していれば、それだけで「利用上限」と判定する。**ローカルCodex
-(`mcp__codex__codex`)は別クォータで動く(Draft必須表が問うのはCodex Cloudの可用性のみで、
-ローカルの状態は判定に使わない)。手動`@codex review`が上記の実測文言以外の理由
-(一時的な通信エラー等)で失敗した場合は、この基準を満たさない(満たさない場合の扱いは
-`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」が正本)。
-
-**Draft PRへのpushではCodex Cloudの自動投稿が発火しない**(`.claude/skills/pr-review-flow/SKILL.md`
-「Draftフェーズ」のCodexの項、PR #113で確認済み)。この事実を判別にどう扱うかは
-`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」が正本(ここには書き写さない)。
+**自動発火するのは`ready_for_review`のときだけ(#244で訂正)。**Draft作成時の`opened`、
+Draft中の`synchronize`のいずれでも自動発火しない。以前の記載(`opened`で発火する、#186決定4)
+は誤りだった。この訂正により、旧来あった「Codexが利用上限かどうか」の判別基準
+(手動`@codex review`の結果で判定し、Draft必須レビューのCodex/CodeRabbitのORをどちらで
+満たすか決める仕組み)は不要になった —— Draft段階でCodex Cloudが登場する余地が無いため、
+Draft必須の非claude-review枠はCodeRabbit単独になった(`.claude/skills/pr-review-flow/SKILL.md`
+「Draft PR中の必須レビュー」)。**Draft中に手動`＠codex review`を打つ運用も廃止した**
+(結局`ready_for_review`で確実に自動発火するため、Draft中に先取りする意味がない)。
 
 **発火タイミングの実測。**Ready後にCodexの投稿を探す場合の参考情報(#220以降、マージ前に
 能動的に待つ義務は無いが、投稿があれば解釈が必要になる)。
@@ -227,7 +263,9 @@ review bodyの3面すべてで投稿が無いことを確認する(一部だけ�
 `You have reached your Codex usage limits for code reviews`を返した。当時は「Codex上限時は
 claude-review + CodeRabbitの結果で代替してよい」という規定でマージ前の義務を満たした
 (本PR自身がこの代替の第1号適用)。**この規定は#220でDraft必須の(Codexまたは CodeRabbit)の
-ORへ吸収され、別概念としては解消済み。**当時の判定手順の記録として残す。
+ORへ吸収され、別概念としては解消済み。そのORも#244でCodeRabbit単独必須へ一本化されている
+(現行の正本は`.claude/skills/pr-review-flow/SKILL.md`「Draft PR中の必須レビュー」)。**
+当時の判定手順の記録として残す。
 
 ### CodeRabbit
 
@@ -338,3 +376,15 @@ Repository由来のRuleset 1件のみ(上記ループの出力が`source_type: "
 かつ`source_type`がRepository以外のときに限って、`source_type`に応じた別のエンドポイントを
 GitHub REST APIのドキュメントで調べる(このリポジトリでは未遭遇のため、具体的なパスは
 ここに書かない)。遭遇したらこの節に実測結果を追記する。
+
+### 外部設定の意図する値
+
+**これらはリポジトリ外の設定であり、変更してもdiffに出ず、ずれても機械的には検知されない。**
+発火が想定と違ったときは、まずこの表と実際の設定を突き合わせる(#244)。
+
+| 面 | 設定項目 | 意図する値 | 設定場所 | 最終確認日 | 確認手段 | 根拠Issue |
+| --- | --- | --- | --- | --- | --- | --- |
+| Codex Cloud | レビューのトリガー | PRが`ready_for_review`になったとき | Codex Cloud設定画面(Automatic reviews) | 2026-08-13 | 設定画面で目視 | #186 |
+| Codex Cloud | 徹底的なコードレビュー | OFF | Codex Cloud設定画面 | 2026-08-13 | 設定画面で目視 | #186 |
+| Copilot | `review_draft_pull_requests` | `false`(Draft中は走らない) | `copilot_code_review` Ruleset(id: 20465536) | 2026-08-14 | `gh api repos/{owner}/{repo}/rulesets/{id}`(手順は上記) | #220 |
+| Copilot | `review_on_push` | `false`(Ready後のpushでは走らない) | `copilot_code_review` Ruleset(id: 20465536) | 2026-08-14 | `gh api repos/{owner}/{repo}/rulesets/{id}`(手順は上記) | #220 |
