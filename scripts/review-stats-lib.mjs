@@ -298,6 +298,11 @@ const countTableRealFixes = (text) => {
       return;
     }
     const cells = splitTableRow(line);
+    // 末尾の`|`は省略可能な有効なMarkdown記法(GFM)。省略の有無だけで末尾に空セルが
+    // 1つ増減し、それをそのままヘッダのセル数と比べると「本物の修正」が正しく書かれた
+    // データ行まで列数不一致として誤って判定不能にしてしまう(CodeRabbitの指摘・
+    // 2026-08-14)。比較前に、末尾区切りが作る空セルだけを取り除く。
+    if (cells[cells.length - 1] === "") cells.pop();
     if (classificationColumnIndex === null) {
       classificationColumnIndex = cells.indexOf("分類");
       headerCellCount = cells.length;

@@ -435,6 +435,14 @@ describe("countRealFixes: table format robustness against malformed rows (#243)"
     });
     expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
   });
+
+  it("does not treat an omitted trailing pipe as a column-count mismatch (negative)", () => {
+    // CodeRabbitの指摘(2026-08-14): 末尾の`|`は省略可能な有効なMarkdown記法(GFM)。
+    // 省略の有無だけで末尾セル数が変わり、それをそのままヘッダと比較すると、正しく
+    // 書かれた「本物の修正」への言及まで列数不一致として誤って判定不能にしてしまっていた。
+    const text = ["| # | 分類 |", "| --- | --- |", "| 1 | 本物の修正"].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
 });
 
 describe("countRealFixes: 分類列限定・セル書式の判定 (#243)", () => {
