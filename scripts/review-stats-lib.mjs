@@ -159,7 +159,7 @@ export const REAL_FIX_HEADING = /^(?:#{1,6}\s+|\*\*)本物の修正/;
 const HEADING_LIKE = /^#{1,6}\s|^\*\*/;
 const NUMBERED_ITEM = /^\d+\.\s+\S/;
 
-export const countRealFixes = (text) => {
+const countHeadingListRealFixes = (text) => {
   const lines = text.split(/\r?\n/);
   let inSection = false;
   let count = 0;
@@ -178,7 +178,38 @@ export const countRealFixes = (text) => {
   return count;
 };
 
+// 表形式の分類記録(実例: PR #225「レビュー巡の記録」)。「分類」列のセル値が
+// `本物の修正`単体、または`本物の修正×2`のように乗数を伴う(1回の指摘に複数件の
+// 修正が対応する場合の表記。見出し+番号付きリスト形式には無い概念)。
+// 表構造(ヘッダ・区切り行の位置)は解析せず、`|`で始まる行の各セルを独立に走査する
+// (見出し+番号付きリスト用のパーサーとは判定対象の行の形が重ならないため、二重集計しない)。
+const TABLE_REAL_FIX_CELL = /^\*{0,2}本物の修正(?:×(\d+))?/;
+
+const countTableRealFixes = (text) => {
+  const lines = text.split(/\r?\n/);
+  let count = 0;
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line.startsWith("|")) continue;
+    for (const rawCell of line.split("|")) {
+      const cell = rawCell.trim();
+      const match = TABLE_REAL_FIX_CELL.exec(cell);
+      if (match === null) continue;
+      count += match[1] === undefined ? 1 : Number(match[1]);
+    }
+  }
+  return count;
+};
+
+export const countRealFixes = (text) => countHeadingListRealFixes(text) + countTableRealFixes(text);
+
 export const CLASSIFICATION_VOCABULARY = /(本物の修正|見送り|誤検知|妥当な(?:nitpick|指摘))/;
+
+// 「本物の修正」という語自体が本文中に現れるかどうか(構造の有無を問わない)。
+// countRealFixesが0を返しても、この語が存在するなら「記載はあるが構造化されておらず
+// 数えられなかった」可能性がある(fail-closed。#243)。誤って「0件」と読まれると、
+// 効果測定(#244の削減前後比較など)が実際は判定不能なのに0件で埋まってしまう。
+const REAL_FIX_MENTION = /本物の修正/;
 
 // 分類記録は人間(PO/実装者)が書くものなので、対象ボット自身の投稿は探索対象から除く。
 export const summarizeClassification = ({ prBody, issueComments, botLogins }) => {
@@ -190,7 +221,11 @@ export const summarizeClassification = ({ prBody, issueComments, botLogins }) =>
   ];
   const hasRecord = humanTexts.some((text) => CLASSIFICATION_VOCABULARY.test(text));
   const realFixCount = humanTexts.reduce((sum, text) => sum + countRealFixes(text), 0);
-  return { hasRecord, realFixCount };
+  // 「本物の修正」への言及はあるのに構造化パーサーが1件も拾えなかった場合だけ判定不能とする。
+  // 言及自体が無ければ、0件は「見送り/誤検知しか無かった」の正しい0であり判定不能ではない。
+  const realFixUnparsable =
+    realFixCount === 0 && humanTexts.some((text) => REAL_FIX_MENTION.test(text));
+  return { hasRecord, realFixCount, realFixUnparsable };
 };
 
 export const summarizePr = ({ prNumber, prBody, issueComments, reviews, reviewComments }) => {
@@ -202,6 +237,7 @@ export const summarizePr = ({ prNumber, prBody, issueComments, reviews, reviewCo
     codexUsageLimitHits: countUsageLimitHits(issueComments),
     realFixCount: classification.realFixCount,
     hasClassificationRecord: classification.hasRecord,
+    realFixUnparsable: classification.realFixUnparsable,
   };
 };
 
@@ -210,6 +246,7 @@ export const aggregate = (perPr) => {
   let totalRealFixes = 0;
   let totalUsageLimitHits = 0;
   let prsWithoutRecord = 0;
+  let prsWithUnparsableRealFix = 0;
   for (const pr of perPr) {
     for (const bot of TARGET_BOTS) {
       const entry = totals.get(bot);
@@ -219,6 +256,7 @@ export const aggregate = (perPr) => {
     totalRealFixes += pr.realFixCount;
     totalUsageLimitHits += pr.codexUsageLimitHits;
     if (!pr.hasClassificationRecord) prsWithoutRecord += 1;
+    if (pr.realFixUnparsable) prsWithUnparsableRealFix += 1;
   }
   const prCount = perPr.length;
   const perBot = Object.fromEntries(
@@ -234,17 +272,27 @@ export const aggregate = (perPr) => {
       ];
     }),
   );
-  return { prCount, perBot, totalRealFixes, totalUsageLimitHits, prsWithoutRecord };
+  return {
+    prCount,
+    perBot,
+    totalRealFixes,
+    totalUsageLimitHits,
+    prsWithoutRecord,
+    prsWithUnparsableRealFix,
+  };
+};
+
+const formatRealFixPart = (pr) => {
+  if (!pr.hasClassificationRecord) return "分類記録なし";
+  if (pr.realFixUnparsable) return "本物の修正:判定不能";
+  return `本物の修正:${pr.realFixCount}件`;
 };
 
 export const formatPrLine = (pr) => {
   const botPart = TARGET_BOTS.map(
     (bot) => `${bot}:${pr.bots[bot].launches}起動/${pr.bots[bot].findingLaunches}指摘あり`,
   ).join(" ");
-  const realFixPart = pr.hasClassificationRecord
-    ? `本物の修正:${pr.realFixCount}件`
-    : "分類記録なし";
-  return `PR#${pr.prNumber} ${botPart} ${realFixPart} Codex利用上限到達:${pr.codexUsageLimitHits}件`;
+  return `PR#${pr.prNumber} ${botPart} ${formatRealFixPart(pr)} Codex利用上限到達:${pr.codexUsageLimitHits}件`;
 };
 
 export const formatSummary = (summary) => {
@@ -258,6 +306,7 @@ export const formatSummary = (summary) => {
   lines.push(`本物の修正 合計: ${summary.totalRealFixes}件`);
   lines.push(`Codex利用上限到達 合計: ${summary.totalUsageLimitHits}件`);
   lines.push(`分類記録なしPR数: ${summary.prsWithoutRecord}`);
+  lines.push(`本物の修正 判定不能PR数: ${summary.prsWithUnparsableRealFix}`);
   return lines.join("\n");
 };
 

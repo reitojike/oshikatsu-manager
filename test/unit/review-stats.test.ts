@@ -238,7 +238,7 @@ describe("classification record absence vs explicit zero (negative)", () => {
       issueComments: [{ user: { login: "reitojike" }, body: "CIが緑になりました。" }],
       botLogins: TARGET_BOTS,
     });
-    expect(result).toEqual({ hasRecord: false, realFixCount: 0 });
+    expect(result).toEqual({ hasRecord: false, realFixCount: 0, realFixUnparsable: false });
   });
 
   it("hasRecord is true and realFixCount is 0 when a record explicitly finds zero real fixes", () => {
@@ -252,7 +252,7 @@ describe("classification record absence vs explicit zero (negative)", () => {
       ],
       botLogins: TARGET_BOTS,
     });
-    expect(result).toEqual({ hasRecord: true, realFixCount: 0 });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: false });
   });
 
   it("summarizePr keeps hasClassificationRecord=false distinct from a genuine realFixCount=0", () => {
@@ -344,6 +344,145 @@ describe("countRealFixes", () => {
       "2. 無関係な番号付き項目",
     ].join("\n");
     expect(countRealFixes(text)).toBe(0);
+  });
+});
+
+describe("countRealFixes: table format (#243)", () => {
+  it("counts a plain 本物の修正 cell in a table row", () => {
+    const text = [
+      "| # | 指摘元 | 分類 | 対応 |",
+      "| --- | --- | --- | --- |",
+      "| 1 | claude-review | 本物の修正 | abc123 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
+
+  it("counts a ×N multiplier cell as N", () => {
+    const text = [
+      "| # | 指摘元 | 分類 | 対応 |",
+      "| --- | --- | --- | --- |",
+      "| 1 | CodeRabbit | 本物の修正×2 | abc123 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(2);
+  });
+
+  it("does not count non-本物の修正 cells such as 見送り/誤検知/em-dash (negative)", () => {
+    const text = [
+      "| # | 指摘元 | 分類 | 対応 |",
+      "| --- | --- | --- | --- |",
+      "| 1 | claude-review | 見送る(軽微) | — |",
+      "| 2 | CodeRabbit | **誤検知として見送り**(前提誤り) | — |",
+      "| 3 | claude-review | — | 打ち切り |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
+
+  it("does not double-count when both heading+list and table formats appear in the same text (negative)", () => {
+    const text = [
+      "**本物の修正**",
+      "1. 直した",
+      "",
+      "| # | 分類 |",
+      "| --- | --- |",
+      "| 1 | 本物の修正×2 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(3);
+  });
+});
+
+describe("countRealFixes: PR #225 fixture regression (#243)", () => {
+  it("matches the real fixture: PR #225's classification table sums to 15 (regression)", () => {
+    // 実測(2026-08-13): PR #225「レビュー巡の記録」表の分類列を数えると15件になった
+    // (現状の実装は0件を返す既知の不具合)。fail-closed化・表対応の追加後もこの実測値を
+    // 回帰させないための固定テスト。
+    const text = [
+      "| # | HEAD | 指摘元 | 指摘概要 | 分類 | 対応 |",
+      "| --- | --- | --- | --- | --- | --- |",
+      "| 1 | d0f9e03 | claude-review(P0) | ... | 本物の修正 | ac24fe2 |",
+      "| 1 | d0f9e03 | CodeRabbit | ... | 本物の修正×2 | ac24fe2 / 2fbef0e |",
+      "| 3 | 2fbef0e〜df8e203 | CodeRabbit | ... | 本物の修正×2 | df8e203 |",
+      "| 4 | df8e203 | claude-review(P1) | ... | 本物の修正 | 14ccb8a |",
+      "| 5 | 14ccb8a | claude-review(P1×2) | ... | 本物の修正×2 | 22ca8bb |",
+      "| 6 | 22ca8bb | (メインセッション実測) | ... | 本物の修正 | 84628cb |",
+      "| 7 | 84628cb | CodeRabbit | ... | 本物の修正 | f174ba2 |",
+      "| 7 | 84628cb | CodeRabbit | ... | **誤検知として見送り**(前提誤り) | コメントで記録 |",
+      "| 8 | f174ba2 | (メインセッション実測) | ... | 本物の修正(自己訂正) | 32117b7 |",
+      "| 9 | 32117b7 | claude-review(P0) | ... | 本物の修正 | 0dc9066 |",
+      "| 9 | 32117b7 | claude-review(P1) | ... | 本物の修正 | 0dc9066 |",
+      "| 10 | 0dc9066 | claude-review(P1候補) | ... | 本物の修正 | 5c967a0 |",
+      "| 11 | 5c967a0 | claude-review(P1) | ... | 本物の修正 | e652e94 |",
+      "| 12 | e652e94 | claude-review | **P0/P1指摘なし** | — | 打ち切り |",
+      "| 12 | e652e94 | CodeRabbit | レート制限中 | — | — |",
+      "| — | — | claude-review(参考・P0/P1非該当) | ... | 見送る(軽微、対象外) | 対応なし |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(15);
+  });
+});
+
+// --- 否定側テスト4: 「本物の修正0件」と「構造化できず判定不能」を同じ0扱いにしない ---
+describe("realFixUnparsable: fail-closed distinction between 0件 and 判定不能 (#243)", () => {
+  it("is false when no 本物の修正 mention exists anywhere (genuine zero)", () => {
+    const result = summarizeClassification({
+      prBody: "**見送り**\n1. 既存慣習に合わせて見送り",
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: false });
+  });
+
+  it("is true when 本物の修正 is mentioned but neither structured parser could count it (negative)", () => {
+    // 見出し+番号付きリストでも表でもない、地の文だけの言及(記載漏れ・未知の書式を想定)。
+    const result = summarizeClassification({
+      prBody: "レビューで1件を本物の修正として対応した。",
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
+  });
+
+  it("is false when the table format successfully counts at least one item", () => {
+    const result = summarizeClassification({
+      prBody: ["| 分類 |", "| --- |", "| 本物の修正 |"].join("\n"),
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: false });
+  });
+
+  it("formatPrLine reports 判定不能 distinctly from a genuine 0件 (negative)", () => {
+    const unparsablePr = summarizePr({
+      prNumber: 1,
+      prBody: "レビューで1件を本物の修正として対応した。",
+      issueComments: [],
+      reviews: [],
+      reviewComments: [],
+    });
+    expect(formatPrLine(unparsablePr)).toContain("本物の修正:判定不能");
+    expect(formatPrLine(unparsablePr)).not.toContain("本物の修正:0件");
+  });
+
+  it("aggregate counts prsWithUnparsableRealFix separately from prsWithoutRecord", () => {
+    const unparsablePr = summarizePr({
+      prNumber: 1,
+      prBody: "レビューで1件を本物の修正として対応した。",
+      issueComments: [],
+      reviews: [],
+      reviewComments: [],
+    });
+    const summary = aggregate([emptyPr(2), unparsablePr]);
+    expect(summary.prsWithoutRecord).toBe(1);
+    expect(summary.prsWithUnparsableRealFix).toBe(1);
+  });
+
+  it("formatSummary includes the 判定不能 total", () => {
+    const unparsablePr = summarizePr({
+      prNumber: 1,
+      prBody: "レビューで1件を本物の修正として対応した。",
+      issueComments: [],
+      reviews: [],
+      reviewComments: [],
+    });
+    expect(formatSummary(aggregate([unparsablePr]))).toContain("本物の修正 判定不能PR数: 1");
   });
 });
 
