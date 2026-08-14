@@ -6,16 +6,27 @@
 コメント・レビュー・commit statusの実例(GitHub REST API経由)。このリポジトリの設定・運用は
 調査対象に含めていない。
 
-等級は次の5値。**A・Bは「ベンダーが定義したもの」、C1・C2は「実際に起きたことの観測」であり、
-この線を跨いで混ぜない。**
+**等級は「どの種類の情報源に当たったか」を表し、状態は「そこに何があったか」を表す。**
+2列は独立しており、組で読む —— `(A, 確認済み)` は「公式に記載があった」、
+`(A, 公式に未文書化)` は「公式を確認したが記載が無かった」。
+**どちらも一次情報に当たっている点は同じなので、後者で等級は下がらない。**
+**A・Bは「ベンダーが定義したもの」、C1・C2は「実際に起きたことの観測」であり、この線を跨いで混ぜない。**
 
 | 等級 | 定義 |
 | --- | --- |
-| A | 公式ドキュメントに明記 |
-| B | API仕様・設定スキーマ・公開ソースの定義から確定できる(観測はここに含めない) |
+| A | 公式ドキュメントを一次情報として確認した(記載の有無は状態列が示す) |
+| B | API仕様・設定スキーマ・公開ソースの定義を一次情報として確認した(観測はここに含めない) |
 | C1 | 我々の環境での実測(本調査では対象外。空) |
 | C2 | 第三者の公開リポジトリでの実測 |
 | D | 推測・未確認 |
+
+**状態が `公式に未文書化` の行は、出典欄に次の2つを必ず書く。**引用が無いぶん、
+これが無いと反証できず監査が成立しないため。
+
+1. **検索範囲** —— 見たページのURL、見た節、使った検索語
+2. **その情報源が閉じているか** —— スキーマやAPIのenumのような**網羅的な情報源**での不在は
+   **「存在しない」**。散文ドキュメントのような**開いた情報源**での不在は
+   **「文書化されていない」**にとどまる
 
 | 軸 | 主張 | 出典(URL・参照先) | 等級 | 確認日 | 状態 |
 | --- | --- | --- | --- | --- | --- |
@@ -37,7 +48,7 @@
 | 1 | Bot判定されたアカウントが作成したPRは既定で自動レビューがスキップされ、実例コメントは "Bot user detected." および "To trigger a single review, invoke the `@coderabbitai review` command." と表示される | <https://github.com/zenstackhq/zenstack-v3/pull/148>(issue comments API)。公開リポジトリ(zenstackhq/zenstack-v3, visibility: public)。プラン名・OSS文言の記載はこのコメントには見当たらず、文脈不明。観測日2025-08-06。 | C2 | 2026-08-15 | 確認済み |
 | 1 | 変更ファイルが `path_filters` で全て除外されるとレビュー自体がスキップされ、実例コメントは "Review was skipped due to path filters" と表示される | <https://github.com/ProjectTech4DevAI/kaapi-backend/pull/487>(issue comments API)。公開リポジトリ(ProjectTech4DevAI/kaapi-backend, visibility: public)。フッタに`It's free for OSS`の文言あり(プラン名自体の明記は無い)。観測日2025-12-11。 | C2 | 2026-08-15 | 確認済み |
 | 1 | レート制限超過時は新規レビューがスキップされ、実例コメントは "has exceeded the limit for the number of commits or files that can be reviewed per hour. Please wait **N minutes and M seconds** before requesting another review." と具体的な待ち時間を示す | <https://github.com/pyiron/pympipool/pull/338>(issue comments API)。公開リポジトリ(pyiron/pympipool, visibility: public)。フッタは"free to the OSS community"という趣旨の謝辞のみで定型句`free for OSS`とは文面が異なり、プラン名自体の明記は無い。観測日2024-05-28。 | C2 | 2026-08-15 | 確認済み |
-| 1 | 同一PRで新規コミットが無いまま `@coderabbitai review` または `full review` を連続で使った場合に、2回目が実際に再実行されるか・重複排除されるかについて、`guides/commands`・`reference/review-commands` のいずれにも明記が無い | <https://docs.coderabbit.ai/guides/commands>、<https://docs.coderabbit.ai/reference/review-commands> | A | 2026-08-15 | 公式に未文書化 |
+| 1 | 同一PRで新規コミットが無いまま `@coderabbitai review` または `full review` を連続で使った場合に、2回目が実際に再実行されるか・重複排除されるかについて、`guides/commands`・`reference/review-commands` のいずれにも明記が無い | 検索範囲: <https://docs.coderabbit.ai/guides/commands>(「Manually request code reviews」節)、<https://docs.coderabbit.ai/reference/review-commands>(「Manual review triggers」節・末尾の「Command reference table」節)。検索語: "again" "duplicate" "idempotent" "no new changes"。`reference/review-commands` は「Complete reference of CodeRabbit commands」「here's a summary of all available commands」と明記されコマンド一覧としては網羅的だが、個々のコマンドの**繰り返し実行時の挙動**という行(値)自体が列挙されておらず、この論点に関しては開いた情報源(散文的な各コマンド説明)での不在にとどまる → 「文書化されていない」 | A | 2026-08-15 | 公式に未文書化 |
 | 1 | `@coderabbitai resolve` は新規のトップレベルPRコメントとして投稿する必要があり、レビュースレッド内への返信としては効かない | <https://docs.coderabbit.ai/reference/review-commands> | A | 2026-08-15 | 確認済み |
 | 1 | `@coderabbitai approve` は `reviews.request_changes_workflow` が有効な場合のみ、未解決スレッドを解決した上でApprove submitを試みる | <https://docs.coderabbit.ai/reference/review-commands> | A | 2026-08-15 | 確認済み |
 | 1 | `@coderabbitai autofix` には `autofix stacked pr`(新規ブランチ作成)と直接コミットの2バリアントがあり、エイリアスとして `auto-fix` / `auto fix` がある | <https://docs.coderabbit.ai/reference/review-commands> | A | 2026-08-15 | 確認済み |
@@ -46,9 +57,9 @@
 | 1 | `@coderabbitai generate unit tests` はPR内のコード変更に対してユニットテストを生成する(設定での有効化が必要) | <https://docs.coderabbit.ai/reference/review-commands> | A | 2026-08-15 | 確認済み |
 | 1 | `@coderabbitai fix-ci` は失敗したCIチェックを調査・修正する。`fix-ci commit`(直接コミット)または既定のstacked PRの2バリアントがあり、エイリアスとして `fix ci` / `fixci` がある | <https://docs.coderabbit.ai/reference/review-commands> | A | 2026-08-15 | 確認済み |
 | 1 | Finishing Touchの「Resolve merge conflicts」は、両方の変更セットの意図を解析してマージコンフリクトを検出・解消しコミットする機能である | <https://docs.coderabbit.ai/finishing-touches/index> | A | 2026-08-15 | 確認済み |
-| 1 | 「Resolve merge conflicts」を呼び出す専用のスラッシュコマンド文字列があるかどうかは、`finishing-touches/index` を確認した範囲では明記が見当たらない | <https://docs.coderabbit.ai/finishing-touches/index> | A | 2026-08-15 | 公式に未文書化 |
+| 1 | 「Resolve merge conflicts」の呼び出しトリガはPRコメント `@coderabbitai fix merge conflict` であると、`finishing-touches/index` の「Quick reference」表に明記されている(出力は "Merge commit on branch") | <https://docs.coderabbit.ai/finishing-touches/index>(「Quick reference」節の表) | A | 2026-08-15 | 確認済み |
 | 1 | Finishing Touchの「Simplify code」は、変更コードを簡略化・再利用性・品質・効率の観点でレビューし対象を絞った改善を適用する機能である | <https://docs.coderabbit.ai/finishing-touches/index> | A | 2026-08-15 | 確認済み |
-| 1 | 「Simplify code」を呼び出す専用のスラッシュコマンド文字列があるかどうかは、`finishing-touches/index` を確認した範囲では明記が見当たらない | <https://docs.coderabbit.ai/finishing-touches/index> | A | 2026-08-15 | 公式に未文書化 |
+| 1 | 「Simplify code」の呼び出しトリガはPRコメントのスラッシュコマンドではなく「GitHub checkbox」(チェックボックス操作)のみであると、`finishing-touches/index` の「Quick reference」表に明記されている | <https://docs.coderabbit.ai/finishing-touches/index>(「Quick reference」節の表) | A | 2026-08-15 | 確認済み |
 | 1 | Post-Merge Actionsは、PRがdefaultブランチにマージされた時点で、チェックボックスがオンのアクションを全て実行するという新規の自動発火契機である("When the PR is merged into the default branch, CodeRabbit runs every action whose box is still checked") | <https://docs.coderabbit.ai/pr-reviews/post-merge-actions> | A | 2026-08-15 | 確認済み |
 | 2 | 設定ソースはデフォルトでマージされず、優先度は workspace global override > organization global override > repository `.coderabbit.yaml` > 中央リポジトリ設定 > repository UI設定 > organization UI設定 > workspace設定 > デフォルト設定 の順(高い方が優先) | <https://docs.coderabbit.ai/guides/configuration-overview> | A | 2026-08-15 | 確認済み |
 | 2 | `.coderabbit.yaml` はリポジトリのルート、または組織内の `coderabbit` という名前の中央リポジトリのいずれかに置ける | <https://docs.coderabbit.ai/guides/configuration-overview> | A | 2026-08-15 | 確認済み |
@@ -58,7 +69,7 @@
 | 2 | `path_filters` はglobパターン(`!`接頭辞で除外)で対象ファイルをレビューから完全に除外できる | <https://docs.coderabbit.ai/configuration/path-instructions> | A | 2026-08-15 | 確認済み |
 | 2 | `path_instructions` はレビューの観点(ガイダンス)のみを変更するものであり、ファイルをレビュー対象から除外する機能ではない(「他機能が同じコードを検査するのを無効化しない」と明記) | <https://docs.coderabbit.ai/configuration/path-instructions> | A | 2026-08-15 | 確認済み |
 | 2 | Enterprise限定で組織設定から "Use Workspace Settings" を有効にすると、対象の組織設定セクションが読み取り専用になる | <https://docs.coderabbit.ai/guides/organization-settings> | A | 2026-08-15 | 確認済み |
-| 2 | GitHubのBranch protectionでCodeRabbitのcommit statusをrequired status checkとして組み込めるかどうかは、`guide/repository` ページを確認したが記載が見当たらない | <https://docs.coderabbit.ai/guide/repository> | A | 2026-08-15 | 公式に未文書化 |
+| 2 | GitHubのBranch protectionでCodeRabbitのcommit statusをrequired status checkとして組み込めるかどうかは、確認した3ページのいずれにも記載が見当たらない | 検索範囲: <https://docs.coderabbit.ai/guide/repository>(「Repository setup」全体、オンボーディング手順ページ)、<https://docs.coderabbit.ai/guides/repository-settings>(「Repository settings」全体、UI設定リファレンス)、<https://docs.coderabbit.ai/platforms/github-com>(「GitHub」全体、GitHub固有の前提条件・認可手順ページ)。検索語: "branch protection" "required status check" "required check" "block merge"。いずれのページも散文の手順・設定説明ページであり、GitHub側のBranch protection設定項目を網羅的に列挙する情報源ではない(開いた情報源) → 「文書化されていない」。この論点はCodeRabbit側ではなくGitHub側の設定であるため、そもそもCodeRabbitの公式ドキュメントが扱う対象外である可能性がある | A | 2026-08-15 | 公式に未文書化 |
 | 2 | `reviews.tools` 配下で50以上のサードパーティlinter/SASTツール(ESLint、Ruff、Semgrepなど)を個別に `enabled: true/false` で切り替えられる | <https://docs.coderabbit.ai/tools/reference> | A | 2026-08-15 | 確認済み |
 | 2 | AST-grepベースのpath instructions(`configuration/ast-grep-instructions`)はPro/Pro+/Enterprise限定の機能で、自動レビュー時のみ使え、chatでは使えない | <https://docs.coderabbit.ai/configuration/ast-grep-instructions> | A | 2026-08-15 | 確認済み |
 | 2 | `reviews.disable_cache` を `true` にするとリポジトリのキャッシュ利用をオプトアウトできる(既定は有効) | <https://docs.coderabbit.ai/reference/caching> | A | 2026-08-15 | 確認済み |
@@ -66,14 +77,14 @@
 | 2 | ルートキー `early_access` は「早期アクセス機能を有効化する("Enable early-access features.")」設定で、既定値は `false` | <https://docs.coderabbit.ai/reference/configuration> | A | 2026-08-15 | 確認済み |
 | 2 | ルートキー `enable_free_tier` は「有料プラン未加入ユーザー向けにFree tier機能を有効化する("Enable free tier features for users not on a paid plan.")」設定で、既定値は `true` | <https://docs.coderabbit.ai/reference/configuration> | A | 2026-08-15 | 確認済み |
 | 2 | スキーマのルートに `code_generation` キーが存在する | <https://coderabbit.ai/integrations/schema.v2.json> | B | 2026-08-15 | 確認済み |
-| 2 | `reference/configuration` ページには `code_generation` を単一のルートキーとして説明する記載箇所が見当たらず、生成系機能(docstrings/unit tests等)は `finishing_touches` 配下など別カテゴリとして文書化されている | <https://docs.coderabbit.ai/reference/configuration> | A | 2026-08-15 | 公式に未文書化 |
+| 2 | `reference/configuration` は全キーを網羅するper-key referenceとして構成されており、`code_generation` は単一のフラットなキーとしてではなく「Code generation」という独立した最上位セクション(Docstrings/Unit Testsの2サブシステムの設定を含む)として文書化されている | <https://docs.coderabbit.ai/reference/configuration>(「Code generation」節) | A | 2026-08-15 | 確認済み |
 | 3 | レビュー時はサンドボックス化されたクラウド実行環境にリポジトリ全体をクローンして解析する("Sandboxed cloud execution with your full repository cloned for isolated analysis") | <https://docs.coderabbit.ai/overview/architecture> | A | 2026-08-15 | 確認済み |
 | 3 | "Agentic exploration"としてdiff以外のコードベースも自律的に調査してコンテキストを得る("autonomously investigates your codebase for context") | <https://docs.coderabbit.ai/overview/architecture> | A | 2026-08-15 | 確認済み |
 | 3 | "Living memory"として過去のフィードバック・PR・issue・コーディング規約を学習し反映する | <https://docs.coderabbit.ai/overview/architecture> | A | 2026-08-15 | 確認済み |
 | 3 | Multi-repo analysisは既定で無効("Multi-repo analysis is not enabled by default")であり、有効化しない限りリンク先リポジトリの内容はレビューに反映されない | <https://docs.coderabbit.ai/knowledge-base/multi-repo-analysis> | A | 2026-08-15 | 確認済み |
 | 3 | Multi-repo analysisの手動リンクはProプランから、自動リンクはPro+・Enterpriseプラン限定 | <https://docs.coderabbit.ai/knowledge-base/multi-repo-analysis> | A | 2026-08-15 | 確認済み |
 | 3 | クロスリポジトリの影響が無い変更の場合、Multi-repo analysisは「所見を出さないのが正常動作であり誤設定を意味しない」と明記されている | <https://docs.coderabbit.ai/knowledge-base/multi-repo-analysis> | A | 2026-08-15 | 確認済み |
-| 3 | レビューが「差分のみ」か「変更ファイル全文」かの正確な境界線について、`overview/pull-request-review` ページを確認したが明記が見当たらない | <https://docs.coderabbit.ai/overview/pull-request-review> | A | 2026-08-15 | 公式に未文書化 |
+| 3 | レビューが「差分のみ」か「変更ファイル全文」かの正確な境界線について、`overview/pull-request-review` ページを確認したが明記が見当たらない | 検索範囲: <https://docs.coderabbit.ai/overview/pull-request-review>(「Automatic and incremental」節・「Connected to your workflow」節を含む全体)。検索語: "diff" "full file" "entire file" "patch"。ページは「Full analysis of all changes」という表現はあるが、diff/patchのみか変更後のファイル全文かを明示的に区別する記述は無い。このページは機能訴求を目的としたnarrative overviewであり、技術仕様を網羅する情報源ではない(開いた情報源) → 「文書化されていない」 | A | 2026-08-15 | 公式に未文書化 |
 | 3 | Learningsの適用範囲は既定(Auto)では、公開リポジトリのレビューにはそのリポジトリ固有のlearningsのみ、非公開リポジトリのレビューには組織全体のlearningsを適用する。設定でGlobal/Localに変更可能 | <https://docs.coderabbit.ai/knowledge-base/learnings> | A | 2026-08-15 | 確認済み |
 | 3 | 「PR validation using linked issues」は、PR本文でリンクされたJira/Linear issueの内容を読み取り、要件が満たされているかを判定し、ギャップがあればレビューで指摘する("CodeRabbit flags it during review") | <https://docs.coderabbit.ai/issues/pr-validation> | A | 2026-08-15 | 確認済み |
 | 3 | Jira/Linear連携によるPR validationは、非公開リポジトリでは既定で有効、公開リポジトリでは既定で無効 | <https://docs.coderabbit.ai/issues/pr-validation> | A | 2026-08-15 | 確認済み |
@@ -99,14 +110,14 @@
 | 5 | 公式サイトはCodeRabbitのGitHub AppページとしてURL `https://github.com/apps/coderabbitai` を案内している(=App識別子は`coderabbitai`) | <https://docs.coderabbit.ai/faq> | A | 2026-08-15 | 確認済み |
 | 5 | レビューコメント本文には `<!-- This is an auto-generated comment by CodeRabbit -->` というHTMLコメントマーカーが個々の指摘の末尾に付く | <https://github.com/actualbudget/actual/pull/3584>(pulls/comments APIのbody)。公開リポジトリ(actualbudget/actual, visibility: public)。文脈不明。観測日2024-10-06。 | C2 | 2026-08-15 | 確認済み |
 | 5 | Pre-merge checksの結果はPRの "Walkthrough" 内に表示される(Walkthroughセクションの一部として構成される) | <https://docs.coderabbit.ai/pr-reviews/pre-merge-checks> | A | 2026-08-15 | 確認済み |
-| 5 | Pre-merge checksがGitHubのcommit statusとcheck run(Checks API)のどちらの仕組みで報告されるかは、`pr-reviews/pre-merge-checks` ページに明記が見当たらない | <https://docs.coderabbit.ai/pr-reviews/pre-merge-checks> | A | 2026-08-15 | 公式に未文書化 |
+| 5 | Pre-merge checksがGitHubのcommit statusとcheck run(Checks API)のどちらの仕組みで報告されるかは、`pr-reviews/pre-merge-checks` ページに明記が見当たらない | 検索範囲: <https://docs.coderabbit.ai/pr-reviews/pre-merge-checks>(「Results in the Walkthrough」節・「Configuring Pre-merge Checks」節を含む全体)。検索語: "commit status" "check run" "Checks API" "status check"。いずれも0件。このページはBuilt-in Checks/Custom Checks/Enforcement Modesなどユーザー向け機能説明が中心のnarrative feature pageであり、GitHub API連携の技術実装仕様を記載する情報源ではない(開いた情報源) → 「文書化されていない」 | A | 2026-08-15 | 公式に未文書化 |
 | 5 | GitHub Checksツール統合はCodeRabbit自身がcheck runを作るのではなく、既存のGitHub Actions/CI check runの出力を読み取って"reads their output"、修正提案をinlineコメントとして投稿する | <https://docs.coderabbit.ai/tools/github-checks> | A | 2026-08-15 | 確認済み |
 | 6 | 個々のPRレビューコメント本文には `<!-- This is an auto-generated comment: summarize by coderabbit.ai -->` (walkthrough)、`<!-- This is an auto-generated comment: skip review by coderabbit.ai -->` (スキップ)、`<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->` (レート制限)という異なるHTMLマーカーが付き、これによって「成功」「スキップ」「レート制限」をコメント本文の走査で機械的に区別できる | <https://github.com/ProjectTech4DevAI/kaapi-backend/pull/487>、<https://github.com/pyiron/pympipool/pull/338>(issue comments API)。両方とも公開リポジトリ(visibility: public)。kaapi-backendはフッタに`It's free for OSS`の文言あり(観測日2025-12-11)、pympipoolはOSS向け謝辞はあるがプラン名の明記は無し(観測日2024-05-28)。 | C2 | 2026-08-15 | 確認済み |
 | 6 | 指摘0件のレビューは実行はされており、レビュー本文が `**Actionable comments posted: 0**` から始まる(空振りではなく成功扱い) | <https://github.com/actualbudget/actual-server/pull/531>(pulls/reviews API)。公開リポジトリ(actualbudget/actual-server, visibility: public)。レビュー詳細に`Plan: Pro`と明記(公開リポジトリでも無料OSS枠ではなくProプランで運用されている実例)。観測日2025-01-01。 | C2 | 2026-08-15 | 確認済み |
 | 6 | `reviews.review_status` の既定値は `true` で、レビューがスキップされた場合などのステータスメッセージをwalkthroughサマリコメントに投稿する(falseにすると当メッセージ自体を無効化できる) | <https://docs.coderabbit.ai/reference/configuration> | A | 2026-08-15 | 確認済み |
 | 6 | `reviews.fail_commit_status` の既定値は `false` で、「レビューエラー時に外部向けレビューステータス表示を失敗扱いにするか」を制御する(既定ではエラーがcommit statusのfailureに伝播しない) | <https://docs.coderabbit.ai/reference/configuration> | A | 2026-08-15 | 確認済み |
 | 6 | グロッサリで "Status Check" は「CI・テスト・CodeRabbitのようなコードレビューツールなど、自動化プロセスの結果を示すPR上の指標(pass/pending/fail)」と定義されている | <https://docs.coderabbit.ai/reference/glossary> | A | 2026-08-15 | 確認済み |
-| 6 | 「成功」「指摘0件」「スキップ」「レート制限で未実行」「エラー」の5状態すべてを明確に区別できる単一の公式一覧・ステータス列挙は、`reference/glossary`・`reference/configuration` を確認した範囲では見当たらない(各状態の断片的な言及はあるが、網羅した状態表は無い) | <https://docs.coderabbit.ai/reference/glossary>、<https://docs.coderabbit.ai/reference/configuration> | A | 2026-08-15 | 公式に未文書化 |
+| 6 | 「成功」「指摘0件」「スキップ」「レート制限で未実行」「エラー」の5状態すべてを明確に区別できる単一の公式一覧・ステータス列挙は、`reference/glossary`・`reference/configuration` を確認した範囲では見当たらない(各状態の断片的な言及はあるが、網羅した状態表は無い) | 検索範囲: <https://docs.coderabbit.ai/reference/glossary>(全25用語の一覧)、<https://docs.coderabbit.ai/reference/configuration>(「Reviews」節)。検索語: ページ全体を通読し、状態を列挙した表・enumの有無を確認。`reference/glossary` は冒頭で「This glossary covers terms... referenced in the documentation」と明記しており、CodeRabbit全用語の網羅ではなく本文中に登場した用語の集合という**開いた情報源**であることを自ら宣言している → 「文書化されていない」 | A | 2026-08-15 | 公式に未文書化 |
 | 7 | 料金プランはFree・Open Source・Pro・Pro+・Enterpriseの5種類 | <https://docs.coderabbit.ai/management/plans> | A | 2026-08-15 | 確認済み |
 | 7 | レート制限は"rolling allowance"方式で、「一括リセットではなく、古いレビューがローリングウィンドウから外れるにつれて新たな利用枠が使えるようになる」 | <https://docs.coderabbit.ai/management/plans> | A | 2026-08-15 | 確認済み |
 | 7 | Freeプランのレート上限: PRレビュー 1件/時(要約のみ)、IDEレビュー 3件/時、CLIレビュー 3件/時、1レビューあたり150ファイル、chatは対象外 | <https://docs.coderabbit.ai/management/plans> | A | 2026-08-15 | 確認済み |
@@ -127,19 +138,19 @@
 | 8 | AST-grepベースのpath instructionsは「学習コストがあり、YAML設定に慣れたユーザー向け」と明記され、chatでは使えないという制約がある | <https://docs.coderabbit.ai/configuration/ast-grep-instructions> | A | 2026-08-15 | 確認済み |
 | 8 | Security Agentは独立したアドオンであり、「CodeRabbitのPro・Pro+・Enterpriseプランには含まれない("is not part of...")」と明記されている | <https://docs.coderabbit.ai/security-agent> | A | 2026-08-15 | 確認済み |
 | 8 | 自己ホスティング(self-hosted)はEnterpriseかつ500シート以上の顧客限定と明記されている | <https://docs.coderabbit.ai/self-hosted/overview> | A | 2026-08-15 | 確認済み |
-| 8 | FAQページを確認したが、フォークPRでの挙動・force-push後の再レビュー挙動・誤検知率(false positive rate)についての言及は見当たらなかった | <https://docs.coderabbit.ai/faq> | A | 2026-08-15 | 公式に未文書化 |
+| 8 | FAQページを確認したが、フォークPRでの挙動・force-push後の再レビュー挙動・誤検知率(false positive rate)についての言及は見当たらなかった | 検索範囲: <https://docs.coderabbit.ai/faq>(全質問見出し。「How accurate is CodeRabbit?」「Usage Limits」等を含む全カテゴリ)。検索語: "fork" "force-push" "force push" "false positive"。いずれも0件。ページ冒頭は「Answers to **common** CodeRabbit questions」であり、網羅的なFAQではなく「よくある質問」の抜粋であることを自ら明示し、完全な索引としては`https://docs.coderabbit.ai/llms.txt`を案内している(開いた情報源) → 「文書化されていない」 | A | 2026-08-15 | 公式に未文書化 |
 | 8 | 「100%の精度は保証されない("100% accuracy isn't guaranteed due to AI's evolving nature")」とFAQで一般論として述べられているのみで、定量的な誤検知率の開示は無い | <https://docs.coderabbit.ai/faq> | A | 2026-08-15 | 確認済み |
 | 9 | パスフィルタで除外されたファイルはCodeRabbit自身のレビュー面(walkthrough・Change Stack)には現れないが、「GitHubはPRの完全なファイル一覧にそれらのファイルを表示し続けることができる("GitHub can still show those files in the pull request's full file list.")」と公式ページに明記されている | <https://docs.coderabbit.ai/configuration/path-instructions>("Configure path filters"節のInfoボックス) | A | 2026-08-15 | 確認済み |
 | 9 | CodeRabbitはロックファイル・バイナリ・生成コード・メディア資産などを既定で無視するデフォルトの除外パターンを持つ | <https://docs.coderabbit.ai/configuration/path-instructions> | A | 2026-08-15 | 確認済み |
 | 9 | キャッシュ(リポジトリの準備済みコピー+依存関係)は最大7日で自動的に期限切れになる | <https://docs.coderabbit.ai/reference/caching> | A | 2026-08-15 | 確認済み |
 | 9 | `disable_cache` を有効にした場合、レビュー詳細欄に "Cache: Disabled due to Reviews > Disable Cache setting." と表示される | <https://docs.coderabbit.ai/reference/caching> | A | 2026-08-15 | 確認済み |
-| 9 | Metrics Data API(`GET /v1/metrics/reviews`)のレスポンスは `created_at`・`ready_for_review_at`・`first_human_review_at`・`last_commit_at`・`merged_at` という複数のタイムスタンプフィールドを持つが、それぞれの意味(作成時刻/更新時刻/提出時刻の区別やnullになる条件)についての詳細な定義文は当該ページに見当たらない | <https://docs.coderabbit.ai/api-reference/metrics-data-api> | A | 2026-08-15 | 公式に未文書化 |
+| 9 | Metrics Data API(`GET /v1/metrics/reviews`)のOpenAPIスキーマ記述には、各タイムスタンプフィールドの意味が個別に明記されている: `created_at`="When the PR was created"、`ready_for_review_at`="When the PR became ready for review. Matches created_at if the PR was never a draft, and may be null for older records where this timestamp was not collected."、`first_human_review_at`="When the first human review was submitted"、`last_commit_at`="When the last non-merge, non-rebased commit was pushed"、`merged_at`="When the PR was merged" | <https://docs.coderabbit.ai/api-reference/metrics-data-api>(OpenAPIスキーマコンポーネントの各フィールド説明) | A | 2026-08-15 | 確認済み |
 | 9 | Metrics Data APIは `limit`(既定1000)と `cursor` によるページネーションをサポートし、レスポンス最大サイズは16MBという制約がある | <https://docs.coderabbit.ai/api-reference/metrics-data-api> | A | 2026-08-15 | 確認済み |
 | 9 | 指摘0件のレビューでもレビューオブジェクト自体は作成される(実例: `state: COMMENTED` で本文が `**Actionable comments posted: 0**`)。つまり「オブジェクトが作られない」パターンは指摘0件では発生しない | <https://github.com/actualbudget/actual-server/pull/531>(pulls/reviews API)。公開リポジトリ(actualbudget/actual-server, visibility: public)。レビュー詳細に`Plan: Pro`と明記。観測日2025-01-01。 | C2 | 2026-08-15 | 確認済み |
 | 9 | walkthroughコメント本文にはウォークスルー本体とは別に `<!-- This is an auto-generated comment: raw summary by coderabbit.ai -->` で囲われた「ファイル単位のAI生成差分サマリ」がHTMLコメントとして埋め込まれており、通常の表示(レンダリング後のMarkdown)では見えない | <https://github.com/FalkorDB/node-falkordb/pull/1>(issue comments API)。公開リポジトリ(FalkorDB/node-falkordb, visibility: public)。プラン名・OSS文言の記載は本コメントには見当たらず、文脈不明。観測日2023-12-12(2023年時点の古い実例であり、現行仕様と異なる可能性がある)。 | C2 | 2026-08-15 | 確認済み |
-| 9 | PRの本文(description)が編集されて `@coderabbitai summary` プレースホルダが除去/変更された場合に何が起きるかについて、`pr-reviews/summaries` ページに明記が見当たらない | <https://docs.coderabbit.ai/pr-reviews/summaries> | A | 2026-08-15 | 公式に未文書化 |
+| 9 | PRの本文(description)が編集されて `@coderabbitai summary` プレースホルダが除去/変更された場合に何が起きるかについて、`pr-reviews/summaries` ページに明記が見当たらない | 検索範囲: <https://docs.coderabbit.ai/pr-reviews/summaries>(「Controlling placement」節・「Disabling the summary」節を含む全体)。検索語: "edited" "removed" "placeholder" "manually"。プレースホルダを**追加**したときの挙動(`high_level_summary`無効時でもプレースホルダがあれば挿入される)は書かれているが、**除去/改変**したときの逆方向の挙動は書かれていない。このページはconcept説明+設定例が中心のnarrative feature pageであり、エッジケースを網羅する仕様書ではない(開いた情報源) → 「文書化されていない」 | A | 2026-08-15 | 公式に未文書化 |
 | 10 | ダッシュボードのメトリクスは「マージ済みPR上で投稿されたCodeRabbitレビューコメント数」「PRあたりの平均レビューイテレーション数(Avg Review Iterations per PR = review eventsの平均)」「重篤度・カテゴリ別の受理率」「マージまでの時間」を中心とし、実行回数の成功/スキップ/エラー別カウントは提供されない | <https://docs.coderabbit.ai/guides/dashboard-metrics> | A | 2026-08-15 | 確認済み |
-| 10 | 「1回のレビューが走った」をどの痕跡(pulls/reviews・issues/comments・commit status)から1回と数えるか、複数の面に痕跡が残った場合にどれを正とするかについて、公式ドキュメントに明記が見当たらない | <https://docs.coderabbit.ai/guides/dashboard-metrics>、<https://docs.coderabbit.ai/reference/glossary> | A | 2026-08-15 | 公式に未文書化 |
+| 10 | 「1回のレビューが走った」をどの痕跡(pulls/reviews・issues/comments・commit status)から1回と数えるか、複数の面に痕跡が残った場合にどれを正とするかについて、公式ドキュメントに明記が見当たらない | 検索範囲: <https://docs.coderabbit.ai/guides/dashboard-metrics>(「Quality Metrics」「Time Metrics」節を含む全10節)、<https://docs.coderabbit.ai/reference/glossary>(「Incremental Review」定義を含む全25用語)。検索語: ページ全体を通読し「1回のレビュー」の計数根拠を示す記述の有無を確認。`dashboard-metrics`ページは「Detailed definitions and calculations for all CodeRabbit Git platform review dashboard metrics」という前置きで、指標の**定義**は網羅的に見えるが、「複数の面の痕跡のどれを正とするか」という実装上の集計根拠までは踏み込んでおらず、この一次情報自体が持たない情報であるため開いた情報源として扱う → 「文書化されていない」 | A | 2026-08-15 | 公式に未文書化 |
 | 10 | Metrics Data APIのレスポンスにはレビュー1件あたりのコスト・所要時間・エラー/権限拒否といった実行メタデータのフィールドは含まれていない(複雑度スコアと予想レビュー分数のみ) | <https://docs.coderabbit.ai/api-reference/metrics-data-api> | A | 2026-08-15 | 確認済み |
 | 10 | レビュー詳細コメント本文(`<details><summary>📜 Review details</summary>`)には `Configuration used`・`Review profile`、実例によっては `Plan`(例: "Plan: Pro")といった実行時メタデータが人間可読テキストとして埋め込まれる(構造化フィールドではない) | <https://github.com/actualbudget/actual-server/pull/531>(pulls/reviews APIのbody)。公開リポジトリ(actualbudget/actual-server, visibility: public)。観測日2025-01-01。 | C2 | 2026-08-15 | 確認済み |
 | 10 | 監査ログAPIは「誰が・何を・いつ変更したか」を記録するが、これは設定変更などの管理操作向けであり、個々のレビュー実行(1回のレビュー実行イベント)自体を記録する用途ではない | <https://docs.coderabbit.ai/management/audit-logs> | A | 2026-08-15 | 確認済み |
@@ -149,14 +160,14 @@
 | 11 | APIキーには組織スコープ・Enterprise SSO向けworkspace API token・self-hosted用の3種類がある | <https://docs.coderabbit.ai/api> | A | 2026-08-15 | 確認済み |
 | 11 | `GET /v1/organizations` は組織の `id`・`name`・`provider`・`provider_organization_id` を返すのみで、契約プラン(plan/tier)・シート数・組織設定の現在値は含まれない | <https://docs.coderabbit.ai/api-reference/organizations-list> | A | 2026-08-15 | 確認済み |
 | 11 | `GET /v1/organizations` エンドポイントはEnterpriseプラン限定である | <https://docs.coderabbit.ai/api-reference/organizations-list> | A | 2026-08-15 | 確認済み |
-| 11 | 契約プラン・残枠・レート上限の"現在値"をAPI経由で機械的に取得する手段(専用のusage/quotaエンドポイント)は、`api`・`api-reference/*` の一覧を確認した範囲では見当たらない | <https://docs.coderabbit.ai/api>、<https://docs.coderabbit.ai/api-reference/organizations-list> | A | 2026-08-15 | 公式に未文書化 |
+| 11 | 契約プラン・残枠・レート上限の"現在値"をAPI経由で機械的に取得する手段(専用のusage/quotaエンドポイント)は、`api`・`api-reference/*` の一覧を確認した範囲では見当たらない | 検索範囲: <https://docs.coderabbit.ai/api>(「Explore the API」節)、<https://docs.coderabbit.ai/api-reference/organizations-list>(エンドポイント仕様全体)。検索語: "usage" "quota" "remaining"、いずれも0件。`api`インデックスページの「Explore the API」節は「Use it to discover organizations and repositories, retrieve metrics and learnings, manage users and roles, or export audit logs.」という**例示的な言い回し("Use it to...")**であり、「これが全カテゴリである」という完全性の宣言はしていない(開いた情報源) → 「文書化されていない」。ただし列挙されている6カテゴリ(Organizations & Repositories / Metrics & Learnings / Users & Seats / Roles / Audit Logs / Workspace API Tokens)自体は具体的で、usage/quota系エンドポイントが存在するなら通常はこの並びに現れるはずという点で、示唆はやや強い | A | 2026-08-15 | 公式に未文書化 |
 | 11 | 監査ログはUI(Settings → Audit Logs、User/Action/Resource Summary/timestampの列)と同一データを返すAPIの両方から取得でき、APIはSIEM連携等のエクスポート用途を想定している | <https://docs.coderabbit.ai/management/audit-logs> | A | 2026-08-15 | 確認済み |
-| 11 | 監査ログの保持期間(retention)については `management/audit-logs` ページに明記が見当たらない | <https://docs.coderabbit.ai/management/audit-logs> | A | 2026-08-15 | 公式に未文書化 |
+| 11 | 監査ログの保持期間(retention)については `management/audit-logs` ページに明記が見当たらない | 検索範囲: <https://docs.coderabbit.ai/management/audit-logs>(「What is logged」節の2つの表(ログ列一覧・リソース種別/イベント一覧)を含む全体)。検索語: "retention" "days" "how long" "expire"、いずれも0件。「What is logged」節の表はログの**列**とリソース種別/イベントの**種類**を網羅的に列挙しているが、保持**期間**はそもそもその表の対象項目に含まれておらず、記載が無い理由が「表から漏れた」のか「そもそも扱う話題ではない」のか切り分けられない(開いた情報源としての不在) → 「文書化されていない」 | A | 2026-08-15 | 公式に未文書化 |
 | 11 | レート制限超過時、実際のPRコメント本文には「CodeRabbit enforces hourly rate limits for each developer per organization. Our paid plans have higher rate limits than the trial, open-source and free plans.」という一般論の説明のみが埋め込まれ、呼び出し元が自分の残枠の現在値を数値として読める形では提供されない(具体的な待ち秒数のみ埋め込まれる) | <https://github.com/nanotaboada/Dotnet.Samples.AspNetCore.WebApi/pull/277>(issue comments API)。公開リポジトリ(nanotaboada/Dotnet.Samples.AspNetCore.WebApi, visibility: public)。フッタに`It's free for OSS`の文言あり。観測日2025-08-25。 | C2 | 2026-08-15 | 確認済み |
 | その他 | Slop Detectionは「公開GitHubリポジトリ上で低品質・AI生成的なPRを自動検出する」機能で、対象プランの明記は見当たらない | <https://docs.coderabbit.ai/pr-reviews/slop-detection> | A | 2026-08-15 | 確認済み |
 | その他 | Security Agentは通常のPRレビューとは別建てのスタンドアロン・アドオンで、継続的なセキュリティ姿勢管理・Dependency/SBOM/Secretsスキャン・AI Deep Scan(現在のPR diffを超えた既存コード全体の脆弱性解析)を提供し、所見は別のセキュリティダッシュボードに出る | <https://docs.coderabbit.ai/security-agent> | A | 2026-08-15 | 確認済み |
 | その他 | 自己ホスティングはコンテナイメージとして配布され、GitHub Enterprise Server・GitLab self-managed・Azure DevOps・Bitbucket Data Centerに対応し、閉域網向けにアウトバウンドのみで動く「Reverse Tunnel」機能がある | <https://docs.coderabbit.ai/self-hosted/overview> | A | 2026-08-15 | 確認済み |
-| その他 | GitHub以外にGitLab.com/self-managed、Azure DevOps、Bitbucket Cloud/Data Centerに対応するが、`platforms/overview` ページにはプラットフォーム間でのレビュー出力方式(commit status vs check run)の違いについての明記が見当たらない | <https://docs.coderabbit.ai/platforms/overview> | A | 2026-08-15 | 公式に未文書化 |
+| その他 | GitHub以外にGitLab.com/self-managed、Azure DevOps、Bitbucket Cloud/Data Centerに対応するが、確認した範囲ではプラットフォーム間でのレビュー出力方式(commit status vs check run)の違いについての明記が見当たらない | 検索範囲: <https://docs.coderabbit.ai/platforms/overview>(「Integration process」節・「Supported Git platforms」節。プラットフォーム横断の比較表は無く、各プラットフォームへのリンクカードのみ)、<https://docs.coderabbit.ai/platforms/github-com>(「Prerequisites」「Troubleshooting」節を含む全体)。検索語: "commit status" "check run" "required status check" "status check"、いずれのページも0件。`platforms/overview`は「Connect CodeRabbit with your preferred Git platform...」という案内ページで、比較マトリクスを持たず各プラットフォーム個別ページへ誘導する構造(開いた情報源)。他のGitLab/Azure DevOps/Bitbucket個別ページは今回未確認であり、検索範囲はGitHub関連2ページに限られる → 「文書化されていない」 | A | 2026-08-15 | 公式に未文書化 |
 | その他 | Slack・Discord向けに、PRレビューとは別建ての対話エージェント("CodeRabbit Agent for Slack" / "for Discord")が提供されている(独自のプラン・利用枠を持つ) | <https://docs.coderabbit.ai/overview/slack-agent>、<https://docs.coderabbit.ai/discord-agent> | A | 2026-08-15 | 確認済み |
 | その他 | IDE(VS Code拡張)・CLIによるローカルレビューはPRレビューとは別イベント系統で、`management/plans` のレート表では「IDEレビュー」「CLIレビュー」として別枠でカウントされる | <https://docs.coderabbit.ai/management/plans> | A | 2026-08-15 | 確認済み |
 | その他 | Issue Planner(`plan/*`)は、issue・PRD・設計書・自由記述の説明からコードベース解析に基づく実装計画(「汎用的な概要ではなくagent-ready prompt」)を生成する別機能で、Webアプリ・issueへの`@coderabbitai plan`コメント・VS Code拡張のいずれからも呼び出せる | <https://docs.coderabbit.ai/plan/index> | A | 2026-08-15 | 確認済み |
