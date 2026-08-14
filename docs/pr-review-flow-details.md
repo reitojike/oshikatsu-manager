@@ -267,6 +267,12 @@ ORへ吸収され、別概念としては解消済み。そのORも#244でCodeRa
 (現行の正本は`.claude/skills/pr-review-flow/SKILL.md`「Draft PR中の必須レビュー」)。**
 当時の判定手順の記録として残す。
 
+**全角表記をPR本文等にも広げた経緯(#235)。**2026-08-13のPR #233で、「今回はCodexへの
+メンションをしない」と説明する目的で半角の`@codex review`をPR本文に書いた結果、Codex Cloudが
+意図せず起動した(実害は無く、本文編集で除去した)。Codex CloudはGitHub Code Reviewの枠を
+共有しているため(#125)、この種の誤発火1回が実装用の枠を削る。規定本体は
+`.claude/skills/pr-review-flow/SKILL.md`「Draftフェーズ」のCodexの項が正本(ここには書き写さない)。
+
 ### CodeRabbit
 
 FreeプランはGitHub連携のPRレビューが**1回/時/開発者**に制限されている
