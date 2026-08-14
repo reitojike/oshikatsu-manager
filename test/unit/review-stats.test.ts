@@ -520,6 +520,33 @@ describe("realFixUnparsable: fail-closed distinction between 0件 and 判定不�
     });
     expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
   });
+
+  it("stays true even when a different row in the SAME table cell/text makes the count non-zero (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、2巡目): テキスト単位の判定に直した後も、
+    // 同じテキスト内の別の行(表の別セル)が正しく数えられていると、KNOWN_ANNOTATIONSに
+    // 無い未登録の確定表記(例: 「本物の修正(部分適用)」)を握りつぶしてしまっていた。
+    const result = summarizeClassification({
+      prBody: ["| 分類 |", "| --- |", "| 本物の修正 |", "| 本物の修正(部分適用) |"].join("\n"),
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
+  });
+
+  it("stays true when an un-itemized note inside a 本物の修正 heading section mentions it again (negative)", () => {
+    // 見出し+番号付きリスト形式でも同型の穴がありうる: セクション内の番号無し行
+    // (地の文の注記)は現状カウントされないが、その行自体が「本物の修正」に言及していれば
+    // 判定不能として拾う。
+    const text = ["**本物の修正**", "1. 直した", "本物の修正だが要件が未確定の1件を保留"].join(
+      "\n",
+    );
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
+  });
 });
 
 describe("realFixUnparsable: formatPrLine/aggregate/formatSummaryへの反映 (#243)", () => {

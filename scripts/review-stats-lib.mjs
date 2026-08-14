@@ -159,10 +159,22 @@ export const REAL_FIX_HEADING = /^(?:#{1,6}\s+|\*\*)本物の修正/;
 const HEADING_LIKE = /^#{1,6}\s|^\*\*/;
 const NUMBERED_ITEM = /^\d+\.\s+\S/;
 
+// 「本物の修正」という語自体が行/セルに現れるかどうか(構造の有無を問わない)。
+// countRealFixesが0を返しても、この語が存在するなら「記載はあるが構造化されておらず
+// 数えられなかった」可能性がある(fail-closed。#243)。誤って「0件」と読まれると、
+// 効果測定(#244の削減前後比較など)が実際は判定不能なのに0件で埋まってしまう。
+const REAL_FIX_MENTION = /本物の修正/;
+
+// count・hasUnparsedMentionの両方を行(項目)単位で返す。「本物の修正」セクション内に
+// 番号付きリスト項目として認識できない行(地の文の注記等)があり、かつその行自体にも
+// 「本物の修正」という語が含まれる場合は、その行を「言及はあるが構造化できなかった」
+// ものとして拾う(claude-reviewの指摘・2026-08-14: テキスト単位の判定では、同じテキスト
+// 内の他の行が正しく数えられていると、この行の未パースが握りつぶされていた)。
 const countHeadingListRealFixes = (text) => {
   const lines = text.split(/\r?\n/);
   let inSection = false;
   let count = 0;
+  let hasUnparsedMention = false;
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (REAL_FIX_HEADING.test(line)) {
@@ -173,9 +185,11 @@ const countHeadingListRealFixes = (text) => {
       inSection = false;
       continue;
     }
-    if (inSection && NUMBERED_ITEM.test(line)) count += 1;
+    if (!inSection) continue;
+    if (NUMBERED_ITEM.test(line)) count += 1;
+    else if (line !== "" && REAL_FIX_MENTION.test(line)) hasUnparsedMention = true;
   }
-  return count;
+  return { count, hasUnparsedMention };
 };
 
 // 表形式の分類記録(実例: PR #225「レビュー巡の記録」)。「分類」列のセル値が
@@ -221,10 +235,13 @@ const parseRealFixCell = (rawCell) => {
 // たまたま「本物の修正」で始まる説明文があるだけで誤集計する(/code-reviewのセルフレビューで
 // 発見。例: 「本物の修正が必要か再検討中」という説明文が分類欄以外にあるケース)。
 // 表を抜けた(`|`で始まらない行が来た)ら列位置をリセットし、複数の表が同じテキストに
-// あっても取り違えない。
+// あっても取り違えない。セルごとにhasUnparsedMentionも判定する(理由は
+// countHeadingListRealFixesと同じ。claude-reviewの指摘・2026-08-14: 同じテキスト内の
+// 別の行が正しく数えられていると、この行の未パースが握りつぶされていた)。
 const countTableRealFixes = (text) => {
   const lines = text.split(/\r?\n/);
   let count = 0;
+  let hasUnparsedMention = false;
   let classificationColumnIndex = null;
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -241,20 +258,28 @@ const countTableRealFixes = (text) => {
     if (classificationColumnIndex === -1) continue;
     const cell = cells[classificationColumnIndex];
     if (cell === undefined) continue;
-    count += parseRealFixCell(cell);
+    const cellCount = parseRealFixCell(cell);
+    count += cellCount;
+    if (cellCount === 0 && REAL_FIX_MENTION.test(cell)) hasUnparsedMention = true;
   }
-  return count;
+  return { count, hasUnparsedMention };
 };
 
-export const countRealFixes = (text) => countHeadingListRealFixes(text) + countTableRealFixes(text);
+// 見出し+番号付きリストと表、両方の集計を合わせる。count・hasUnparsedMentionとも
+// 行(項目)単位で判定した結果を合算するため、一方の形式にだけ未パースな言及があっても
+// もう一方の正しく数えられた分に隠れて握りつぶされない。
+const analyzeRealFixes = (text) => {
+  const heading = countHeadingListRealFixes(text);
+  const table = countTableRealFixes(text);
+  return {
+    count: heading.count + table.count,
+    hasUnparsedMention: heading.hasUnparsedMention || table.hasUnparsedMention,
+  };
+};
+
+export const countRealFixes = (text) => analyzeRealFixes(text).count;
 
 export const CLASSIFICATION_VOCABULARY = /(本物の修正|見送り|誤検知|妥当な(?:nitpick|指摘))/;
-
-// 「本物の修正」という語自体が本文中に現れるかどうか(構造の有無を問わない)。
-// countRealFixesが0を返しても、この語が存在するなら「記載はあるが構造化されておらず
-// 数えられなかった」可能性がある(fail-closed。#243)。誤って「0件」と読まれると、
-// 効果測定(#244の削減前後比較など)が実際は判定不能なのに0件で埋まってしまう。
-const REAL_FIX_MENTION = /本物の修正/;
 
 // 分類記録は人間(PO/実装者)が書くものなので、対象ボット自身の投稿は探索対象から除く。
 export const summarizeClassification = ({ prBody, issueComments, botLogins }) => {
@@ -265,14 +290,13 @@ export const summarizeClassification = ({ prBody, issueComments, botLogins }) =>
       .map((comment) => comment.body ?? ""),
   ];
   const hasRecord = humanTexts.some((text) => CLASSIFICATION_VOCABULARY.test(text));
-  // PR単位で合算してから0かどうかを見ると、あるテキストが正しくパースできて非ゼロに
-  // なった場合、別のテキストにある未パースの「本物の修正」言及が握りつぶされる
-  // (claude-reviewの指摘・2026-08-14)。テキストごとに「言及はあるのに0件」を判定し、
-  // 1件でも該当すればPR全体としてunparsableにする。
-  const perText = humanTexts.map((text) => ({ text, count: countRealFixes(text) }));
+  const perText = humanTexts.map((text) => analyzeRealFixes(text));
   const realFixCount = perText.reduce((sum, entry) => sum + entry.count, 0);
+  // 行・セル単位でhasUnparsedMentionを判定済みのperTextに加えて、どちらの構造(見出し+
+  // リスト・表)にも一切当てはまらない地の文だけの言及(構造そのものが無いケース)も拾う。
   const realFixUnparsable = perText.some(
-    ({ text, count }) => count === 0 && REAL_FIX_MENTION.test(text),
+    (entry, index) =>
+      entry.hasUnparsedMention || (entry.count === 0 && REAL_FIX_MENTION.test(humanTexts[index])),
   );
   return { hasRecord, realFixCount, realFixUnparsable };
 };
