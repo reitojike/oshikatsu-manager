@@ -4,6 +4,18 @@
 レビューオブジェクト、required check、timeline、レート制限）を一次情報から台帳化したもの。
 「どのボットが何を出すか」ではなく「GitHubがそれをどう表現するか」だけを記録する。
 
+## 出典欄の略記
+
+表の出典欄で次の略記を使う。**略記の指す先はこの節で一意に決まるので、行を単独で取り出しても追試できる**
+(出典欄に前の行を指す「同上」は使っていない)。
+
+| 略記 | 指す先 | 取得日 |
+| --- | --- | --- |
+| `OpenAPI` | <https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json> (12.9MB。`main` ブランチのため内容は時点依存) | 2026-08-15 |
+| `GraphQL SDL` | <https://docs.github.com/public/fpt/schema.docs.graphql> (74,589行) | 2026-08-15 |
+
+略記の後ろは、そのドキュメント内のパス(例: `components.schemas.check-run.properties.status.enum`)を指す。
+
 ## 等級の凡例
 
 | 等級 | 定義 |
