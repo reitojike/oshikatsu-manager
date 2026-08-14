@@ -388,7 +388,9 @@ describe("countRealFixes: table format (#243)", () => {
     ].join("\n");
     expect(countRealFixes(text)).toBe(3);
   });
+});
 
+describe("countRealFixes: 分類列限定・セル書式の判定 (#243)", () => {
   it("counts only the 分類 column, not a description column that happens to start with 本物の修正 (negative)", () => {
     // /code-reviewのセルフレビューで発見: 全セルを無条件に走査すると、分類列以外の
     // 説明文がたまたま「本物の修正」で始まるだけで誤集計する。
@@ -409,6 +411,25 @@ describe("countRealFixes: table format (#243)", () => {
   it("does not count anything in a table with no 分類 header column (negative)", () => {
     const text = ["| # | 状態 |", "| --- | --- |", "| 1 | 本物の修正 |"].join("\n");
     expect(countRealFixes(text)).toBe(0);
+  });
+
+  it("rejects an undecided/free-text 分類 cell that merely starts with 本物の修正 (negative)", () => {
+    // CodeRabbitの指摘: 前方一致だけだと「本物の修正が必要か再検討中」のような未確定の
+    // 地の文も分類列に書かれていれば1件と誤集計してしまう(realFixUnparsableも骨抜きになる)。
+    const text = ["| # | 分類 |", "| --- | --- |", "| 1 | 本物の修正が必要か再検討中 |"].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
+
+  it("still allows the exact annotated forms seen in real records (regression)", () => {
+    const text = [
+      "| # | 分類 |",
+      "| --- | --- |",
+      "| 1 | 本物の修正 |",
+      "| 2 | 本物の修正×2 |",
+      "| 3 | 本物の修正(自己訂正) |",
+      "| 4 | **本物の修正** |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(5);
   });
 });
 
@@ -471,6 +492,25 @@ describe("realFixUnparsable: fail-closed distinction between 0件 and 判定不�
     expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: false });
   });
 
+  it("stays true even when a different human text's count makes the PR total non-zero (negative)", () => {
+    // claude-reviewの指摘: PR全体を合算してから0判定すると、prBodyの表形式で1件正しく
+    // 数えられた場合、別のissueCommentにある未パースの言及(地の文)が握りつぶされ、
+    // realFixUnparsableがfalseに戻ってしまっていた。テキストごとに判定する必要がある。
+    const result = summarizeClassification({
+      prBody: ["| 分類 |", "| --- |", "| 本物の修正 |"].join("\n"),
+      issueComments: [
+        {
+          user: { login: "reitojike" },
+          body: "他にも1件、本物の修正として対応した(見出しも表も無い地の文)。",
+        },
+      ],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
+  });
+});
+
+describe("realFixUnparsable: formatPrLine/aggregate/formatSummaryへの反映 (#243)", () => {
   it("formatPrLine reports 判定不能 distinctly from a genuine 0件 (negative)", () => {
     const unparsablePr = summarizePr({
       prNumber: 1,

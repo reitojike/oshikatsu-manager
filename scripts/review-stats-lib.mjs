@@ -182,8 +182,32 @@ const countHeadingListRealFixes = (text) => {
 // `本物の修正`単体、または`本物の修正×2`のように乗数を伴う(1回の指摘に複数件の
 // 修正が対応する場合の表記。見出し+番号付きリスト形式には無い概念)。`×`の前の空白は
 // 許容する(`本物の修正 ×2`のような表記ゆれも数える。/code-reviewのセルフレビューで発見)。
-const TABLE_REAL_FIX_CELL = /^\*{0,2}本物の修正\s*(?:×(\d+))?/;
+// セル全体を検証し前方一致では終わらせない(CodeRabbitの指摘・2026-08-14):
+// 前方一致だと「本物の修正が必要か再検討中」のような未確定の地の文も1件と誤集計し、
+// realFixUnparsableのfail-closedも骨抜きになる(誤集計でcountが非ゼロになるため)。
+// 1本の正規表現(`\s*`を複数隣接させた前後オプション)でセル全体を検証すると
+// sonarjs/super-linear-regexに引っかかる(バックトラックの組み合わせ数が入力長に対し
+// 超線形になりうる)ため、prefix切り出し→残り部分の単純判定という手続き的な形に分ける。
+const REAL_FIX_PREFIX = /^\*{0,2}本物の修正/;
+const REAL_FIX_MULTIPLIER = /^×(\d+)$/;
+const REAL_FIX_ANNOTATION = /^\([^)]*\)$/;
 const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
+
+// PO/実装者が実際に書いている形(実例: PR #225「本物の修正」「本物の修正×2」
+// 「本物の修正(自己訂正)」)だけを1件として数える。それ以外の後置(地の文の継続など)は
+// 「本物の修正」への言及はあるが構造化できなかったものとして0を返す
+// (呼び出し元がrealFixUnparsableの判定に使う)。
+const parseRealFixCell = (rawCell) => {
+  const prefixMatch = REAL_FIX_PREFIX.exec(rawCell);
+  if (prefixMatch === null) return 0;
+  let rest = rawCell.slice(prefixMatch[0].length).trim();
+  if (rest.endsWith("**")) rest = rest.slice(0, -2).trim();
+  if (rest === "") return 1;
+  const multiplierMatch = REAL_FIX_MULTIPLIER.exec(rest);
+  if (multiplierMatch !== null) return Number(multiplierMatch[1]);
+  if (REAL_FIX_ANNOTATION.test(rest)) return 1;
+  return 0;
+};
 
 // 「分類」列だけを対象にする(全セルを無条件に走査しない)。ヘッダ行から「分類」列の
 // 位置を特定し、以降のデータ行はその列だけを見る。全セル走査だと、指摘概要・対応列に
@@ -209,9 +233,8 @@ const countTableRealFixes = (text) => {
     }
     if (classificationColumnIndex === -1) continue;
     const cell = cells[classificationColumnIndex];
-    const match = cell === undefined ? null : TABLE_REAL_FIX_CELL.exec(cell);
-    if (match === null) continue;
-    count += match[1] === undefined ? 1 : Number(match[1]);
+    if (cell === undefined) continue;
+    count += parseRealFixCell(cell);
   }
   return count;
 };
@@ -235,11 +258,15 @@ export const summarizeClassification = ({ prBody, issueComments, botLogins }) =>
       .map((comment) => comment.body ?? ""),
   ];
   const hasRecord = humanTexts.some((text) => CLASSIFICATION_VOCABULARY.test(text));
-  const realFixCount = humanTexts.reduce((sum, text) => sum + countRealFixes(text), 0);
-  // 「本物の修正」への言及はあるのに構造化パーサーが1件も拾えなかった場合だけ判定不能とする。
-  // 言及自体が無ければ、0件は「見送り/誤検知しか無かった」の正しい0であり判定不能ではない。
-  const realFixUnparsable =
-    realFixCount === 0 && humanTexts.some((text) => REAL_FIX_MENTION.test(text));
+  // PR単位で合算してから0かどうかを見ると、あるテキストが正しくパースできて非ゼロに
+  // なった場合、別のテキストにある未パースの「本物の修正」言及が握りつぶされる
+  // (claude-reviewの指摘・2026-08-14)。テキストごとに「言及はあるのに0件」を判定し、
+  // 1件でも該当すればPR全体としてunparsableにする。
+  const perText = humanTexts.map((text) => ({ text, count: countRealFixes(text) }));
+  const realFixCount = perText.reduce((sum, entry) => sum + entry.count, 0);
+  const realFixUnparsable = perText.some(
+    ({ text, count }) => count === 0 && REAL_FIX_MENTION.test(text),
+  );
   return { hasRecord, realFixCount, realFixUnparsable };
 };
 
