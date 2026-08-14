@@ -119,8 +119,8 @@ PRはまず`gh pr create --draft`でDraft作成する。
 - **CodeRabbit**(`.coderabbit.yaml`): `drafts: true`でdraft中もレビュー対象。pushのたびに自動発火する(claude-reviewと違い明示要求は不要)。**Codex Cloudが`ready_for_review`でしか自動発火しないため、Draft必須のうちclaude-review以外の一角はCodeRabbitが単独で担う**(下記「Draft PR中の必須レビュー」)。レート制限は`docs/pr-review-flow-details.md`「CodeRabbit」を参照
 - **GitHub Copilot**(`copilot_code_review` Ruleset): `review_draft_pull_requests: false`のためdraft中は走らない
 
-**Draft PR中の必須レビュー(issue #220)。**`claude-review`は`opened`(Draft作成時)、または
-明示的な`review:full`ラベル付け直し(下記「明示的なレビュー依頼」)のいずれかで満たす
+**Draft PR中の必須レビュー(issue #220)。**`claude-review`は`opened`(Draft作成時)・`reopened`、
+または明示的な`review:full`ラベル付け直し(下記「明示的なレビュー依頼」)のいずれかで満たす
 (pushごとの自動発火はしない。#244)。ただし上記「Claude」の項が定める`claude-review.yml`
 自体を変更するPRの例外はここでも維持される(**Draft中に使える代替はセルフレビューと
 CodeRabbitのみ**——Copilotはdraft中は走らないため対象外)。それに加えて、**CodeRabbit**を

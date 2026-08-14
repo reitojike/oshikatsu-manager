@@ -3,14 +3,14 @@
 # 少なくとも1回(opened/reopened)は自動発火させ、人間が起動を依頼する工程を必須にしない
 # (docs/prd.md 8.5)。判定はあくまで参考。マージ可否の最終判断は人間が行う(docs/prd.md 8.6)。
 #
-# synchronize(push)は起動コストが最大の要因だったため発火させない(#244)。
-# Draft・Ready双方の反復は review:full ラベルの付け外しによる明示要求で行う
+# synchronize(push)は起動コストが最大の要因だったため、typesから外して発火自体させない
+# (#244)。Draft・Ready双方の反復は review:full ラベルの付け外しによる明示要求で行う
 # (.claude/skills/pr-review-flow/SKILL.md「Draftフェーズ」「Ready中の反復」参照)。
 name: Claude Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, reopened, labeled]
 
 permissions:
   contents: read
@@ -18,13 +18,13 @@ permissions:
   issues: write
   id-token: write
 
-# 無関係なlabel追加やsynchronize(push)でも発火する。それを同じgroupに入れると
+# 無関係なlabel追加でも labeled は発火する。それを同じgroupに入れると
 # cancel-in-progress が進行中の実レビューをキャンセルし、代替runはjobがskipされるため
 # 「レビューされていないのにcheckが通る」経路になる(skipされたjobのcheckは
-# required status checkとしてはpass扱いになる)。実行しないrunだけを
+# required status checkとしてはpass扱いになる)。無関係なlabel追加のrunだけを
 # run_idで隔離して、進行中のレビューを止めない。
 concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}-${{ ((github.event.action == 'labeled' && github.event.label.name != 'review:full') || github.event.action == 'synchronize') && github.run_id || 'review' }}
+  group: claude-review-${{ github.event.pull_request.number }}-${{ (github.event.action == 'labeled' && github.event.label.name != 'review:full') && github.run_id || 'review' }}
   cancel-in-progress: true
 
 jobs:
@@ -32,9 +32,8 @@ jobs:
     # check名も分岐させる。同じ `claude-review` 名でskipのcheckを報告すると、
     # 同一head SHAに対する最新のcheckがそれになり、実レビューの結果を上書きしてしまう。
     # 通常のrunでは必ず `claude-review` のままにすること(required status checkの対象名)。
-    # synchronize(push)はDraft・Ready問わず常にskipする(#244。起動コスト削減)。
-    name: ${{ (github.event.action == 'labeled' && github.event.label.name != 'review:full') && 'claude-review-label-ignored' || (github.event.action == 'synchronize' && 'claude-review-push-ignored') || 'claude-review' }}
-    if: (github.event.action != 'labeled' || github.event.label.name == 'review:full') && github.event.action != 'synchronize'
+    name: ${{ (github.event.action == 'labeled' && github.event.label.name != 'review:full') && 'claude-review-label-ignored' || 'claude-review' }}
+    if: github.event.action != 'labeled' || github.event.label.name == 'review:full'
     runs-on: ubuntu-latest
     env:
       # 実際にClaude actionへ渡す許可ツールと同じ文字列を「Claude Review 投稿確認」stepへも
