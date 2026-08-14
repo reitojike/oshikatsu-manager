@@ -152,31 +152,222 @@ export const summarizeBotLaunches = ({ issueComments, reviews, reviewComments })
 // (装飾なしの例は確認されていない)ため、どちらか一方の装飾を必須にする。
 export const REAL_FIX_HEADING = /^(?:#{1,6}\s+|\*\*)本物の修正/;
 // 「本物の修正」セクションを閉じる境界は、見送り/誤検知等の分類見出しに限らない。
-// Markdown見出し(`#`)や太字見出し(`**...**`)であれば、分類とは無関係な見出し
-// (例: 「## 検証」に続く番号付きのコマンド手順)でもセクションを閉じる必要がある
-// (Codex Cloudの指摘: 見送り/誤検知だけを閉じ語にすると、それ以外の見出しの下に
-// たまたま番号付きリストがあるだけで誤集計される)。
-const HEADING_LIKE = /^#{1,6}\s|^\*\*/;
+// Markdown見出し(`#`)や太字見出し(`**...**`)、表の行(`|`始まり)であれば、
+// 分類とは無関係な見出し(例: 「## 検証」に続く番号付きのコマンド手順)や、見出しの直後に
+// 続く別構造の表でもセクションを閉じる必要がある(Codex Cloudの指摘: 見送り/誤検知だけを
+// 閉じ語にすると、それ以外の見出しの下にたまたま番号付きリストがあるだけで誤集計される。
+// 表行も閉じ語に含めないと、見出しセクションが閉じないまま続く独立した表がセクション内の
+// 地の文として誤って未パース扱いされる。claude-reviewの指摘・2026-08-14、4巡目)。
+const SECTION_CLOSER = /^#{1,6}\s|^\*\*|^\|/;
 const NUMBERED_ITEM = /^\d+\.\s+\S/;
 
-export const countRealFixes = (text) => {
+// 「本物の修正」という語自体が行/セルに現れるかどうか(構造の有無を問わない)。
+// countRealFixesが0を返しても、この語が存在するなら「記載はあるが構造化されておらず
+// 数えられなかった」可能性がある(fail-closed。#243)。誤って「0件」と読まれると、
+// 効果測定(#244の削減前後比較など)が実際は判定不能なのに0件で埋まってしまう。
+const REAL_FIX_MENTION = /本物の修正/;
+
+// count・hasUnparsedMentionを行(項目)単位で返す。加えて、この関数が実際に扱った行の
+// 番号をcoveredLinesとして返す(見出し行・セクション内の行)。「本物の修正」セクション内に
+// 番号付きリスト項目として認識できない行(地の文の注記等)があり、かつその行自体にも
+// 「本物の修正」という語が含まれる場合は、その行を「言及はあるが構造化できなかった」
+// ものとして拾う(claude-reviewの指摘・2026-08-14: テキスト単位の判定では、同じテキスト
+// 内の他の行が正しく数えられていると、この行の未パースが握りつぶされていた)。
+const countHeadingListRealFixes = (text) => {
   const lines = text.split(/\r?\n/);
   let inSection = false;
   let count = 0;
-  for (const rawLine of lines) {
+  let hasUnparsedMention = false;
+  const coveredLines = new Set();
+  lines.forEach((rawLine, index) => {
     const line = rawLine.trim();
     if (REAL_FIX_HEADING.test(line)) {
       inSection = true;
-      continue;
+      coveredLines.add(index);
+      return;
     }
-    if (inSection && HEADING_LIKE.test(line)) {
+    if (inSection && SECTION_CLOSER.test(line)) {
       inSection = false;
-      continue;
+      return;
     }
-    if (inSection && NUMBERED_ITEM.test(line)) count += 1;
-  }
-  return count;
+    if (!inSection) return;
+    coveredLines.add(index);
+    if (NUMBERED_ITEM.test(line)) count += 1;
+    else if (line !== "" && REAL_FIX_MENTION.test(line)) hasUnparsedMention = true;
+  });
+  return { count, hasUnparsedMention, coveredLines };
 };
+
+// 表形式の分類記録(実例: PR #225「レビュー巡の記録」)。「分類」列のセル値が
+// `本物の修正`単体、または`本物の修正×2`のように乗数を伴う(1回の指摘に複数件の
+// 修正が対応する場合の表記。見出し+番号付きリスト形式には無い概念)。`×`の前の空白は
+// 許容する(`本物の修正 ×2`のような表記ゆれも数える。/code-reviewのセルフレビューで発見)。
+// セル全体を検証し前方一致では終わらせない(CodeRabbitの指摘・2026-08-14):
+// 前方一致だと「本物の修正が必要か再検討中」のような未確定の地の文も1件と誤集計し、
+// realFixUnparsableのfail-closedも骨抜きになる(誤集計でcountが非ゼロになるため)。
+// 1本の正規表現(`\s*`を複数隣接させた前後オプション)でセル全体を検証すると
+// sonarjs/super-linear-regexに引っかかる(バックトラックの組み合わせ数が入力長に対し
+// 超線形になりうる)ため、prefix切り出し→残り部分の単純判定という手続き的な形に分ける。
+const REAL_FIX_PREFIX = /^\*{0,2}本物の修正/;
+const REAL_FIX_MULTIPLIER = /^×(\d+)$/;
+const REAL_FIX_ANNOTATION = /^\(([^)]*)\)$/;
+// 末尾の`|`はデータ行・ヘッダ行と同様、区切り行でも省略可能な有効なMarkdown記法(GFM)。
+// 必須にしていると、末尾パイプを省略した区切り行を区切り行として認識できず、
+// ヘッダ確定(次の行が区切り行かどうかの先読み判定)ごと失敗し、正しく書かれた表形式の
+// 分類記録が判定不能に上がってしまう(Copilotの指摘・2026-08-14)。
+const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|?$/;
+
+// Markdownの表はセル内に`\|`でエスケープしたパイプを含められる。単純な`split("|")`だと
+// そのセルが2つに割れてしまい、以降のセルが1つずつ右へずれる。ずれた状態で
+// classificationColumnIndexを適用すると「分類」列と違うセルを読んでしまい、fail-closedの
+// 前提(分類列を正しく特定できていること)が崩れる(Codex Cloudの指摘・2026-08-14)。
+// 直前の1文字だけを見る固定長lookbehind(`/(?<!\\)\|/`)は、連続する偶数個の
+// バックスラッシュ(バックスラッシュ自体がエスケープされ、後続のパイプはエスケープ
+// されていない)を誤って「エスケープされたパイプ」と判定してしまう(CodeRabbitの指摘・
+// 2026-08-14: `C:\\|` のような2連続バックスラッシュのケース)。連続するバックスラッシュの
+// 個数の偶奇でパイプの意味が変わるため、正規表現ではなく1文字ずつ数える手続きにする。
+const splitTableRow = (line) => {
+  const cells = [];
+  let cell = "";
+  let backslashRun = 0;
+  for (const char of line) {
+    if (char === "|" && backslashRun % 2 === 0) {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += char;
+    }
+    backslashRun = char === "\\" ? backslashRun + 1 : 0;
+  }
+  cells.push(cell.trim());
+  return cells;
+};
+
+// 括弧の中身を問わず1件と数めると、「(要検討)」「(保留)」のようなまだ確定していない
+// ことを示す注記まで無条件に1件扱いになり、fail-closedの効果がこの経路だけ効かなくなる
+// (CodeRabbitの指摘・2026-08-14)。実際に観測された確定表記だけを許可リストにする。
+// 新しい確定表記が実際に使われたら、ここに追加する。
+const KNOWN_ANNOTATIONS = new Set(["自己訂正"]);
+
+// PO/実装者が実際に書いている形(実例: PR #225「本物の修正」「本物の修正×2」
+// 「本物の修正(自己訂正)」)だけを1件として数える。それ以外の後置(地の文の継続、
+// 未知の注記など)は「本物の修正」への言及はあるが構造化できなかったものとして0を返す
+// (呼び出し元がrealFixUnparsableの判定に使う)。
+const parseRealFixCell = (rawCell) => {
+  const prefixMatch = REAL_FIX_PREFIX.exec(rawCell);
+  if (prefixMatch === null) return 0;
+  let rest = rawCell.slice(prefixMatch[0].length).trim();
+  if (rest.endsWith("**")) rest = rest.slice(0, -2).trim();
+  if (rest === "") return 1;
+  const multiplierMatch = REAL_FIX_MULTIPLIER.exec(rest);
+  if (multiplierMatch !== null) return Number(multiplierMatch[1]);
+  const annotationMatch = REAL_FIX_ANNOTATION.exec(rest);
+  if (annotationMatch !== null && KNOWN_ANNOTATIONS.has(annotationMatch[1])) return 1;
+  return 0;
+};
+
+// 「分類」列だけを対象にする(全セルを無条件に走査しない)。ヘッダ行から「分類」列の
+// 位置を特定し、以降のデータ行はその列だけを見る。全セル走査だと、指摘概要・対応列に
+// たまたま「本物の修正」で始まる説明文があるだけで誤集計する(/code-reviewのセルフレビューで
+// 発見。例: 「本物の修正が必要か再検討中」という説明文が分類欄以外にあるケース)。
+// 表を抜けた(`|`で始まらない行が来た)ら列位置をリセットし、複数の表が同じテキストに
+// あっても取り違えない。セルごとにhasUnparsedMentionも判定する(理由は
+// countHeadingListRealFixesと同じ。claude-reviewの指摘・2026-08-14: 同じテキスト内の
+// 別の行が正しく数えられていると、この行の未パースが握りつぶされていた)。
+// 「分類」列が特定できているデータ行1件を判定する(ヘッダ行・列不明の表は
+// countTableRealFixes側でスキップ済み)。ループ本体の分岐を減らすための切り出し。
+const parseTableDataRow = (cells, classificationColumnIndex) => {
+  const cell = cells[classificationColumnIndex];
+  if (cell === undefined) return { count: 0, hasUnparsedMention: false };
+  const cellCount = parseRealFixCell(cell);
+  return { count: cellCount, hasUnparsedMention: cellCount === 0 && REAL_FIX_MENTION.test(cell) };
+};
+
+const countTableRealFixes = (text) => {
+  const lines = text.split(/\r?\n/);
+  let count = 0;
+  let hasUnparsedMention = false;
+  let classificationColumnIndex = null;
+  let headerCellCount = null;
+  const coveredLines = new Set();
+  lines.forEach((rawLine, index) => {
+    const line = rawLine.trim();
+    if (!line.startsWith("|")) {
+      classificationColumnIndex = null;
+      headerCellCount = null;
+      return;
+    }
+    if (TABLE_SEPARATOR_ROW.test(line)) {
+      coveredLines.add(index);
+      return;
+    }
+    const cells = splitTableRow(line);
+    // 末尾の`|`は省略可能な有効なMarkdown記法(GFM)。省略の有無だけで末尾に空セルが
+    // 1つ増減し、それをそのままヘッダのセル数と比べると「本物の修正」が正しく書かれた
+    // データ行まで列数不一致として誤って判定不能にしてしまう(CodeRabbitの指摘・
+    // 2026-08-14)。比較前に、末尾区切りが作る空セルだけを取り除く。
+    if (cells[cells.length - 1] === "") cells.pop();
+    if (classificationColumnIndex === null) {
+      // 次の行が区切り行(`| --- | --- |`)であることを確認してからでないと、この行を
+      // ヘッダとして確定させない。確認前にclassificationColumnIndexを立てると、区切り行を
+      // 欠いた(=Markdownの表として成立していない)行の並びまで表として解析してしまい、
+      // 実際にある「本物の修正」への言及をgenuine 0件と誤認する(CodeRabbitの指摘・
+      // 2026-08-14)。区切り行が無ければヘッダ候補ごと未構造化のまま全体フォールバックに
+      // 委ねる(このifを素通りしてforEachの次の行へ進むだけで、状態は変えない)。
+      const nextLine = (lines[index + 1] ?? "").trim();
+      if (!TABLE_SEPARATOR_ROW.test(nextLine)) return;
+      classificationColumnIndex = cells.indexOf("分類");
+      headerCellCount = cells.length;
+      coveredLines.add(index);
+      return;
+    }
+    // 「分類」列が見つからない表(=分類記録の表として認識できない)のデータ行は
+    // coveredLinesに入れない。ここでcoveredLines扱いにすると、行のどこかに
+    // 「本物の修正」への言及があっても構造化できないまま握りつぶされ、
+    // analyzeRealFixesの全体フォールバック走査(下記)からも除外されてしまう
+    // (claude-reviewの指摘・2026-08-14、5巡目)。列不明の表は全体フォールバックに委ねる。
+    if (classificationColumnIndex === -1) return;
+    // データ行のセル数がヘッダと一致しない(列の書き忘れ・余分な`|`混入などの現実的な
+    // タイポ)場合も同様にcoveredLinesへ入れない。ヘッダ基準のclassificationColumnIndexを
+    // セル数の違う行にそのまま適用すると、無関係な別のセルを「分類」列として読んでしまい、
+    // 実際にある「本物の修正」への言及が判定不能にすら上がらず握りつぶされる
+    // (claude-reviewの指摘・2026-08-14、6巡目)。
+    if (cells.length !== headerCellCount) return;
+    coveredLines.add(index);
+    const row = parseTableDataRow(cells, classificationColumnIndex);
+    count += row.count;
+    if (row.hasUnparsedMention) hasUnparsedMention = true;
+  });
+  return { count, hasUnparsedMention, coveredLines };
+};
+
+// 見出し+番号付きリストと表、両方の集計を合わせる。count・hasUnparsedMentionとも
+// 行(項目)単位で判定した結果を合算するため、一方の形式にだけ未パースな言及があっても
+// もう一方の正しく数えられた分に隠れて握りつぶされない。
+//
+// どちらの構造(本物の修正見出し・`|`で始まる行)にも属さない行は、この2つの走査
+// (countHeadingListRealFixes・countTableRealFixes)のどちらからも見過ごされる。
+// そのような行自体に「本物の修正」という語があれば、テキスト全体に構造が別途
+// 存在するかどうかによらず判定不能として拾う(claude-reviewの指摘・2026-08-14、
+// 4巡目。表の外・見出しの外にある地の文の言及が、テキスト内の他の構造の有無で
+// 握りつぶされていた)。「分類」列以外のセルは表の走査自体が対象外にしているため
+// (3巡目で修正済み)、ここでの再走査でも拾わない。
+const analyzeRealFixes = (text) => {
+  const lines = text.split(/\r?\n/);
+  const heading = countHeadingListRealFixes(text);
+  const table = countTableRealFixes(text);
+  let hasUnparsedMention = heading.hasUnparsedMention || table.hasUnparsedMention;
+  if (!hasUnparsedMention) {
+    hasUnparsedMention = lines.some((rawLine, index) => {
+      if (heading.coveredLines.has(index) || table.coveredLines.has(index)) return false;
+      const line = rawLine.trim();
+      return line !== "" && REAL_FIX_MENTION.test(line);
+    });
+  }
+  return { count: heading.count + table.count, hasUnparsedMention };
+};
+
+export const countRealFixes = (text) => analyzeRealFixes(text).count;
 
 export const CLASSIFICATION_VOCABULARY = /(本物の修正|見送り|誤検知|妥当な(?:nitpick|指摘))/;
 
@@ -189,8 +380,10 @@ export const summarizeClassification = ({ prBody, issueComments, botLogins }) =>
       .map((comment) => comment.body ?? ""),
   ];
   const hasRecord = humanTexts.some((text) => CLASSIFICATION_VOCABULARY.test(text));
-  const realFixCount = humanTexts.reduce((sum, text) => sum + countRealFixes(text), 0);
-  return { hasRecord, realFixCount };
+  const perText = humanTexts.map((text) => analyzeRealFixes(text));
+  const realFixCount = perText.reduce((sum, entry) => sum + entry.count, 0);
+  const realFixUnparsable = perText.some((entry) => entry.hasUnparsedMention);
+  return { hasRecord, realFixCount, realFixUnparsable };
 };
 
 export const summarizePr = ({ prNumber, prBody, issueComments, reviews, reviewComments }) => {
@@ -202,6 +395,7 @@ export const summarizePr = ({ prNumber, prBody, issueComments, reviews, reviewCo
     codexUsageLimitHits: countUsageLimitHits(issueComments),
     realFixCount: classification.realFixCount,
     hasClassificationRecord: classification.hasRecord,
+    realFixUnparsable: classification.realFixUnparsable,
   };
 };
 
@@ -210,6 +404,7 @@ export const aggregate = (perPr) => {
   let totalRealFixes = 0;
   let totalUsageLimitHits = 0;
   let prsWithoutRecord = 0;
+  let prsWithUnparsableRealFix = 0;
   for (const pr of perPr) {
     for (const bot of TARGET_BOTS) {
       const entry = totals.get(bot);
@@ -219,6 +414,7 @@ export const aggregate = (perPr) => {
     totalRealFixes += pr.realFixCount;
     totalUsageLimitHits += pr.codexUsageLimitHits;
     if (!pr.hasClassificationRecord) prsWithoutRecord += 1;
+    if (pr.realFixUnparsable) prsWithUnparsableRealFix += 1;
   }
   const prCount = perPr.length;
   const perBot = Object.fromEntries(
@@ -234,17 +430,27 @@ export const aggregate = (perPr) => {
       ];
     }),
   );
-  return { prCount, perBot, totalRealFixes, totalUsageLimitHits, prsWithoutRecord };
+  return {
+    prCount,
+    perBot,
+    totalRealFixes,
+    totalUsageLimitHits,
+    prsWithoutRecord,
+    prsWithUnparsableRealFix,
+  };
+};
+
+const formatRealFixPart = (pr) => {
+  if (!pr.hasClassificationRecord) return "分類記録なし";
+  if (pr.realFixUnparsable) return "本物の修正:判定不能";
+  return `本物の修正:${pr.realFixCount}件`;
 };
 
 export const formatPrLine = (pr) => {
   const botPart = TARGET_BOTS.map(
     (bot) => `${bot}:${pr.bots[bot].launches}起動/${pr.bots[bot].findingLaunches}指摘あり`,
   ).join(" ");
-  const realFixPart = pr.hasClassificationRecord
-    ? `本物の修正:${pr.realFixCount}件`
-    : "分類記録なし";
-  return `PR#${pr.prNumber} ${botPart} ${realFixPart} Codex利用上限到達:${pr.codexUsageLimitHits}件`;
+  return `PR#${pr.prNumber} ${botPart} ${formatRealFixPart(pr)} Codex利用上限到達:${pr.codexUsageLimitHits}件`;
 };
 
 export const formatSummary = (summary) => {
@@ -258,6 +464,7 @@ export const formatSummary = (summary) => {
   lines.push(`本物の修正 合計: ${summary.totalRealFixes}件`);
   lines.push(`Codex利用上限到達 合計: ${summary.totalUsageLimitHits}件`);
   lines.push(`分類記録なしPR数: ${summary.prsWithoutRecord}`);
+  lines.push(`本物の修正 判定不能PR数: ${summary.prsWithUnparsableRealFix}`);
   return lines.join("\n");
 };
 

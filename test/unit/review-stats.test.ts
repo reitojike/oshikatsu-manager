@@ -238,7 +238,7 @@ describe("classification record absence vs explicit zero (negative)", () => {
       issueComments: [{ user: { login: "reitojike" }, body: "CIが緑になりました。" }],
       botLogins: TARGET_BOTS,
     });
-    expect(result).toEqual({ hasRecord: false, realFixCount: 0 });
+    expect(result).toEqual({ hasRecord: false, realFixCount: 0, realFixUnparsable: false });
   });
 
   it("hasRecord is true and realFixCount is 0 when a record explicitly finds zero real fixes", () => {
@@ -252,7 +252,7 @@ describe("classification record absence vs explicit zero (negative)", () => {
       ],
       botLogins: TARGET_BOTS,
     });
-    expect(result).toEqual({ hasRecord: true, realFixCount: 0 });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: false });
   });
 
   it("summarizePr keeps hasClassificationRecord=false distinct from a genuine realFixCount=0", () => {
@@ -344,6 +344,405 @@ describe("countRealFixes", () => {
       "2. 無関係な番号付き項目",
     ].join("\n");
     expect(countRealFixes(text)).toBe(0);
+  });
+});
+
+describe("countRealFixes: table format (#243)", () => {
+  it("counts a plain 本物の修正 cell in a table row", () => {
+    const text = [
+      "| # | 指摘元 | 分類 | 対応 |",
+      "| --- | --- | --- | --- |",
+      "| 1 | claude-review | 本物の修正 | abc123 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
+
+  it("counts a ×N multiplier cell as N", () => {
+    const text = [
+      "| # | 指摘元 | 分類 | 対応 |",
+      "| --- | --- | --- | --- |",
+      "| 1 | CodeRabbit | 本物の修正×2 | abc123 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(2);
+  });
+
+  it("does not count non-本物の修正 cells such as 見送り/誤検知/em-dash (negative)", () => {
+    const text = [
+      "| # | 指摘元 | 分類 | 対応 |",
+      "| --- | --- | --- | --- |",
+      "| 1 | claude-review | 見送る(軽微) | — |",
+      "| 2 | CodeRabbit | **誤検知として見送り**(前提誤り) | — |",
+      "| 3 | claude-review | — | 打ち切り |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
+
+  it("sums heading+list and table counts independently without either scan re-counting the other's rows (negative)", () => {
+    const text = [
+      "**本物の修正**",
+      "1. 直した",
+      "",
+      "| # | 分類 |",
+      "| --- | --- |",
+      "| 1 | 本物の修正×2 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(3);
+  });
+});
+
+// 手入力Markdownで起こりうる、構造が想定からずれた表の行(エスケープされたパイプ・
+// バックスラッシュのパリティ・列数の書き忘れ)を扱う。いずれも「classificationColumnIndex
+// が無関係な別のセルを指してしまい、実際にある本物の修正への言及がfail-closedにすら
+// 上がらず握りつぶされる」という同じ形の穴に対する回帰テスト。
+describe("countRealFixes: table format robustness against malformed rows (#243)", () => {
+  it("handles an escaped pipe in an earlier column without misaligning the 分類 column (negative)", () => {
+    // Codex Cloudの指摘(2026-08-14): 単純なsplit("|")だとセル内の`\|`(エスケープされた
+    // パイプ)で余分に分割され、以降のセルが1つずつ右へずれる。分類列を正しく特定できず
+    // fail-closedの前提が崩れる(この行がcoveredLinesに入るのに分類列を誤読する)。
+    const text = [
+      "| # | 指摘概要 | 分類 |",
+      "| --- | --- | --- |",
+      "| 1 | a \\| b | 本物の修正 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
+
+  it("splits on a pipe preceded by an even run of backslashes (an escaped backslash, not an escaped pipe) (negative)", () => {
+    // CodeRabbitの指摘(2026-08-14): 直前の1文字だけを見るlookbehindだと、偶数個の
+    // 連続バックスラッシュ(バックスラッシュ自体がエスケープされ、後続のパイプは
+    // エスケープされていない)を誤って「エスケープされたパイプ」と判定し、列がずれていた。
+    const text = [
+      "| # | 指摘概要 | 分類 |",
+      "| --- | --- | --- |",
+      "| 1 | C:\\\\| 本物の修正 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
+
+  it("does not misread a shifted column when a data row's cell count differs from the header (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、6巡目): データ行のセル数がヘッダと不一致(列の
+    // 書き忘れ等)だと、ヘッダ基準のclassificationColumnIndexが無関係な別のセルを指し、
+    // 実際にある「本物の修正」への言及がfail-closedにすら上がらず握りつぶされていた。
+    const text = [
+      "| # | 指摘元 | 分類 | 対応 |",
+      "| --- | --- | --- | --- |",
+      "| 1 | 本物の修正 | ac1 |",
+    ].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
+  });
+
+  it("does not treat an omitted trailing pipe as a column-count mismatch (negative)", () => {
+    // CodeRabbitの指摘(2026-08-14): 末尾の`|`は省略可能な有効なMarkdown記法(GFM)。
+    // 省略の有無だけで末尾セル数が変わり、それをそのままヘッダと比較すると、正しく
+    // 書かれた「本物の修正」への言及まで列数不一致として誤って判定不能にしてしまっていた。
+    const text = ["| # | 分類 |", "| --- | --- |", "| 1 | 本物の修正"].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
+});
+
+describe("countRealFixes: 区切り行を欠いた表は表として扱わない (#243)", () => {
+  it("does not treat a header-like row as a table header without a following separator row (negative)", () => {
+    // CodeRabbitの指摘(2026-08-14): 次の行が区切り行(`| --- | --- |`)であることを
+    // 確認せずにヘッダを確定させると、区切り行を欠いた(=Markdownの表として成立して
+    // いない)行の並びまで表として解析してしまい、実際にある「本物の修正」への言及を
+    // genuine 0件と誤認していた(区切り行が無ければ表として認識せず、全体フォールバックに
+    // 委ねて判定不能に上げる必要がある)。
+    const text = ["| # | 分類 |", "| 1 | 本物の修正 |"].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
+  });
+
+  it("recognizes a separator row with an omitted trailing pipe (negative)", () => {
+    // Copilotの指摘(2026-08-14): 区切り行も末尾の`|`を省略できる有効なMarkdown記法(GFM)。
+    // TABLE_SEPARATOR_ROWが末尾パイプを必須にしていると、この区切り行を区切り行と
+    // 認識できず、ヘッダ確定(次の行が区切り行かの先読み)ごと失敗し、正しく書かれた
+    // 表形式の分類記録まで判定不能に上げてしまっていた。
+    const text = ["| # | 分類 |", "| --- | ---", "| 1 | 本物の修正 |"].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
+});
+
+describe("countRealFixes: 分類列限定・セル書式の判定 (#243)", () => {
+  it("counts only the 分類 column, not a description column that happens to start with 本物の修正 (negative)", () => {
+    // /code-reviewのセルフレビューで発見: 全セルを無条件に走査すると、分類列以外の
+    // 説明文がたまたま「本物の修正」で始まるだけで誤集計する。
+    const text = [
+      "| # | 分類 | 指摘概要 |",
+      "| --- | --- | --- |",
+      "| 1 | 見送り | 本物の修正が必要か再検討中 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
+
+  it("tolerates whitespace before the ×N multiplier (negative)", () => {
+    // /code-reviewのセルフレビューで発見: `×`の前に空白があると乗数を読み落としていた。
+    const text = ["| # | 分類 |", "| --- | --- |", "| 1 | 本物の修正 ×2 |"].join("\n");
+    expect(countRealFixes(text)).toBe(2);
+  });
+
+  it("does not count anything in a table with no 分類 header column (negative)", () => {
+    const text = ["| # | 状態 |", "| --- | --- |", "| 1 | 本物の修正 |"].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
+
+  it("rejects an undecided/free-text 分類 cell that merely starts with 本物の修正 (negative)", () => {
+    // CodeRabbitの指摘: 前方一致だけだと「本物の修正が必要か再検討中」のような未確定の
+    // 地の文も分類列に書かれていれば1件と誤集計してしまう(realFixUnparsableも骨抜きになる)。
+    const text = ["| # | 分類 |", "| --- | --- |", "| 1 | 本物の修正が必要か再検討中 |"].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
+
+  it("still allows the exact annotated forms seen in real records (regression)", () => {
+    const text = [
+      "| # | 分類 |",
+      "| --- | --- |",
+      "| 1 | 本物の修正 |",
+      "| 2 | 本物の修正×2 |",
+      "| 3 | 本物の修正(自己訂正) |",
+      "| 4 | **本物の修正** |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(5);
+  });
+
+  it("rejects an unconfirmed parenthetical annotation such as (要検討)/(保留) (negative)", () => {
+    // claude-reviewの指摘: 括弧の中身を問わず1件と数めていたため、まだ確定していない
+    // ことを示す注記まで無条件に本物の修正として数えてしまっていた。
+    const text = [
+      "| # | 分類 |",
+      "| --- | --- |",
+      "| 1 | 本物の修正(要検討) |",
+      "| 2 | 本物の修正(保留) |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(0);
+  });
+});
+
+describe("countRealFixes: PR #225 fixture regression (#243)", () => {
+  it("matches the real fixture: PR #225's classification table sums to 15 (regression)", () => {
+    // 実測(2026-08-13): PR #225「レビュー巡の記録」表の分類列を数えると15件になった
+    // (現状の実装は0件を返す既知の不具合)。fail-closed化・表対応の追加後もこの実測値を
+    // 回帰させないための固定テスト。
+    const text = [
+      "| # | HEAD | 指摘元 | 指摘概要 | 分類 | 対応 |",
+      "| --- | --- | --- | --- | --- | --- |",
+      "| 1 | d0f9e03 | claude-review(P0) | ... | 本物の修正 | ac24fe2 |",
+      "| 1 | d0f9e03 | CodeRabbit | ... | 本物の修正×2 | ac24fe2 / 2fbef0e |",
+      "| 3 | 2fbef0e〜df8e203 | CodeRabbit | ... | 本物の修正×2 | df8e203 |",
+      "| 4 | df8e203 | claude-review(P1) | ... | 本物の修正 | 14ccb8a |",
+      "| 5 | 14ccb8a | claude-review(P1×2) | ... | 本物の修正×2 | 22ca8bb |",
+      "| 6 | 22ca8bb | (メインセッション実測) | ... | 本物の修正 | 84628cb |",
+      "| 7 | 84628cb | CodeRabbit | ... | 本物の修正 | f174ba2 |",
+      "| 7 | 84628cb | CodeRabbit | ... | **誤検知として見送り**(前提誤り) | コメントで記録 |",
+      "| 8 | f174ba2 | (メインセッション実測) | ... | 本物の修正(自己訂正) | 32117b7 |",
+      "| 9 | 32117b7 | claude-review(P0) | ... | 本物の修正 | 0dc9066 |",
+      "| 9 | 32117b7 | claude-review(P1) | ... | 本物の修正 | 0dc9066 |",
+      "| 10 | 0dc9066 | claude-review(P1候補) | ... | 本物の修正 | 5c967a0 |",
+      "| 11 | 5c967a0 | claude-review(P1) | ... | 本物の修正 | e652e94 |",
+      "| 12 | e652e94 | claude-review | **P0/P1指摘なし** | — | 打ち切り |",
+      "| 12 | e652e94 | CodeRabbit | レート制限中 | — | — |",
+      "| — | — | claude-review(参考・P0/P1非該当) | ... | 見送る(軽微、対象外) | 対応なし |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(15);
+  });
+});
+
+// --- 否定側テスト4: 「本物の修正0件」と「構造化できず判定不能」を同じ0扱いにしない ---
+describe("realFixUnparsable: fail-closed distinction between 0件 and 判定不能 (#243)", () => {
+  it("is false when no 本物の修正 mention exists anywhere (genuine zero)", () => {
+    const result = summarizeClassification({
+      prBody: "**見送り**\n1. 既存慣習に合わせて見送り",
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: false });
+  });
+
+  it("is true when 本物の修正 is mentioned but neither structured parser could count it (negative)", () => {
+    // 見出し+番号付きリストでも表でもない、地の文だけの言及(記載漏れ・未知の書式を想定)。
+    const result = summarizeClassification({
+      prBody: "レビューで1件を本物の修正として対応した。",
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
+  });
+
+  it("is false when the table format successfully counts at least one item", () => {
+    const result = summarizeClassification({
+      prBody: ["| 分類 |", "| --- |", "| 本物の修正 |"].join("\n"),
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: false });
+  });
+});
+
+describe("realFixUnparsable: 複数テキスト・複数行にまたがる握りつぶしを防ぐ (#243)", () => {
+  it("stays true even when a different human text's count makes the PR total non-zero (negative)", () => {
+    // claude-reviewの指摘: PR全体を合算してから0判定すると、prBodyの表形式で1件正しく
+    // 数えられた場合、別のissueCommentにある未パースの言及(地の文)が握りつぶされ、
+    // realFixUnparsableがfalseに戻ってしまっていた。テキストごとに判定する必要がある。
+    const result = summarizeClassification({
+      prBody: ["| 分類 |", "| --- |", "| 本物の修正 |"].join("\n"),
+      issueComments: [
+        {
+          user: { login: "reitojike" },
+          body: "他にも1件、本物の修正として対応した(見出しも表も無い地の文)。",
+        },
+      ],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
+  });
+
+  it("stays true even when a different row in the SAME table cell/text makes the count non-zero (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、2巡目): テキスト単位の判定に直した後も、
+    // 同じテキスト内の別の行(表の別セル)が正しく数えられていると、KNOWN_ANNOTATIONSに
+    // 無い未登録の確定表記(例: 「本物の修正(部分適用)」)を握りつぶしてしまっていた。
+    const result = summarizeClassification({
+      prBody: ["| 分類 |", "| --- |", "| 本物の修正 |", "| 本物の修正(部分適用) |"].join("\n"),
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
+  });
+
+  it("stays true when an un-itemized note inside a 本物の修正 heading section mentions it again (negative)", () => {
+    // 見出し+番号付きリスト形式でも同型の穴がありうる: セクション内の番号無し行
+    // (地の文の注記)は現状カウントされないが、その行自体が「本物の修正」に言及していれば
+    // 判定不能として拾う。
+    const text = ["**本物の修正**", "1. 直した", "本物の修正だが要件が未確定の1件を保留"].join(
+      "\n",
+    );
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
+  });
+});
+
+describe("realFixUnparsable: 分類列限定・行の被覆範囲を守る (#243)", () => {
+  it("is false when the 分類 column resolves cleanly even if another column mentions 本物の修正 (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、3巡目): hasUnparsedMentionのフォールバックが
+    // テキスト全体を再スキャンしていたため、「分類」列は明確に0件(見送り)と読み取れて
+    // いても、無関係な別の列(指摘概要等)にある「本物の修正」という語のせいで
+    // 判定不能扱いになっていた。分類列限定の原則はhasUnparsedMention側でも守る必要がある。
+    const text = [
+      "| # | 分類 | 指摘概要 |",
+      "| --- | --- | --- |",
+      "| 1 | 見送り | 本物の修正が必要か再検討中 |",
+    ].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: false });
+  });
+
+  it("stays true when a mention outside any table/heading structure sits alongside a resolved table (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、4巡目): hasStructureゲートは「テキスト中のどこかに
+    // 構造があるか」でフォールバック全体のon/offを決めていたため、表が1つ見つかっただけで
+    // その表にも見出しセクションにも属さない別の場所の地の文言及が、判定不能に上がらず
+    // 握りつぶされていた。行ごとの被覆範囲(coveredLines)で判定する必要がある。
+    const text = [
+      "| 分類 |",
+      "| --- |",
+      "| 本物の修正 |",
+      "",
+      "あと、他にも1件本物の修正として対応した(表に書き忘れ)。",
+    ].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
+  });
+
+  it("is false when a table follows a 本物の修正 heading without an explicit closing heading (negative)", () => {
+    // 見出しセクションが表行では閉じないと、後続の独立した表がセクション内の地の文として
+    // 誤って未パース扱いされる(表側は正しく数えているにもかかわらず判定不能になる過剰検知)。
+    // 表行(`|`始まり)もセクションの閉じ語に含めることで、表は表として独立に走査させる。
+    const text = [
+      "**本物の修正**",
+      "1. 直した",
+      "",
+      "| # | 分類 |",
+      "| --- | --- |",
+      "| 1 | 本物の修正×2 |",
+    ].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 3, realFixUnparsable: false });
+  });
+
+  it("stays true for a 本物の修正 mention in a table with no 分類 header column (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、5巡目): 「分類」列が見つからない表(=分類記録の
+    // 表として認識できない)のデータ行も無条件にcoveredLinesへ入れていたため、
+    // parseTableDataRowが中身を見ずに{count:0, hasUnparsedMention:false}を返した後、
+    // 全体フォールバック走査からもその行が除外され、言及が判定不能に上がらず
+    // 静かに0件として消えていた。既存のnegative test(countRealFixesが0を返すことのみ検証)
+    // ではこの欠陥を検出できていなかった。
+    const text = ["| # | 状態 |", "| --- | --- |", "| 1 | 本物の修正 |"].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
+  });
+});
+
+describe("realFixUnparsable: formatPrLine/aggregate/formatSummaryへの反映 (#243)", () => {
+  it("formatPrLine reports 判定不能 distinctly from a genuine 0件 (negative)", () => {
+    const unparsablePr = summarizePr({
+      prNumber: 1,
+      prBody: "レビューで1件を本物の修正として対応した。",
+      issueComments: [],
+      reviews: [],
+      reviewComments: [],
+    });
+    expect(formatPrLine(unparsablePr)).toContain("本物の修正:判定不能");
+    expect(formatPrLine(unparsablePr)).not.toContain("本物の修正:0件");
+  });
+
+  it("aggregate counts prsWithUnparsableRealFix separately from prsWithoutRecord", () => {
+    const unparsablePr = summarizePr({
+      prNumber: 1,
+      prBody: "レビューで1件を本物の修正として対応した。",
+      issueComments: [],
+      reviews: [],
+      reviewComments: [],
+    });
+    const summary = aggregate([emptyPr(2), unparsablePr]);
+    expect(summary.prsWithoutRecord).toBe(1);
+    expect(summary.prsWithUnparsableRealFix).toBe(1);
+  });
+
+  it("formatSummary includes the 判定不能 total", () => {
+    const unparsablePr = summarizePr({
+      prNumber: 1,
+      prBody: "レビューで1件を本物の修正として対応した。",
+      issueComments: [],
+      reviews: [],
+      reviewComments: [],
+    });
+    expect(formatSummary(aggregate([unparsablePr]))).toContain("本物の修正 判定不能PR数: 1");
   });
 });
 
