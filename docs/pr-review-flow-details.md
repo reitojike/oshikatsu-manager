@@ -97,6 +97,8 @@ required status checksに`PR Template Check`のjob `check`が含まれる)。`pr
 無い場合は診断値を取得できなかったものとして扱う(取得失敗を成功扱いにしない)。
 
 ```bash
+# HEAD_OIDは`SKILL.md`「マージ直前」で記録したものと同じ値(このスニペット単体では未定義)
+HEAD_OID=$(gh pr view {number} --json headRefOid --jq .headRefOid)
 CHECK_RUN_ID=$(gh api "repos/{owner}/{repo}/commits/$HEAD_OID/check-runs" --paginate --slurp |
   jq -r --arg sha "$HEAD_OID" '
     [.[].check_runs[] | select(.name == "claude-review" and .head_sha == $sha)]

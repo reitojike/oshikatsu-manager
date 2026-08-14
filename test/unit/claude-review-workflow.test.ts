@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import path, { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -11,14 +11,7 @@ import { describe, expect, it } from "vitest";
 // (CodeRabbitの指摘・2026-08-14: review:full以外のラベルでjobがskipされることを
 // 否定側テストとして固定していなかった)。
 const testDirname = dirname(fileURLToPath(import.meta.url));
-const workflowPath = path.join(
-  testDirname,
-  "..",
-  "..",
-  ".github",
-  "workflows",
-  "claude-review.yml",
-);
+const workflowPath = join(testDirname, "..", "..", ".github", "workflows", "claude-review.yml");
 const workflowText = readFileSync(workflowPath, "utf8");
 
 // トップレベルの `name: Claude Review` と job の `name: ${{ ... }}` が両方とも
