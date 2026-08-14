@@ -152,11 +152,13 @@ export const summarizeBotLaunches = ({ issueComments, reviews, reviewComments })
 // (装飾なしの例は確認されていない)ため、どちらか一方の装飾を必須にする。
 export const REAL_FIX_HEADING = /^(?:#{1,6}\s+|\*\*)本物の修正/;
 // 「本物の修正」セクションを閉じる境界は、見送り/誤検知等の分類見出しに限らない。
-// Markdown見出し(`#`)や太字見出し(`**...**`)であれば、分類とは無関係な見出し
-// (例: 「## 検証」に続く番号付きのコマンド手順)でもセクションを閉じる必要がある
-// (Codex Cloudの指摘: 見送り/誤検知だけを閉じ語にすると、それ以外の見出しの下に
-// たまたま番号付きリストがあるだけで誤集計される)。
-const HEADING_LIKE = /^#{1,6}\s|^\*\*/;
+// Markdown見出し(`#`)や太字見出し(`**...**`)、表の行(`|`始まり)であれば、
+// 分類とは無関係な見出し(例: 「## 検証」に続く番号付きのコマンド手順)や、見出しの直後に
+// 続く別構造の表でもセクションを閉じる必要がある(Codex Cloudの指摘: 見送り/誤検知だけを
+// 閉じ語にすると、それ以外の見出しの下にたまたま番号付きリストがあるだけで誤集計される。
+// 表行も閉じ語に含めないと、見出しセクションが閉じないまま続く独立した表がセクション内の
+// 地の文として誤って未パース扱いされる。claude-reviewの指摘・2026-08-14、4巡目)。
+const SECTION_CLOSER = /^#{1,6}\s|^\*\*|^\|/;
 const NUMBERED_ITEM = /^\d+\.\s+\S/;
 
 // 「本物の修正」という語自体が行/セルに現れるかどうか(構造の有無を問わない)。
@@ -165,7 +167,8 @@ const NUMBERED_ITEM = /^\d+\.\s+\S/;
 // 効果測定(#244の削減前後比較など)が実際は判定不能なのに0件で埋まってしまう。
 const REAL_FIX_MENTION = /本物の修正/;
 
-// count・hasUnparsedMentionの両方を行(項目)単位で返す。「本物の修正」セクション内に
+// count・hasUnparsedMentionを行(項目)単位で返す。加えて、この関数が実際に扱った行の
+// 番号をcoveredLinesとして返す(見出し行・セクション内の行)。「本物の修正」セクション内に
 // 番号付きリスト項目として認識できない行(地の文の注記等)があり、かつその行自体にも
 // 「本物の修正」という語が含まれる場合は、その行を「言及はあるが構造化できなかった」
 // ものとして拾う(claude-reviewの指摘・2026-08-14: テキスト単位の判定では、同じテキスト
@@ -173,25 +176,26 @@ const REAL_FIX_MENTION = /本物の修正/;
 const countHeadingListRealFixes = (text) => {
   const lines = text.split(/\r?\n/);
   let inSection = false;
-  let hasStructure = false;
   let count = 0;
   let hasUnparsedMention = false;
-  for (const rawLine of lines) {
+  const coveredLines = new Set();
+  lines.forEach((rawLine, index) => {
     const line = rawLine.trim();
     if (REAL_FIX_HEADING.test(line)) {
       inSection = true;
-      hasStructure = true;
-      continue;
+      coveredLines.add(index);
+      return;
     }
-    if (inSection && HEADING_LIKE.test(line)) {
+    if (inSection && SECTION_CLOSER.test(line)) {
       inSection = false;
-      continue;
+      return;
     }
-    if (!inSection) continue;
+    if (!inSection) return;
+    coveredLines.add(index);
     if (NUMBERED_ITEM.test(line)) count += 1;
     else if (line !== "" && REAL_FIX_MENTION.test(line)) hasUnparsedMention = true;
-  }
-  return { count, hasUnparsedMention, hasStructure };
+  });
+  return { count, hasUnparsedMention, coveredLines };
 };
 
 // 表形式の分類記録(実例: PR #225「レビュー巡の記録」)。「分類」列のセル値が
@@ -254,48 +258,52 @@ const countTableRealFixes = (text) => {
   const lines = text.split(/\r?\n/);
   let count = 0;
   let hasUnparsedMention = false;
-  let hasStructure = false;
   let classificationColumnIndex = null;
-  for (const rawLine of lines) {
+  const coveredLines = new Set();
+  lines.forEach((rawLine, index) => {
     const line = rawLine.trim();
     if (!line.startsWith("|")) {
       classificationColumnIndex = null;
-      continue;
+      return;
     }
-    if (TABLE_SEPARATOR_ROW.test(line)) continue;
+    coveredLines.add(index);
+    if (TABLE_SEPARATOR_ROW.test(line)) return;
     const cells = line.split("|").map((cell) => cell.trim());
     if (classificationColumnIndex === null) {
       classificationColumnIndex = cells.indexOf("分類");
-      if (classificationColumnIndex !== -1) hasStructure = true;
-      continue;
+      return;
     }
     const row = parseTableDataRow(cells, classificationColumnIndex);
     count += row.count;
     if (row.hasUnparsedMention) hasUnparsedMention = true;
-  }
-  return { count, hasUnparsedMention, hasStructure };
+  });
+  return { count, hasUnparsedMention, coveredLines };
 };
 
 // 見出し+番号付きリストと表、両方の集計を合わせる。count・hasUnparsedMentionとも
 // 行(項目)単位で判定した結果を合算するため、一方の形式にだけ未パースな言及があっても
 // もう一方の正しく数えられた分に隠れて握りつぶされない。
 //
-// どちらかの構造(本物の修正見出し・分類列を持つ表)が実際に見つかった場合は、その構造の
-// 行/セル単位の判定だけを信用し、テキスト全体を再スキャンしない。全体を再スキャンすると、
-// 「分類」列以外のセルや構造の外側にある無関係な地の文の「本物の修正」という語まで
-// 拾ってしまい、分類列限定の原則(countTableRealFixesのコメント参照)をfail-closed側で
-// 迂回してしまう(claude-reviewの指摘・2026-08-14、3巡目)。構造が一切見つからない
-// テキスト(見出しも表も無い地の文だけの言及)のときだけ、テキスト全体を対象にする。
+// どちらの構造(本物の修正見出し・`|`で始まる行)にも属さない行は、この2つの走査
+// (countHeadingListRealFixes・countTableRealFixes)のどちらからも見過ごされる。
+// そのような行自体に「本物の修正」という語があれば、テキスト全体に構造が別途
+// 存在するかどうかによらず判定不能として拾う(claude-reviewの指摘・2026-08-14、
+// 4巡目。表の外・見出しの外にある地の文の言及が、テキスト内の他の構造の有無で
+// 握りつぶされていた)。「分類」列以外のセルは表の走査自体が対象外にしているため
+// (3巡目で修正済み)、ここでの再走査でも拾わない。
 const analyzeRealFixes = (text) => {
+  const lines = text.split(/\r?\n/);
   const heading = countHeadingListRealFixes(text);
   const table = countTableRealFixes(text);
-  const hasStructure = heading.hasStructure || table.hasStructure;
-  return {
-    count: heading.count + table.count,
-    hasUnparsedMention: hasStructure
-      ? heading.hasUnparsedMention || table.hasUnparsedMention
-      : REAL_FIX_MENTION.test(text),
-  };
+  let hasUnparsedMention = heading.hasUnparsedMention || table.hasUnparsedMention;
+  if (!hasUnparsedMention) {
+    hasUnparsedMention = lines.some((rawLine, index) => {
+      if (heading.coveredLines.has(index) || table.coveredLines.has(index)) return false;
+      const line = rawLine.trim();
+      return line !== "" && REAL_FIX_MENTION.test(line);
+    });
+  }
+  return { count: heading.count + table.count, hasUnparsedMention };
 };
 
 export const countRealFixes = (text) => analyzeRealFixes(text).count;

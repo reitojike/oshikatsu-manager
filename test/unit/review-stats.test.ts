@@ -549,7 +549,9 @@ describe("realFixUnparsable: 複数テキスト・複数行にまたがる握り
     });
     expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
   });
+});
 
+describe("realFixUnparsable: 分類列限定・行の被覆範囲を守る (#243)", () => {
   it("is false when the 分類 column resolves cleanly even if another column mentions 本物の修正 (negative)", () => {
     // claude-reviewの指摘(2026-08-14、3巡目): hasUnparsedMentionのフォールバックが
     // テキスト全体を再スキャンしていたため、「分類」列は明確に0件(見送り)と読み取れて
@@ -566,6 +568,46 @@ describe("realFixUnparsable: 複数テキスト・複数行にまたがる握り
       botLogins: TARGET_BOTS,
     });
     expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: false });
+  });
+
+  it("stays true when a mention outside any table/heading structure sits alongside a resolved table (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、4巡目): hasStructureゲートは「テキスト中のどこかに
+    // 構造があるか」でフォールバック全体のon/offを決めていたため、表が1つ見つかっただけで
+    // その表にも見出しセクションにも属さない別の場所の地の文言及が、判定不能に上がらず
+    // 握りつぶされていた。行ごとの被覆範囲(coveredLines)で判定する必要がある。
+    const text = [
+      "| 分類 |",
+      "| --- |",
+      "| 本物の修正 |",
+      "",
+      "あと、他にも1件本物の修正として対応した(表に書き忘れ)。",
+    ].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 1, realFixUnparsable: true });
+  });
+
+  it("is false when a table follows a 本物の修正 heading without an explicit closing heading (negative)", () => {
+    // 見出しセクションが表行では閉じないと、後続の独立した表がセクション内の地の文として
+    // 誤って未パース扱いされる(表側は正しく数えているにもかかわらず判定不能になる過剰検知)。
+    // 表行(`|`始まり)もセクションの閉じ語に含めることで、表は表として独立に走査させる。
+    const text = [
+      "**本物の修正**",
+      "1. 直した",
+      "",
+      "| # | 分類 |",
+      "| --- | --- |",
+      "| 1 | 本物の修正×2 |",
+    ].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 3, realFixUnparsable: false });
   });
 });
 
