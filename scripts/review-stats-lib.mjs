@@ -217,9 +217,27 @@ const TABLE_SEPARATOR_ROW = /^\|[\s|:-]+\|$/;
 // そのセルが2つに割れてしまい、以降のセルが1つずつ右へずれる。ずれた状態で
 // classificationColumnIndexを適用すると「分類」列と違うセルを読んでしまい、fail-closedの
 // 前提(分類列を正しく特定できていること)が崩れる(Codex Cloudの指摘・2026-08-14)。
-// エスケープされていないパイプでだけ分割する。
-const UNESCAPED_PIPE = /(?<!\\)\|/;
-const splitTableRow = (line) => line.split(UNESCAPED_PIPE).map((cell) => cell.trim());
+// 直前の1文字だけを見る固定長lookbehind(`/(?<!\\)\|/`)は、連続する偶数個の
+// バックスラッシュ(バックスラッシュ自体がエスケープされ、後続のパイプはエスケープ
+// されていない)を誤って「エスケープされたパイプ」と判定してしまう(CodeRabbitの指摘・
+// 2026-08-14: `C:\\|` のような2連続バックスラッシュのケース)。連続するバックスラッシュの
+// 個数の偶奇でパイプの意味が変わるため、正規表現ではなく1文字ずつ数える手続きにする。
+const splitTableRow = (line) => {
+  const cells = [];
+  let cell = "";
+  let backslashRun = 0;
+  for (const char of line) {
+    if (char === "|" && backslashRun % 2 === 0) {
+      cells.push(cell.trim());
+      cell = "";
+    } else {
+      cell += char;
+    }
+    backslashRun = char === "\\" ? backslashRun + 1 : 0;
+  }
+  cells.push(cell.trim());
+  return cells;
+};
 
 // 括弧の中身を問わず1件と数めると、「(要検討)」「(保留)」のようなまだ確定していない
 // ことを示す注記まで無条件に1件扱いになり、fail-closedの効果がこの経路だけ効かなくなる
@@ -266,11 +284,13 @@ const countTableRealFixes = (text) => {
   let count = 0;
   let hasUnparsedMention = false;
   let classificationColumnIndex = null;
+  let headerCellCount = null;
   const coveredLines = new Set();
   lines.forEach((rawLine, index) => {
     const line = rawLine.trim();
     if (!line.startsWith("|")) {
       classificationColumnIndex = null;
+      headerCellCount = null;
       return;
     }
     if (TABLE_SEPARATOR_ROW.test(line)) {
@@ -280,6 +300,7 @@ const countTableRealFixes = (text) => {
     const cells = splitTableRow(line);
     if (classificationColumnIndex === null) {
       classificationColumnIndex = cells.indexOf("分類");
+      headerCellCount = cells.length;
       coveredLines.add(index);
       return;
     }
@@ -289,6 +310,12 @@ const countTableRealFixes = (text) => {
     // analyzeRealFixesの全体フォールバック走査(下記)からも除外されてしまう
     // (claude-reviewの指摘・2026-08-14、5巡目)。列不明の表は全体フォールバックに委ねる。
     if (classificationColumnIndex === -1) return;
+    // データ行のセル数がヘッダと一致しない(列の書き忘れ・余分な`|`混入などの現実的な
+    // タイポ)場合も同様にcoveredLinesへ入れない。ヘッダ基準のclassificationColumnIndexを
+    // セル数の違う行にそのまま適用すると、無関係な別のセルを「分類」列として読んでしまい、
+    // 実際にある「本物の修正」への言及が判定不能にすら上がらず握りつぶされる
+    // (claude-reviewの指摘・2026-08-14、6巡目)。
+    if (cells.length !== headerCellCount) return;
     coveredLines.add(index);
     const row = parseTableDataRow(cells, classificationColumnIndex);
     count += row.count;

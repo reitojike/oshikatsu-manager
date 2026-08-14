@@ -388,7 +388,13 @@ describe("countRealFixes: table format (#243)", () => {
     ].join("\n");
     expect(countRealFixes(text)).toBe(3);
   });
+});
 
+// 手入力Markdownで起こりうる、構造が想定からずれた表の行(エスケープされたパイプ・
+// バックスラッシュのパリティ・列数の書き忘れ)を扱う。いずれも「classificationColumnIndex
+// が無関係な別のセルを指してしまい、実際にある本物の修正への言及がfail-closedにすら
+// 上がらず握りつぶされる」という同じ形の穴に対する回帰テスト。
+describe("countRealFixes: table format robustness against malformed rows (#243)", () => {
   it("handles an escaped pipe in an earlier column without misaligning the 分類 column (negative)", () => {
     // Codex Cloudの指摘(2026-08-14): 単純なsplit("|")だとセル内の`\|`(エスケープされた
     // パイプ)で余分に分割され、以降のセルが1つずつ右へずれる。分類列を正しく特定できず
@@ -399,6 +405,35 @@ describe("countRealFixes: table format (#243)", () => {
       "| 1 | a \\| b | 本物の修正 |",
     ].join("\n");
     expect(countRealFixes(text)).toBe(1);
+  });
+
+  it("splits on a pipe preceded by an even run of backslashes (an escaped backslash, not an escaped pipe) (negative)", () => {
+    // CodeRabbitの指摘(2026-08-14): 直前の1文字だけを見るlookbehindだと、偶数個の
+    // 連続バックスラッシュ(バックスラッシュ自体がエスケープされ、後続のパイプは
+    // エスケープされていない)を誤って「エスケープされたパイプ」と判定し、列がずれていた。
+    const text = [
+      "| # | 指摘概要 | 分類 |",
+      "| --- | --- | --- |",
+      "| 1 | C:\\\\| 本物の修正 |",
+    ].join("\n");
+    expect(countRealFixes(text)).toBe(1);
+  });
+
+  it("does not misread a shifted column when a data row's cell count differs from the header (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、6巡目): データ行のセル数がヘッダと不一致(列の
+    // 書き忘れ等)だと、ヘッダ基準のclassificationColumnIndexが無関係な別のセルを指し、
+    // 実際にある「本物の修正」への言及がfail-closedにすら上がらず握りつぶされていた。
+    const text = [
+      "| # | 指摘元 | 分類 | 対応 |",
+      "| --- | --- | --- | --- |",
+      "| 1 | 本物の修正 | ac1 |",
+    ].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
   });
 });
 
