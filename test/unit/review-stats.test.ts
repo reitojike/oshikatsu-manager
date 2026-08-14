@@ -609,6 +609,22 @@ describe("realFixUnparsable: 分類列限定・行の被覆範囲を守る (#243
     });
     expect(result).toEqual({ hasRecord: true, realFixCount: 3, realFixUnparsable: false });
   });
+
+  it("stays true for a 本物の修正 mention in a table with no 分類 header column (negative)", () => {
+    // claude-reviewの指摘(2026-08-14、5巡目): 「分類」列が見つからない表(=分類記録の
+    // 表として認識できない)のデータ行も無条件にcoveredLinesへ入れていたため、
+    // parseTableDataRowが中身を見ずに{count:0, hasUnparsedMention:false}を返した後、
+    // 全体フォールバック走査からもその行が除外され、言及が判定不能に上がらず
+    // 静かに0件として消えていた。既存のnegative test(countRealFixesが0を返すことのみ検証)
+    // ではこの欠陥を検出できていなかった。
+    const text = ["| # | 状態 |", "| --- | --- |", "| 1 | 本物の修正 |"].join("\n");
+    const result = summarizeClassification({
+      prBody: text,
+      issueComments: [],
+      botLogins: TARGET_BOTS,
+    });
+    expect(result).toEqual({ hasRecord: true, realFixCount: 0, realFixUnparsable: true });
+  });
 });
 
 describe("realFixUnparsable: formatPrLine/aggregate/formatSummaryへの反映 (#243)", () => {

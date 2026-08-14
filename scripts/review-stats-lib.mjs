@@ -247,7 +247,6 @@ const parseRealFixCell = (rawCell) => {
 // 「分類」列が特定できているデータ行1件を判定する(ヘッダ行・列不明の表は
 // countTableRealFixes側でスキップ済み)。ループ本体の分岐を減らすための切り出し。
 const parseTableDataRow = (cells, classificationColumnIndex) => {
-  if (classificationColumnIndex === -1) return { count: 0, hasUnparsedMention: false };
   const cell = cells[classificationColumnIndex];
   if (cell === undefined) return { count: 0, hasUnparsedMention: false };
   const cellCount = parseRealFixCell(cell);
@@ -266,13 +265,23 @@ const countTableRealFixes = (text) => {
       classificationColumnIndex = null;
       return;
     }
-    coveredLines.add(index);
-    if (TABLE_SEPARATOR_ROW.test(line)) return;
+    if (TABLE_SEPARATOR_ROW.test(line)) {
+      coveredLines.add(index);
+      return;
+    }
     const cells = line.split("|").map((cell) => cell.trim());
     if (classificationColumnIndex === null) {
       classificationColumnIndex = cells.indexOf("分類");
+      coveredLines.add(index);
       return;
     }
+    // 「分類」列が見つからない表(=分類記録の表として認識できない)のデータ行は
+    // coveredLinesに入れない。ここでcoveredLines扱いにすると、行のどこかに
+    // 「本物の修正」への言及があっても構造化できないまま握りつぶされ、
+    // analyzeRealFixesの全体フォールバック走査(下記)からも除外されてしまう
+    // (claude-reviewの指摘・2026-08-14、5巡目)。列不明の表は全体フォールバックに委ねる。
+    if (classificationColumnIndex === -1) return;
+    coveredLines.add(index);
     const row = parseTableDataRow(cells, classificationColumnIndex);
     count += row.count;
     if (row.hasUnparsedMention) hasUnparsedMention = true;
