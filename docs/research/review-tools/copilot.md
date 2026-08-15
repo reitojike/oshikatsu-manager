@@ -23,7 +23,7 @@ GitHub REST API リファレンス、および第三者の公開リポジトリ�
 
 | 略記 | 指す先 | 取得日 |
 | --- | --- | --- |
-| `OpenAPI` | <https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json> (12.9MB。`main` ブランチのため内容は時点依存) | 2026-08-15 |
+| `OpenAPI` | <https://raw.githubusercontent.com/github/rest-api-description/67c14c7efb01cdeeac0ecd8cee9fae8d7a80e2aa/descriptions/api.github.com/api.github.com.json>(コミットSHA `67c14c7efb01cdeeac0ecd8cee9fae8d7a80e2aa`。`gh api repos/github/rest-api-description/commits/main --jq .sha` で2026-08-16に取得しこのSHAへURLを固定した。12.9MB。**台帳本文の各行の内容確認は2026-08-15に`main`ブランチを参照して行われている。この固定は追試可能性のための事後のref固定であり、1日のずれで対象スキーマ(enum・パス定義)が変わった形跡は無い**) | 2026-08-16(ref固定日。各行の確認日は元の2026-08-15のまま) |
 
 略記の後ろは、そのドキュメント内のパス(例: `components.schemas.repository-rule-copilot-code-review.description`)を指す。
 
