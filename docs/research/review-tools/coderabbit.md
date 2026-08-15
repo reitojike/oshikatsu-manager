@@ -28,6 +28,16 @@
    **「存在しない」**。散文ドキュメントのような**開いた情報源**での不在は
    **「文書化されていない」**にとどまる
 
+## 情報源の独立性について(較正で判明)
+
+**等級Aの出典のうち <https://docs.coderabbit.ai/reference/configuration> は、等級Bの出典である <https://coderabbit.ai/integrations/schema.v2.json> から自動生成されたページである。**ページ自身が "This reference is automatically generated from the CodeRabbit configuration schema." と明記している。
+
+**したがって、この2つを引く行は独立した2つの裏付けではなく、同一原典の2つの表示面である。**「散文とスキーマの両方に書いてある」と読んではならない。
+
+さらに**生成側は description を切り詰めている**。スキーマの `reviews.commit_status` は "Mirror review progress using legacy commit statuses for compatibility with required checks and existing automations. This setting is only used when `review_progress` is disabled." だが、生成ページは第1文しか表示しない。`tone_instructions` も例文が落ちる。**生成ページだけを引くと条件が欠落する。**
+
+`docs.coderabbit.ai` のうち `guides/*`・`pr-reviews/*`・`management/*`・`reference/review-commands` 等の narrative ページは人手で書かれており、スキーマとは独立している。
+
 | 軸 | 主張 | 出典(URL・参照先) | 等級 | 確認日 | 状態 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 新規PR作成時にCodeRabbitは自動で包括的な("full comprehensive")レビューを行う | <https://docs.coderabbit.ai/guides/code-review-overview> | A | 2026-08-15 | 確認済み |
