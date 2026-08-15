@@ -42,11 +42,22 @@ GitHub REST API リファレンス、および第三者の公開リポジトリ�
   (Music Assistant、OSSプロジェクト)。観測日2026-08-15。レビュー `submitted_at` は
   2026-08-14T17:21:26Z。ruleset設定は非公開のため文脈不明。
 - `[LFSX66]` = <https://github.com/FerrLabs/LFSX/pull/66> — public、組織リポジトリ。観測日2026-08-15。
-  quota超過メッセージのレビュー。check-runsは同commitに15件存在(actionlint等のCI多数)。ruleset設定は
-  非公開のため文脈不明。
+  quota超過メッセージのレビュー。**観測対象のhead SHAは`f1227f92412f5635bc87ba0a9b6c29f17c70abe0`**
+  (`GET /repos/FerrLabs/LFSX/pulls/66`の`head.sha`。2026-08-16に`gh api`で再取得し、`updated_at`が
+  観測日2026-08-15より前の2026-08-14T17:22:02Zのままであることからpushが無く同一SHAだと確認した)。
+  このSHAに対する`GET /repos/FerrLabs/LFSX/commits/{sha}/check-runs`の`total_count`は15件
+  (actionlint等のCI多数。2026-08-16に再取得しても15件のまま)。ruleset設定は非公開のため文脈不明
+  (**当初head SHAを記録していなかった。PRは更新でき、check-runはcommit単位で変わるため、
+  CodeRabbitの指摘で気づき追記した**)。
 - `[FC387]` = <https://github.com/theFactoryHQ/factory-careers/pull/387> — public、組織リポジトリ。
-  観測日2026-08-15。quota超過メッセージのレビュー。check-runsは同commitに28件存在(観測時点の値。件数は増減する)(Playwright等のCI
-  多数)。ruleset設定は非公開のため文脈不明。
+  観測日2026-08-15。quota超過メッセージのレビュー。**観測対象のhead SHAは
+  `705103ad6b979f6091e1bdfe88a00e01340480f0`**(`GET /repos/theFactoryHQ/factory-careers/pulls/387`の
+  `head.sha`。2026-08-16に`gh api`で再取得し、`updated_at`が観測日2026-08-15より前の
+  2026-08-14T17:34:47Zのままであることからpushが無く同一SHAだと確認した)。このSHAに対する
+  `GET /repos/theFactoryHQ/factory-careers/commits/{sha}/check-runs`の`total_count`は28件
+  (観測時点の値。Playwright等のCI多数。2026-08-16に再取得しても28件のまま)。ruleset設定は非公開の
+  ため文脈不明(**当初head SHAを記録していなかった。`[LFSX66]`と同じ理由でCodeRabbitの指摘を受け、
+  同型の欠陥として合わせて追記した**)。
 - `[DBV1]` = <https://github.com/mostafa-html/database_viewer/pull/1> — public、個人リポジトリ。
   観測日2026-08-15。quota超過メッセージのレビュー。同commitのcheck-runs総数は0件(このリポジトリ自体が
   GitHub Actionsをほぼ使っていないと見られ、check-run不在がCopilot固有の挙動かの参考にはならない)。
@@ -155,7 +166,7 @@ user who requested the review has reached their quota limit.` を完全一致で
 | 3 | effort level=Balancedを選ぶと、より高い推論能力のモデルへルーティングされ複雑なロジック・セキュリティ重要箇所・サービス横断変更をより深く解析する。Liteは既定の標準的レビュー | [About GitHub Copilot code review](https://docs.github.com/en/copilot/concepts/agents/code-review) | A | 2026-08-15 | 確認済み |
 | 3 | 既定の除外ファイル(下記軸8参照)はレビュー対象にならない。**ただし「effort level や ruleset 設定に関わらず」という独立性は出典に書かれていない** —— 引用先ページは除外ファイルの列挙と「除外されたファイルはレビュー対象にならない」しか述べておらず、`effort level` にも `ruleset` にも言及が無い(raw HTML 全文で確認) | [Files excluded from GitHub Copilot code review](https://docs.github.com/en/copilot/reference/review-excluded-files) | A | 2026-08-15 | 確認済み |
 | 3 | 2025-10-28付でpublic preview公開された「Rich Context with Tool Calling」により、agentic tool callingでコード・ディレクトリ構造・参照関係を能動的に収集する(「full project context gathering」という表現は、概念ページとこのchangelogの両方に現れる) | [New public preview features in Copilot code review: AI reviews that see the full picture](https://github.blog/changelog/2025-10-28-new-public-preview-features-in-copilot-code-review-ai-reviews-that-see-the-full-picture/) | A | 2026-08-15 | 確認済み |
-| 3 | 同changelogは「CCRはまもなくCodeQLと主要linter(ESLintから開始)を統合し、意味解析とルールベースのチェックを組み合わせる」とも述べている。一方、別ページ(軸8参照)は「GitHub Code QualityはCopilot code reviewとは別製品」と明記しており、Copilot code review自体がCodeQL/ESLint検出を内包するのか、Code Qualityという別製品と連携するだけなのかは、2ページの記述だけでは判別できない | [New public preview features in Copilot code review: AI reviews that see the full picture](https://github.blog/changelog/2025-10-28-new-public-preview-features-in-copilot-code-review-ai-reviews-that-see-the-full-picture/)、[GitHub Code Quality](https://docs.github.com/en/code-security/concepts/code-quality/code-quality) | A | 2026-08-15 | 確認済み |
+| 3 | 同changelog(2025-10-28)は「CCRはまもなくCodeQLと主要linter(ESLintから開始)を統合し、意味解析とルールベースのチェックを組み合わせる」(原文: "CCR will soon integrate CodeQL and leading linters (starting with ESLint) to combine semantic analysis and classic rule-based checks.")と、CCR自身へのCodeQL/ESLint統合を予告していた。**この予告は、本調査で確認した後続のCCR changelog3件(2026-05-12/2026-06-25/2026-07-17)のいずれにもCodeQL・ESLintへの言及が無い(3件とも全文を`curl`で取得しgrepして確認)。**現行の「About GitHub Copilot code review」ページは、CodeQL検出をCCR自身の機能としてではなく、別製品「GitHub Code Quality」が付け加えるものとして説明している(軸8参照)。**したがって2025-10-28の予告どおりCCR自身がCodeQL/ESLintを内包する形にはならず、CodeQL検出は別製品側で提供される形に着地したと読める。ただし現行ドキュメントに「CCRへの統合は行わない」という明示的な撤回文は無く、この結論はchangelogでの言及不在と現行ページの書きぶりからの推論である** | [New public preview features in Copilot code review: AI reviews that see the full picture](https://github.blog/changelog/2025-10-28-new-public-preview-features-in-copilot-code-review-ai-reviews-that-see-the-full-picture/)、[About GitHub Copilot code review](https://docs.github.com/en/copilot/concepts/agents/code-review)(2026-08-16、`curl`で本文を取得しCodeQL/ESLintへの言及の有無を確認)、[GitHub Code Quality](https://docs.github.com/en/code-security/concepts/code-quality/code-quality)。後続changelog3件の不在確認: [Comment experience improvements](https://github.blog/changelog/2026-05-12-copilot-code-review-comment-experience-improvements/)、[Analysis depth and efficiency updates](https://github.blog/changelog/2026-06-25-copilot-code-review-analysis-depth-and-efficiency-updates/)、[Customization and configurability improvements](https://github.blog/changelog/2026-07-17-copilot-code-review-customization-and-configurability-improvements/) | A | 2026-08-16 | 確認済み |
 | 3 | 2026-06-25以降、コード探索にCopilot CLI/SDK由来の `grep`/`rg`/`glob`/`view` ツールを使うようになり、独自ツールより的確に「重要なコードを素早く見つける」ようになったとされる | [Copilot code review: Analysis depth and efficiency updates](https://github.blog/changelog/2026-06-25-copilot-code-review-analysis-depth-and-efficiency-updates/) | A | 2026-08-15 | 確認済み |
 | 3 | Copilot code reviewは「Copilot Memory」のうちリポジトリレベルの事実(コーディング規約・アーキテクチャ上の決定・ビルドコマンド等)のみを参照する。ユーザーレベルの個人的な好みはレビューには適用されない | [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory) | A | 2026-08-15 | 確認済み |
 | 3 | あるPRのレビューで発見された事実(fact)は、同じリポジトリの以降のレビューでも再利用されうる(レビューをまたいだ記憶) | [About GitHub Copilot Memory](https://docs.github.com/en/copilot/concepts/agents/copilot-memory) | A | 2026-08-15 | 確認済み |
@@ -184,7 +195,7 @@ user who requested the review has reached their quota limit.` を完全一致で
 | 5 | 2026-05-12以降、インラインコメントに `High`/`Medium`/`Low` の重大度ラベルが付き、コメント右上に表示されるとされる。本調査のC2実測で観測した `[CRITICAL]` という接頭辞(`[MAS5671]`、軸9出力パターン表参照)とは表記が一致せず、同一機構なのか別機構(旧仕様、または本文中の接頭辞と右上バッジが別々に存在する)なのかは未確認 | [Copilot code review: Comment experience improvements](https://github.blog/changelog/2026-05-12-copilot-code-review-comment-experience-improvements/) | A | 2026-08-15 | 確認済み |
 | 5 | 2026-05-12以降、大規模PRで似た指摘をグループ化し、重複感を減らす「grouped comments」機能がある | [Copilot code review: Comment experience improvements](https://github.blog/changelog/2026-05-12-copilot-code-review-comment-experience-improvements/) | A | 2026-08-15 | 確認済み |
 | 6 | quota超過などでレビューが失敗した場合でも、reviewオブジェクトの `state` は正常時と同じ `COMMENTED` になる。`state` フィールド単体では成功/失敗を判別できない(`[QUOTA-LIST]` の15件全PRの `pulls/{n}/reviews` を `gh api` で確認し、正常完了レビューである `[DB214]`/`[HBT10215]` と同一の `state` 値であることを突合) | `[QUOTA-LIST]`、`[DB214]`、`[HBT10215]` | C2 | 2026-08-15 | 確認済み |
-| 6 | 「成功」「指摘0件」「quota超過でスキップ」を区別する専用の構造化フィールド(webhookイベント種別やAPIフィールド)への言及は`[SCOPE-RATELIMIT]`(トラブルシュート・usage limitsの解説ページ)には無い。**この2ページは散文の解説ページであり、GitHubのwebhook/APIスキーマを網羅的に確認したものではないため、フィールドの不在そのものを保証しない**(文書化されていないにとどまる)。本調査でC2実測により確認できている判定手段は`body`本文の文言のみである(直上の行の`state`一致の実測、および出力パターン表を参照) | `[SCOPE-RATELIMIT]`。検索語: "code review", "skip", "status"。両ページとも散文の解説ページ(開いた情報源)であり、不在は「文書化されていない」にとどまる。C2の裏付けは`[QUOTA-LIST]`・`[DB214]`・`[HBT10215]`(直上の行) | A | 2026-08-15 | 公式に未文書化 |
+| 6 | **「成功」「指摘0件」「quota超過でスキップ」を区別する専用の成功/失敗フィールドは確認できなかった。**専用の構造化フィールド(webhookイベント種別やAPIフィールド)への言及は`[SCOPE-RATELIMIT]`(トラブルシュート・usage limitsの解説ページ)には無い。**この2ページは散文の解説ページであり、GitHubのwebhook/APIスキーマを網羅的に確認したものではないため、フィールドの不在そのものを保証しない**(文書化されていないにとどまる)。**判定に使える信号は`body`本文の文言(直接的)に加え、check-run(`copilot-pull-request-reviewer`)の不在と`state`値の一致・不一致が補助信号として使える**(**当初「判定手段は`body`本文の文言のみ」と断定していたが、同じ台帳の軸6の別行(check-run不在の観測、直下の行)を無視した言い過ぎだった。CodeRabbitの指摘で気づき補助信号として書き加えた。ただしcheck-run不在はquota超過の2件でのみ観測されており、行数上限超過等の他の失敗理由でも同様かは未確認**) | `[SCOPE-RATELIMIT]`。検索語: "code review", "skip", "status"。両ページとも散文の解説ページ(開いた情報源)であり、不在は「文書化されていない」にとどまる。C2の裏付けは`[QUOTA-LIST]`・`[DB214]`・`[HBT10215]`・`[LFSX66]`・`[FC387]`(check-run不在の観測は直下の行) | A | 2026-08-15 | 公式に未文書化 |
 | 6 | 正常完了時はcheck-run `copilot-pull-request-reviewer` が `success` で作られる一方、**quota超過**で失敗した場合に同名の check-run が作られなかった実例が2件ある(**サイズ上限超過については check-run を確認した観測が無い。2種類の失敗理由を1つに束ねない**)(CIの盛んな他リポジトリでも0件)。`gh api repos/{owner}/{repo}/commits/{sha}/check-runs` で各head shaのcheck-runs総数・名称を確認した | `[LFSX66]`(15件のcheck-runあり、Copilot分0件)、`[FC387]`(28件のcheck-runあり(観測時点の値。件数は増減する)、Copilot分0件) | C2 | 2026-08-15 | 確認済み |
 | 6 | `pull_request_review` webhookイベントの `action` フィールドは `submitted`/`edited`/`dismissed` の3値を取る(汎用のPRレビューwebhookで、Copilot固有ではない) | <https://docs.github.com/en/webhooks/webhook-events-and-payloads>(2026-08-15、pull_request_review イベントの action 列挙を確認) | B | 2026-08-15 | 確認済み |
 | 6 | **同一PRに Copilot のレビューオブジェクトが複数積み上がる。**`[DB214]` で6件、`[MAS5671]` で4件、`[EVITA1420]` で2件を観測。つまり再レビューは既存レビューの更新ではなく**新規レビューオブジェクトの追加**として現れる | `[DB214]` / `[MAS5671]` / `[EVITA1420]` の `GET /repos/{owner}/{repo}/pulls/{n}/reviews` を2026-08-15に再取得し、`copilot-pull-request-reviewer[bot]` 著者のレビュー数がそれぞれ 6 / 4 / 2 であることを確認 | C2 | 2026-08-15 | 確認済み |
@@ -199,10 +210,10 @@ user who requested the review has reached their quota limit.` を完全一致で
 | 7 | 2026-06-25付の探索ツール変更(軸3参照)により「レビュー品質を保ったままCopilot code reviewのコストを約20%削減した」と明記されている | [Copilot code review: Analysis depth and efficiency updates](https://github.blog/changelog/2026-06-25-copilot-code-review-analysis-depth-and-efficiency-updates/) | A | 2026-08-15 | 確認済み |
 | 7 | PR単位のCopilot code reviewはCopilot **Student**/Pro/Pro+/Max/Business/Enterpriseで利用可能(台帳が以前落としていた `Student` を追加。プラン比較表は7列で、Free列だけが「Only "Review selection" in VS Code」、Student以降の6列はすべて利用可能を示すチェックマーク)。Free プランのみVS Code内の「Review selection」のみ利用でき、PRレビューは対象外 | [Plans for GitHub Copilot](https://docs.github.com/en/copilot/get-started/plans) | A | 2026-08-15 | 確認済み |
 | 7 | 変更ファイル数300、変更行数20,000という上限値は、公式ドキュメント本文には数値として明記されていない(数値は出力パターン表の `[COE25]`/`[KRIA1]` のC2観測でのみ確認) | `[SCOPE-LARGE-PR]` | A | 2026-08-15 | 公式に未文書化 |
-| 7 | ユーザーのpremium request/AI Creditsのquotaが尽きた場合には、専用の拒否文言を持つレビューが投稿される(`[QUOTA-LIST]` の15件で文字列完全一致。逐語文字列は出力パターン表を参照)。**再試行・キューイングの有無、および投稿までの所要時間は出典からは判別できない**(拒否メッセージの観測だけでは、その後に不可視の再試行が行われていないことは示せない) | `[QUOTA-LIST]` | C2 | 2026-08-15 | 確認済み |
+| 7 | **何らかのquotaが尽きた場合には、専用の拒否文言を持つレビューが投稿される**(`[QUOTA-LIST]` の15件で文字列完全一致。逐語文字列は出力パターン表を参照)。**ただしquotaの種類は観測以上に特定できない。**`[QUOTA-LIST]`が示すのは本文に`quota limit`という文言が表示されたことだけであり、それがpremium request(レガシー課金)かAI Credits(現行課金)かは、この文言だけからは判別できない(**当初「premium request/AI Creditsのquotaが尽きた場合」と両方を確定的な原因として書いていたが、観測した拒否文言自体はどちらのquotaかを名指ししておらず言い過ぎだった。CodeRabbitの指摘で気づき、観測できた範囲(`quota limit`という文言のみ)に絞った**)。**再試行・キューイングの有無、および投稿までの所要時間は出典からは判別できない**(拒否メッセージの観測だけでは、その後に不可視の再試行が行われていないことは示せない) | `[QUOTA-LIST]` | C2 | 2026-08-15 | 確認済み |
 | 8 | 既定で除外されるファイル(抜粋): `.gitignore`, `package-lock.json`, `yarn.lock`, `requirements.txt`, `Gemfile.lock`, `Cargo.lock`, `go.sum` ほか多数の依存管理・ロックファイル。パターン除外: `**/*.svg`, `**/*.log`, `**/*.lock`, `**/node_modules/**/*`, `**/dist/**/*`, `**/*.min.js`, `**/*.d.ts`, `**/vendor/**/*`, `**/generated/**/*`, `**/bin/**/*` など。ただし `**/bin/**/*.rs` と SAP Commerce(Hybris)の `**/hybris/bin/custom/**` は例外的に対象に含める | [Files excluded from GitHub Copilot code review](https://docs.github.com/en/copilot/reference/review-excluded-files) | A | 2026-08-15 | 確認済み |
 | 8 | self-hosted runnerを使う場合はUbuntu x64 Linux限定で、Actions Runner Controller(ARC)が唯一の公式サポート方式。ARC以外のself-hosted runnerは使用しないよう明記されている(セキュリティ上の理由) | [Configuring runners for GitHub Copilot code review](https://docs.github.com/en/copilot/how-tos/copilot-on-github/set-up-copilot/configure-runners) | A | 2026-08-15 | 確認済み |
-| 8 | Copilot code reviewは「GitHub Code Quality」(CodeQLによるルールベースの静的解析)とは別製品であり、Copilot code reviewの出力にCodeQLのルールベース検出結果は含まれない。両者は個別に有効化する | [GitHub Code Quality](https://docs.github.com/en/code-security/concepts/code-quality/code-quality) | A | 2026-08-15 | 確認済み |
+| 8 | Copilot code reviewは「GitHub Code Quality」(CodeQLによるルールベースの静的解析)とは別製品であり、Copilot code reviewの出力にCodeQLのルールベース検出結果は含まれない。両者は個別に有効化する。**現行の「About GitHub Copilot code review」ページも同旨を明記している**(原文: "GitHub Code Quality complements Copilot code review by adding: Rules-based CodeQL-powered analysis on pull requests and on your default branch.")。**2025-10-28のchangelogはCCR自身へのCodeQL/ESLint統合を予告していたが(軸3参照)、この予告どおりCCRの出力自体にCodeQLの検出結果が混ざる形にはなっていないと読める(軸3の推論と根拠は同一)** | [GitHub Code Quality](https://docs.github.com/en/code-security/concepts/code-quality/code-quality)、[About GitHub Copilot code review](https://docs.github.com/en/copilot/concepts/agents/code-review)(2026-08-16、`curl`で本文を取得し確認) | A | 2026-08-16 | 確認済み |
 | 8 | 「変更が大きい・複雑な場合は特に、すべての問題を検出できるとは限らない」と明記 | [Responsible use of GitHub Copilot code review](https://docs.github.com/en/copilot/responsible-use-of-github-copilot-features/responsible-use-of-github-copilot-code-review) | A | 2026-08-15 | 確認済み |
 | 8 | 「ハルシネーションのリスクがある。存在しない問題や誤解に基づく問題を指摘することがある」と明記 | [Responsible use of GitHub Copilot code review](https://docs.github.com/en/copilot/responsible-use-of-github-copilot-features/responsible-use-of-github-copilot-code-review) | A | 2026-08-15 | 確認済み |
 | 8 | 提案コードは「妥当に見えても意味的・構文的に正しくない場合があり、コメントで指摘した問題を正しく解決しない場合もある」と明記(原文は "The code generated may appear to be valid but may not actually be semantically or syntactically correct, or may not correctly resolve the problem identified in the comment." で、`or` で並ぶ2つ目の節「コメントで指摘した問題を正しく解決しない場合がある」を台帳が落としていたため補った) | [Responsible use of GitHub Copilot code review](https://docs.github.com/en/copilot/responsible-use-of-github-copilot-features/responsible-use-of-github-copilot-code-review) | A | 2026-08-15 | 確認済み |
@@ -245,7 +256,7 @@ user who requested the review has reached their quota limit.` を完全一致で
 | PR review(pulls/reviews) | body中の折りたたみ見出し | `<details>` / `<summary>Show a summary per file</summary>` | ファイル別サマリ表(File / Description の2列)を格納する折りたたみブロック | `[DB214]` | C2 | 2026-08-15 | 確認済み |
 | PR review(pulls/reviews) | body中の折りたたみ見出し(Nは件数、可変) | `<details>` / `<summary>Suppressed comments (1)</summary>` | 低確信度などの理由でインラインコメント化されず抑制されたコメントの格納先。この中身は `/pulls/{n}/comments` 等には出てこない | `[DB214]` | C2 | 2026-08-15 | 確認済み |
 | PR review(pulls/reviews) | body末尾の定型フッター | ``💡 <a href="/{owner}/{repo}/new/main?filename=.github/skills/code-review/SKILL.md">Add a `code-review` agent skill</a> or configure MCP servers for context-aware, tailored reviews. <a href="https://docs.github.com/en/copilot/how-tos/use-copilot-agents/request-a-code-review/use-code-review#mcp-servers-and-agent-skills">Learn more in the docs.</a>`` | agent skill / MCP未設定リポジトリへの定型案内フッター。2つの独立リポジトリで文字列が完全一致(固定テンプレートと推定) | `[HBT10215]`、`[DB214]` | C2 | 2026-08-15 | 確認済み |
-| PR review(pulls/reviews) | body全文(quota超過時) | `Copilot was unable to review this pull request because the user who requested the review has reached their quota limit.` | premium request/AI Creditsのquota超過によりレビューを実行できなかった | `[QUOTA-LIST]`(15件全件で文字列完全一致を確認) | C2 | 2026-08-15 | 確認済み |
+| PR review(pulls/reviews) | body全文(quota超過時) | `Copilot was unable to review this pull request because the user who requested the review has reached their quota limit.` | **何らかのquotaが超過したためレビューを実行できなかった。文言自体は`quota limit`とのみ表示し、premium request(レガシー課金)かAI Credits(現行課金)かを名指ししないため、どちらのquotaかは判別できない**(軸7参照) | `[QUOTA-LIST]`(15件全件で文字列完全一致を確認) | C2 | 2026-08-15 | 確認済み |
 | PR review(pulls/reviews) | body全文(行数上限超過時) | `Copilot wasn't able to review this pull request because it exceeds the maximum number of lines (20,000). Try reducing the number of changed lines and requesting a review from Copilot again.` | 変更行数が20,000行を超えたためレビュー不可(quota超過とは別の失敗理由・別文言) | `[COE25]` | C2 | 2026-08-15 | 確認済み |
 | PR review(pulls/reviews) | body全文(ファイル数上限超過時) | `Copilot wasn't able to review this pull request because it exceeds the maximum number of files (300). Try reducing the number of changed files and requesting a review from Copilot again.` | 変更ファイル数が300を超えたためレビュー不可(quota超過・行数超過とは別の失敗理由・別文言) | `[KRIA1]` | C2 | 2026-08-15 | 確認済み |
 | PR review comment(インライン) | body先頭の重大度タグ | `[CRITICAL]` | インラインコメントに付与される重大度接頭辞(全コメントに付くかは未確認。1件のみ観測) | `[MAS5671]` | C2 | 2026-08-15 | 確認済み |
@@ -259,12 +270,32 @@ user who requested the review has reached their quota limit.` を完全一致で
 | PR review(pulls/reviews) | body全文(旧表記、時期不明) | `Copilot reviewed N out of N changed files in this pull request and generated no comments.` | コミュニティディスカッションが伝える、指摘0件時の旧文面。本調査のC2実測 `[HBT10215]`(0コメント)ではこの文が本文中に存在せず、該当箇所が空行になっていたため、現行仕様と一致するか未検証(二次情報) | <https://github.com/orgs/community/discussions/157330>(2026-08-15にWebFetchで内容確認)。観測環境: フォーラム投稿者のリポジトリ・組織/個人の別・投稿時期はいずれも本文から特定できず、文脈不明 | D | 2026-08-15 | 確認済み |
 | PR review comment(インライン) | コメント右上の重大度ラベル(公式仕様、逐語) | `High` / `Medium` / `Low` | 2026-05-12以降の重大度分類。C2実測で観測した `[CRITICAL]` という本文接頭辞(上記行)とは表記が異なり、UIバッジ(このラベル)と本文中の接頭辞が同一機構か別機構かは未確認 | [Copilot code review: Comment experience improvements](https://github.blog/changelog/2026-05-12-copilot-code-review-comment-experience-improvements/)(2026-08-15、changelog本文で確認。C2での再現は本調査では未実施) | A | 2026-08-15 | 確認済み |
 
-## 出力の構造
+## 観測した出力例(出力の構造)
 
-- `## Pull request overview` — レビュー本文冒頭のサマリ見出し(固定文字列)。
-- `### Reviewed changes` — ファイル数・コメント数サマリと詳細情報を続ける小見出し(指摘0件時は省略されうる)。
-- `<details><summary>Show a summary per file</summary>` 内に `| File | Description |` 形式の表(2列)を格納する。この表はレビュー本文の折りたたみブロック内にのみ存在し、独立した構造化フィールドとしては提供されない。
-- `<details><summary>Suppressed comments (N)</summary>` — 低確信度等で抑制されたコメントを格納する折りたたみブロック。中身は `**path:line**` の見出し行と箇条書きの指摘文。
-- 本文末尾の `---` 区切り線の後に、`💡` 絵文字で始まる固定フッター(agent skill / MCPサーバー設定を促す案内)が付与される。
-- インラインコメント本文の先頭に `[CRITICAL]` のような重大度接頭辞が付くことがある(観測1件、全件共通かは未確認)。公式changelogは別途 `High`/`Medium`/`Low` という重大度ラベルがコメント右上に表示されると説明しており、この2つの表記の関係(同一機構か別機構か)は未確認。
-- 生のreview本文(API `body` フィールド)にHTMLコメント(`<!-- -->`)形式の機械可読マーカーは、本調査で取得した2件のサンプルには見つからなかった。
+**この節はソースコードから導出した仕様ではなく、C2観測(`[DB214]`・`[HBT10215]`・`[MAS5671]`ほかの
+少数PR)から見えた構造のパターンである。**Copilot code reviewは非公開実装であり、出力形式を定めた
+一次情報(公式スキーマ・公開ソース)は存在しない。したがって以下はいずれも「観測した範囲でこの形
+だった」にとどまり、固定的な出力契約として保証されているとは言えない。
+
+- `## Pull request overview` — レビュー本文冒頭に置かれていた見出し。`[DB214]`・`[HBT10215]`の2件で
+  一致した(全件でこの見出しが付くかは未確認)。
+- `### Reviewed changes` — ファイル数・コメント数サマリと詳細情報を続ける小見出し。**`[DB214]`(指摘
+  2件)にはあり、指摘0件だった`[HBT10215]`には無かった。**指摘0件時に省略される、という1対1の対照
+  例であり、他の観測は無い。
+- `<details><summary>Show a summary per file</summary>` 内に `| File | Description |` 形式の表(2列)を
+  格納する形は`[DB214]`1件のみで確認した。この表がレビュー本文の折りたたみブロック内にのみ存在し
+  独立した構造化フィールドとしては提供されないことは、`[DB214]`のレビューオブジェクトを
+  `/pulls/{n}/comments` 等と突き合わせて確認した(軸9参照)。
+- `<details><summary>Suppressed comments (1)</summary>` — 低確信度等で抑制されたコメントを格納する
+  折りたたみブロック。`[DB214]`の1件のみで観測した(件数「1」は観測時点の値で、`(N)`部分が可変で
+  あることの一般則は未確認)。中身は `**path:line**` の見出し行と箇条書きの指摘文だった。
+- 本文末尾の `---` 区切り線の後に `💡` 絵文字で始まるフッター(agent skill / MCPサーバー設定を促す
+  案内)が付与される形は、`[HBT10215]`・`[DB214]`の2件で文字列が完全一致した(軸5参照)。2つの独立
+  リポジトリで一致したことから固定テンプレートの可能性が高いと推定するが、3件目以降の観測は無い。
+- インラインコメント本文の先頭に `[CRITICAL]` のような重大度接頭辞が付くことがある(`[MAS5671]`の
+  1件のみで観測。全コメントに付くかは未確認)。公式changelog(2026-05-12)は別途 `High`/`Medium`/
+  `Low` という重大度ラベルがコメント右上に表示されると説明しており、この2つの表記の関係(同一機構か
+  別機構か)は未確認。
+- 生のreview本文(API `body` フィールド)にHTMLコメント(`<!-- -->`)形式の機械可読マーカーは、本調査
+  で取得した `[DB214]`・`[HBT10215]` の2件のサンプルには見つからなかった(**この2件で見つからな
+  かったことは、他の実行結果にも一切現れないことの証明ではない**)。
