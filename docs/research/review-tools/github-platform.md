@@ -223,7 +223,7 @@
 | review `event`(書き込み) | **閉じている** | REST requestBody は3値、GraphQL `PullRequestReviewEvent` は4値。**両者が食い違う**(RESTに `DISMISS` が無い) |
 | workflow run `status` / `conclusion`(REST応答) | **閉じていない** | OpenAPI の `workflow-run` 応答スキーマに enum が無い。ただし同じAPIの `status` **クエリパラメータ**には14値の enum があり、webhookペイロードスキーマにも6値/10値の enum がある。**応答だけが開いている** |
 | timeline `event` | **閉じていない** | docs は event 文字列の列挙を持たず、OpenAPI も `oneOf` のスキーマ列挙にとどまる。実測で docs に無い `copilot_work_started` などが返った |
-| `pull_request` webhook の `action` | **閉じている** | webhook ページが22値を全件列挙する形式。ただし Actions のイベントリファレンス側は21値しか列挙せず `stacked` を欠く |
+| `pull_request` webhook の `action` | **閉じている** | **OpenAPI の `components.schemas.webhook-pull-request-*` スキーマが25個あり、うち3個(`review-submitted` / `review-edited` / `review-dismissed`)は `pull_request_review` イベント分なので、`pull_request` の activity type はちょうど22個。`stacked` を含む**(2026-08-16にOpenAPIを直接パースして確認)。**当初この判定は webhook ページの列挙を根拠にしていたが、そのページは OpenAPI から自動生成されているため独立した裏付けではない。かつ Actions のイベントリファレンス側は21値しか列挙せず `stacked` を欠く。閉じた情報源である OpenAPI 側に根拠を移した** |
 | workflow job `status` / `conclusion` (REST) | **閉じている** | OpenAPI `job.properties.status.enum`(6値)/ `.conclusion.enum`(7値+`null`)。**workflow run と違って応答スキーマに enum がある** |
 | `workflow_job` webhook の `action` | **閉じている** | 4つの別スキーマそれぞれで `action.enum` が単一値に固定されている |
 | `hook-delivery.status` | **閉じていない** | OpenAPI に enum が無く、example は `failed to connect` という自由文。docs は「`OK` でない値」としか言わない |
