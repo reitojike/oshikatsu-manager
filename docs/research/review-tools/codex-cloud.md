@@ -11,11 +11,17 @@ OpenAI / ChatGPT Codex の GitHub PR 自動コードレビュー(Codex code revi
 | --- | --- |
 | A | 公式ドキュメントを一次情報として確認した(記載の有無は状態列が示す) |
 | B | API仕様・設定スキーマ・公開ソースの定義を一次情報として確認した(観測はここに含めない) |
-| C1 | 我々の環境での実測(本調査では対象外。空) |
+| C1 | 我々の環境での実測 |
 | C2 | 第三者の公開リポジトリでの実測 |
 | D | **一次情報で確立していない**(推測・未確認、および公式ドキュメント・機械可読定義・実測のいずれにも当たらない二次情報。`(D, 確認済み)` は「その情報源には当たったが、情報源が権威的でない」を意味する。種別は出典欄を見る) |
 
 状態は `確認済み` / `公式に未文書化` / `取得不能` / `未調査` の4値。等級と状態は独立で、組で読む。
+
+**本単位に限り、`A` には認証必須のベンダー公式画面**(ChatGPT の Codex コードレビュー設定画面、および Codex と Work のアナリティクス画面)**を一次情報として確認した行が含まれる。**散文の公式ドキュメントではないが、ベンダー自身が提示する製品面であり、そこに現れる選択肢・指標が存在すること自体は製品の仕様である。**この扱いは他の4単位には現れない**(他単位では認証必須の製品面を出典にしていない)。
+
+画面由来の行では、**選択肢・指標が存在すること(`A`)と、我々のアカウントで現在選択されている値・現在の数値(`C1`)を必ず別の行に分けている。**また画面に表示されることと API で機械的に取得できることも別の行に分け、後者は確認できていない。
+
+**画面由来の行はオーケストレーターが未検証である。**認証必須のため取得できず、PO が開いた画面の内容を書き起こしている。出典欄にその旨を記載した。
 
 ## 台帳
 
@@ -31,14 +37,16 @@ OpenAI / ChatGPT Codex の GitHub PR 自動コードレビュー(Codex code revi
 | 1 | draftをready化した時点が発火契機になることは、公式ページ本文には列挙されていない(ボットの出力文言にのみ現れる) | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節を通読し `draft` / `ready` を検索。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
 | 1 | 同一PRに `@codex review` を連続して複数回投稿したPRで、その都度新しいレビュー実行が走っていた(**単一のPRでの観測であり、製品の一般規則としては確認していない**。**同じ台帳の別行が「再依頼の冪等性について公式の記載がない」と記録しており、A/Bの裏付けは無い**) | 観測: <https://github.com/Gabriel300p/hermes-agent/pull/12> で `@codex review` コメント20件超に対し review オブジェクトが個別に生成。観測環境の文脈: publicリポジトリ、プラン表記なし、観測日 2026-08-15(投稿は 2026-08-12〜13) | C2 | 2026-08-15 | 確認済み |
 | 1 | 再依頼の冪等性(同じ手段を続けて2回使ったときの2回目の扱い、発火しない条件)について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、および <https://learn.chatgpt.com/docs/cloud.md>。検索語 `again` / `duplicate` / `idempotent` / `re-run`。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
-| 1 | push(コミット追加)は Code Review の発火契機になりうる。**設定画面の「レビューのトリガー」に `すべてのプッシュ時` の選択肢が存在する**(公式ドキュメントのページにはこの選択肢の記載が無く、設定画面でのみ確認できる) | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> の「Enable automatic reviews」「Troubleshoot code review」両節、および <https://learn.chatgpt.com/docs/security/security-review.md>。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 1 | push(コミット追加)は Code Review の発火契機になりうる。**設定画面の「レビューのトリガー」に `すべてのプッシュ時` の選択肢が存在する** | PO が認証済みセッションで <https://chatgpt.com/codex/settings/code-review> を開いて取得(2026-08-16)。**日本語ローカライズされたUIの表示であり、英語版のラベルは別の文字列である。****オーケストレーターは未検証**(この画面は認証必須のため取得できない) | A | 2026-08-16 | 確認済み |
+| 1 | **公式ドキュメントのページには、Code Review の発火契機として push を選べることの記載が無い**(`Every push` 設定の記載は Security Review 側にのみある)。設定画面には選択肢が存在するので(直前の行)、**これは機能の不在ではなく文書化の不在である** | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> の「Enable automatic reviews」「Troubleshoot code review」両節、および <https://learn.chatgpt.com/docs/security/security-review.md>。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
 | 2 | Code review の有効/無効はリポジトリ単位で、外部の設定画面 `https://chatgpt.com/codex/settings/code-review` で切り替える | <https://learn.chatgpt.com/docs/third-party/github.md> 「Set up Codex code review」節 | A | 2026-08-15 | 確認済み |
 | 2 | 設定変更には GitHub の push または admin 権限が必要 | <https://learn.chatgpt.com/docs/third-party/github.md>: "To configure automatic reviews, you need a connected GitHub repository and GitHub push or admin permission for its settings." | A | 2026-08-15 | 確認済み |
 | 2 | 設定の所在はリポジトリ内ファイルではなく外部の設定画面。リポジトリ内の `AGENTS.md` で変えられるのはレビュー観点のみで、発火契機は変えられない | <https://learn.chatgpt.com/docs/third-party/github.md>「Customize what Codex reviews」節が `AGENTS.md` の役割をレビュールールに限定している | A | 2026-08-15 | 確認済み |
 | 2 | Security Review の対象PR選択は3値 `Follow personal` / `Review all PRs` / `Review team PRs` | <https://learn.chatgpt.com/docs/security/security-review.md> 「Review trigger settings」 | A | 2026-08-15 | 確認済み |
 | 2 | Security Review の実行タイミングは3値 `On PR open` / `Every push` / `Whenever code review runs` | <https://learn.chatgpt.com/docs/security/security-review.md> | A | 2026-08-15 | 確認済み |
 | 2 | Security Review の報告閾値の既定は、自動レビューが High / Critical、手動レビューが Medium / High / Critical。個別に変更でき、パス単位の上書きも可能 | <https://learn.chatgpt.com/docs/security/security-review.md> | A | 2026-08-15 | 確認済み |
-| 2 | 「レビューのトリガー」は3択。`PR のオープン時`(`プル リクエストがオープンされたときにレビューします。`) / `すべてのプッシュ時`(`プル リクエストに対して新しいコミットがプッシュされたときに再度レビューします`) / `スマート トリガー（試験的機能）`(`変更に基づいて Codex がいつレビューするかを決定します。試験的機能のため、変更される場合があります。`)。**公式ページはこの選択肢を列挙しておらず、設定画面でのみ確認できる** | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節。"check that you turned on **Automatic reviews** and that the pull request event matches your review trigger settings." という言及はあるが選択肢の列挙が無い。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
+| 2 | 「レビューのトリガー」は3択。`PR のオープン時`(`プル リクエストがオープンされたときにレビューします。`) / `すべてのプッシュ時`(`プル リクエストに対して新しいコミットがプッシュされたときに再度レビューします`) / `スマート トリガー（試験的機能）`(`変更に基づいて Codex がいつレビューするかを決定します。試験的機能のため、変更される場合があります。`) | PO が認証済みセッションで <https://chatgpt.com/codex/settings/code-review> を開いて取得(2026-08-16)。**日本語ローカライズされたUIの表示であり、英語版のラベルは別の文字列である。****オーケストレーターは未検証**(この画面は認証必須のため取得できない) | A | 2026-08-16 | 確認済み |
+| 2 | **公式ページは「レビューのトリガー」の選択肢を列挙していない。**設定画面には3択が存在するので(直前の行)、**これは選択肢の不在ではなく列挙の不在である** | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節。"check that you turned on **Automatic reviews** and that the pull request event matches your review trigger settings." という言及はあるが選択肢の列挙が無い。散文の解説ページ(**開いた情報源**)での不在のため「文書化されていない」にとどまる | A | 2026-08-15 | 公式に未文書化 |
 | 2 | 変更できないものの明示的な列挙(出力先の面、botアカウント、コメント書式、優先度分類の粒度、対象パスの除外)が公式に無い | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、<https://learn.chatgpt.com/docs/security/security-review.md>、<https://learn.chatgpt.com/docs/agent-configuration/agents-md.md>。検索語 `exclude` / `ignore` / `path` / `cannot`。Code Review の設定項目を網羅列挙したスキーマ文書が公開されていないため、**開いた情報源**での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
 | 2 | GitHub 上の code review に使われるモデル、およびその選択可否について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/models.md> 全節(desktop app / web / CLI / IDE / cloud chats のモデル選択は扱うが GitHub レビューの記述なし)、<https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `model`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
 | 2 | GitHub Ruleset / required check として Codex のレビューを必須化する手段について公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節。検索語 `branch protection` / `required`。"Code review rules guide Codex; they don't replace tests, branch protections, or required approvals." という言及はあるが必須化手段の記載は無い。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
@@ -139,7 +147,7 @@ OpenAI / ChatGPT Codex の GitHub PR 自動コードレビュー(Codex code revi
 | 10 | Compliance API / 監査イベントのイベント名・スキーマは認証必須の Admin API リファレンスにあり、公開ページからは取得できない。Code Review の実行が監査イベントとして取れるかも当該ページでは判定できない | <https://learn.chatgpt.com/docs/enterprise/compliance-api.md>: "The authenticated Admin API reference is the source of truth for current access requirements, event coverage, routes, schemas, filters, retention, and request behavior." | D | 2026-08-15 | 取得不能 |
 | 10 | 実行メタデータを機械的に取得するAPIについて公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、<https://learn.chatgpt.com/docs/cloud.md>。検索語 `API` / `webhook` / `export`。散文の解説ページ(**開いた情報源**)での不在にとどまる | A | 2026-08-15 | 公式に未文書化 |
 | 11 | Code review 設定の現在値は `https://chatgpt.com/codex/settings/code-review` にある | <https://learn.chatgpt.com/docs/third-party/github.md> が当該URLを設定の所在として案内 | A | 2026-08-15 | 確認済み |
-| 11 | 同設定画面は未認証では取得できない。**未ログインだと `https://chatgpt.com/` へリダイレクトされる**ため、**認証必須である**(未認証でのHTTPレスポンスは403で、ヘッダは `Cf-Mitigated: challenge`。**これはCloudflareのボット判定であって認証要求ではないため、403だけからは「認証必須」と断定できなかった。POがブラウザで開いてリダイレクトを確認したことで確定した**) | PO が認証済みセッションで開いて確認(2026-08-16)。未ログインだと `https://chatgpt.com/` へリダイレクトされる。**未認証でのHTTPレスポンスは403で、ヘッダは `Cf-Mitigated: challenge`(Cloudflareのボット判定)。403だけからは認証必須と断定できず、ブラウザでのリダイレクト確認で確定した** | C1 | 2026-08-15 | 確認済み |
+| 11 | 同設定画面は未認証では取得できない。**未ログインだと `https://chatgpt.com/` へリダイレクトされる**ため、**認証必須である**(未認証でのHTTPレスポンスは403で、ヘッダは `Cf-Mitigated: challenge`。**これはCloudflareのボット判定であって認証要求ではないため、403だけからは「認証必須」と断定できなかった。POがブラウザで開いてリダイレクトを確認したことで確定した**) | PO が認証済みセッションで開いて確認(2026-08-16)。未ログインだと `https://chatgpt.com/` へリダイレクトされる。**未認証でのHTTPレスポンスは403で、ヘッダは `Cf-Mitigated: challenge`(Cloudflareのボット判定)。403だけからは認証必須と断定できず、ブラウザでのリダイレクト確認で確定した** | C1 | 2026-08-16 | 確認済み |
 | 11 | 設定の現在値を読む公開REST APIについて公式の記載がない | 検索範囲: <https://learn.chatgpt.com/docs/third-party/github.md> 全節、<https://learn.chatgpt.com/docs/security/security-review.md>、<https://learn.chatgpt.com/llms.txt> の全ページ一覧を走査し Codex code review 設定APIのリファレンスページが存在しないことを確認。ページ一覧は**閉じた情報源**であり、公開ドキュメント上に該当リファレンスは**存在しない** | A | 2026-08-15 | 公式に未文書化 |
 | 11 | `config.toml` / `requirements.toml` の設定キー一覧に、GitHub の code review / pull request に関わるキーは1つも無い。したがってローカル設定ファイルから Codex Cloud のレビュー設定を読むことも書くこともできない | <https://learn.chatgpt.com/docs/config-file/config-reference.md>。設定キーの網羅表は**閉じた情報源**であり、該当キーは**存在しない**(`review_model` はローカルの `/review` 用のモデル上書きで別物) | A | 2026-08-15 | 確認済み |
 | 11 | リポジトリ側からは GitHub App のインストール有無で間接的に有効/無効を確認できる(`GET /repos/{o}/{r}/installation`。admin 権限が必要) | GitHub REST 仕様。**閉じた情報源** | B | 2026-08-15 | 確認済み |
