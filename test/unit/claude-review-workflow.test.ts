@@ -41,10 +41,12 @@ const extractPermissionsBlock = () => {
 // (同じインデント以下の `- ` 開始行)までを抜き出す。extractLineContainingは行の
 // 先頭一致しか見ないため、他のstepに同じ文字列(continue-on-error: true や、
 // claude-startedとclaude actionのif条件が同一文字列になった場合等)が増えても
-// 検出できてしまう(CodeRabbit指摘・2026-08-16)。
-const extractStepBlockById = (stepId: string) => {
-  const lines = workflowText.split(/\r?\n/);
-  const idIndex = lines.findIndex((line) => line.includes(`id: ${stepId}`));
+// 検出できてしまう(CodeRabbit指摘・2026-08-16)。idの照合はtrim後の完全一致で行う
+// (includesだと`id: circuit-breaker-backup`のような別stepにも誤って一致する。
+// CodeRabbit指摘・2026-08-16 3巡目)。lines配列を引数にしたpure関数として切り出し、
+// 実ファイルに存在しない decoy id での否定側テストを可能にする。
+const findStepBlock = (lines: string[], stepId: string) => {
+  const idIndex = lines.findIndex((line) => line.trim() === `id: ${stepId}`);
   if (idIndex === -1) throw new Error(`line "id: ${stepId}" not found in claude-review.yml`);
   let start = idIndex;
   while (start > 0 && !/^\s*- (name|uses):/.test(lines[start])) start -= 1;
@@ -54,6 +56,8 @@ const extractStepBlockById = (stepId: string) => {
   );
   return lines.slice(start, end === -1 ? lines.length : end).map((line) => line.trim());
 };
+
+const extractStepBlockById = (stepId: string) => findStepBlock(workflowText.split(/\r?\n/), stepId);
 
 // on.pull_request.types のリテラル。ここに synchronize が無いことは #244(起動コスト削減)の
 // 中心的な変更点であり、このテストの主目的でもある。
@@ -178,6 +182,34 @@ describe("claude-review.yml: claude action 起動条件のリテラル固定(#26
     // claude actionのif条件と文字列としては同一になるため、claude-started step自身の
     // ブロックに属することをextractStepBlockByIdで独立に固定する。
     expect(extractStepBlockById("claude-started")).toContain(CLAUDE_STARTED_IF_LINE);
+  });
+});
+
+describe("findStepBlock: idの照合はtrim後の完全一致(CodeRabbit指摘・2026-08-16 3巡目)", () => {
+  const decoyLines = [
+    "      - name: decoy",
+    "        id: circuit-breaker-backup",
+    "        run: echo decoy",
+    "      - name: target",
+    "        id: circuit-breaker",
+    "        run: echo target",
+    "      - name: after",
+    "        id: after-step",
+    "        run: echo after",
+  ];
+
+  it("接頭辞だけが一致する別idのstepを誤って選ばない(否定側)", () => {
+    expect(findStepBlock(decoyLines, "circuit-breaker")).toEqual([
+      "- name: target",
+      "id: circuit-breaker",
+      "run: echo target",
+    ]);
+  });
+
+  it("対象idが存在しなければ説明付きで拒否する", () => {
+    expect(() => findStepBlock(decoyLines, "not-found")).toThrow(
+      'line "id: not-found" not found in claude-review.yml',
+    );
   });
 });
 
