@@ -37,16 +37,17 @@ const extractPermissionsBlock = () => {
   return lines.slice(start, end === -1 ? lines.length : end).map((line) => line.trim());
 };
 
-// `id: circuit-breaker` を含むstepの `- name:` 開始行から、次のstep(同じインデント以下の
-// `- ` 開始行)までを抜き出す。extractLineContainingは行の先頭一致しか見ないため、
-// 他のstepに同じ文字列(continue-on-error: true 等)が増えても検出できてしまう
-// (CodeRabbit指摘・2026-08-16)。
-const extractCircuitBreakerStepBlock = () => {
+// `id: {stepId}` を含むstepの開始行(`- name:` または `- uses:`)から、次のstep
+// (同じインデント以下の `- ` 開始行)までを抜き出す。extractLineContainingは行の
+// 先頭一致しか見ないため、他のstepに同じ文字列(continue-on-error: true や、
+// claude-startedとclaude actionのif条件が同一文字列になった場合等)が増えても
+// 検出できてしまう(CodeRabbit指摘・2026-08-16)。
+const extractStepBlockById = (stepId: string) => {
   const lines = workflowText.split(/\r?\n/);
-  const idIndex = lines.findIndex((line) => line.includes("id: circuit-breaker"));
-  if (idIndex === -1) throw new Error('line "id: circuit-breaker" not found in claude-review.yml');
+  const idIndex = lines.findIndex((line) => line.includes(`id: ${stepId}`));
+  if (idIndex === -1) throw new Error(`line "id: ${stepId}" not found in claude-review.yml`);
   let start = idIndex;
-  while (start > 0 && !/^\s*- name:/.test(lines[start])) start -= 1;
+  while (start > 0 && !/^\s*- (name|uses):/.test(lines[start])) start -= 1;
   const stepIndent = lines[start].search(/\S/);
   const end = lines.findIndex(
     (line, index) => index > start && /^\s*- /.test(line) && line.search(/\S/) <= stepIndent,
@@ -67,6 +68,15 @@ const JOB_NAME_LINE =
 // claude action の if 条件(#262)。circuit-breakerがskip=trueを返したら、
 // tokenが有効でもclaude actionを起動しない(--max-turnsまで焼き切る前に止める)。
 const CLAUDE_STEP_IF_LINE =
+  "if: steps.check.outputs.enabled == 'true' && steps.circuit-breaker.outputs.skip != 'true'";
+// circuit-breaker step自身のif条件(#262セルフレビュー・CodeRabbit指摘・2026-08-16)。
+// tokenが無効なら反復失敗チェック自体を走らせず、無駄なGitHub API呼び出しを避ける。
+const CIRCUIT_BREAKER_STEP_IF_LINE = "if: steps.check.outputs.enabled == 'true'";
+// claude-started stepのif条件(CodeRabbit指摘・2026-08-16)。claude actionが実際に
+// 起動する条件と揃える。揃えないと、circuit breakerがskipした回に実際には起動して
+// いないactionの開始時刻が記録される。文字列としてはCLAUDE_STEP_IF_LINEと同一だが、
+// 別のstepに属することをextractStepBlockByIdで独立に固定する。
+const CLAUDE_STARTED_IF_LINE =
   "if: steps.check.outputs.enabled == 'true' && steps.circuit-breaker.outputs.skip != 'true'";
 
 describe("claude-review.yml: トリガーとjob条件のリテラル固定", () => {
@@ -151,7 +161,23 @@ describe("claude-review.yml: claude action 起動条件のリテラル固定(#26
     // 判定でskipされてしまう。マージ後(mainが更新された後)のPRでは通常どおり動く。
     // circuit-breaker step自身のブロックに属することまで固定する(extractLineContainingの
     // 最初の一致だけでは、他stepへの同一文字列混入を検出できない。CodeRabbit指摘)。
-    expect(extractCircuitBreakerStepBlock()).toContain("continue-on-error: true");
+    expect(extractStepBlockById("circuit-breaker")).toContain("continue-on-error: true");
+  });
+
+  it("circuit-breaker stepはtoken不足時に走らない(CodeRabbit指摘・2026-08-16)", () => {
+    // 以前はcircuit-breakerがtoken確認より先に実行され、token不足時にも無駄な
+    // GitHub API呼び出しを行っていた。tokenチェックの後段に置き、if条件で明示的に
+    // 依存させる。
+    expect(extractStepBlockById("circuit-breaker")).toContain(CIRCUIT_BREAKER_STEP_IF_LINE);
+  });
+
+  it("claude-started stepのif条件がclaude actionと揃っている(CodeRabbit指摘・2026-08-16)", () => {
+    // 揃えないと、circuit breakerがskipした回(claude actionは起動していない)にも
+    // ACTION_STARTED_ATへ開始時刻が記録され、診断ログ(実行状態の記録step)が
+    // 実際には起動していないactionの開始時刻を示してしまう。
+    // claude actionのif条件と文字列としては同一になるため、claude-started step自身の
+    // ブロックに属することをextractStepBlockByIdで独立に固定する。
+    expect(extractStepBlockById("claude-started")).toContain(CLAUDE_STARTED_IF_LINE);
   });
 });
 

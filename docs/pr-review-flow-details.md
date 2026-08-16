@@ -173,9 +173,18 @@ claude actionを起動せず、`claude-review`checkを赤にする(claude action
   とは別の軸(ワークフロー自身の`GITHUB_TOKEN`に対する読み取り専用権限)。無いと
   `getCheckRuns`が403で失敗し、上記のfail-open設計によりcircuit breakerが常にトリガー
   されなくなる(checkは赤くならないため気づきにくい退行。#262セルフレビューで発覚)
-- **CLAUDE_CODE_OAUTH_TOKEN未設定時はcircuit breakerの判定より優先する。**
+- **CLAUDE_CODE_OAUTH_TOKEN未設定時はcircuit breakerより先に判定する。**
   tokenが無ければどのみちclaude actionは動かないため、「token不足」のメッセージを
-  「circuit breaker発動」のメッセージで覆い隠さない(#262セルフレビューで発覚)
+  「circuit breaker発動」のメッセージで覆い隠さない(#262セルフレビューで発覚)。
+  当初は`check-claude-review.mjs`側の判定順序だけを直したが、**workflow側の
+  step自体の実行順序が「circuit-breaker → token確認」のままだと、token不足時にも
+  無駄なGitHub API呼び出しが発生する。**「Check for CLAUDE_CODE_OAUTH_TOKEN」stepを
+  circuit-breaker stepより前に移動し、circuit-breaker stepの`if`にも
+  `steps.check.outputs.enabled == 'true'`を追加した(CodeRabbit指摘・2026-08-16)
+- **claude-started stepのif条件をclaude actionと揃えている。**揃えないと、
+  circuit breakerがskipした回(claude actionは実際には起動していない)にも
+  `ACTION_STARTED_AT`へ開始時刻が記録され、「実行状態の記録」stepの診断ログが
+  誤った開始時刻を示す(CodeRabbit指摘・2026-08-16)
 
 #### `docs/**`の大差分PRでのbypass既定化(フェーズ2まで。#262)
 
