@@ -142,11 +142,13 @@ describe("claude-review.yml: labeled行動ごとの起動可否(否定側を含�
 
 describe("claude-review.yml: claude action 起動条件のリテラル固定(#262)", () => {
   it("claude action の if 条件に circuit-breaker の skip 判定が追加されている", () => {
-    // 「steps.circuit-breaker.outputs.skip」は「Claude Review 投稿確認」stepのenvにも
-    // 出現するため、claude step固有の「!= 'true'」まで含めて狙い撃ちする。
-    expect(extractLineContaining("steps.circuit-breaker.outputs.skip != 'true'")).toBe(
-      CLAUDE_STEP_IF_LINE,
-    );
+    // extractLineContainingは最初の一致行を返す。claude-startedのif条件が
+    // claude actionと文字列として同一になった今、単純な行検索ではclaude-started側の
+    // 行を拾ってしまい、claude action自身からcircuit breakerガードが消えても
+    // このテストは緑のままになる(Codex Cloud指摘・P1・2026-08-16。有料actionの
+    // 起動を守るテストがすり抜ける形だったため、claude action自身のstepブロックに
+    // 絞り込む)。
+    expect(extractStepBlockById("claude")).toContain(CLAUDE_STEP_IF_LINE);
   });
 
   it("permissions: ブロックが commits/{sha}/check-runs を読むための checks: read を持つ(セルフレビュー指摘)", () => {

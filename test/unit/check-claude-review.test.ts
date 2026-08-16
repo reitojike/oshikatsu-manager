@@ -993,13 +993,13 @@ describe("flattenCheckRunPages", () => {
 });
 
 describe("checkRunsQuery", () => {
-  test("filter=all・check_name・per_page=100を含む(GitHub REST APIの既定filter=latestは同名check runの最新1件しか返さないため)", () => {
+  test("filter=all・check_name・per_page=100を含む(型(b)の再実行がrun_attemptを増やし、試行ごとに課金されるため。PO実測・2026-08-16)", () => {
     const query = checkRunsQuery("claude-review");
 
     expect(query).toBe("filter=all&check_name=claude-review&per_page=100");
   });
 
-  test("filter=latest(既定値)を使わない(否定側。CodeRabbit指摘の再発防止)", () => {
+  test("filter=latest(既定値)を使わない(否定側。CodeRabbit指摘の再発防止。同一runの再試行を畳んでしまう)", () => {
     expect(checkRunsQuery("claude-review")).not.toContain("filter=latest");
   });
 

@@ -206,8 +206,12 @@ issue #256の想定1,591行のように、複数ファイルを横断する仕�
 (`AGENTS.md`の`automation-config`が P0 とする「required checkが永久にpendingになり得る」に
 該当し、`--allowedTools`に汎用`Read`/`Grep`/`Glob`が無い構造上、この種の大差分では
 claude-reviewが構造的にグリーンになり得ない。上記circuit breakerはコストを止めるための
-ものであり、この構造そのものは変えない)。bypassする場合もCodeRabbit・Codex Cloud・
-Draft前セルフレビューは通常どおりすべて通す(`claude-review`1本だけをbypassする)。
+ものであり、この構造そのものは変えない)。**GitHubのRulesetはrequired checkを1本だけ
+選択的に迂回する機能を持たない。**bypassは常にオーナー権限による全体迂回であり、
+運用として`claude-review`以外が赤くないことをマージ直前に確認したうえで使う
+(実務上「`claude-review`1本だけをbypassする」と表現しているのはこの運用上の意味であり、
+GitHub機能としての選択的迂回ではない。Copilot指摘・2026-08-16)。bypassする場合も
+CodeRabbit・Codex Cloud・Draft前セルフレビューは通常どおりすべて通す。
 
 **終了条件は#254の成果がこのリポジトリの設定に反映された時点。**それまでは、
 上記profileに該当する大差分PRで`claude-review`が「実行完了・投稿0件」または
