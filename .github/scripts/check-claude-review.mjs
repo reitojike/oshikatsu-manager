@@ -123,12 +123,68 @@ export const reviewCheckDecision = ({ outcome, enabled, conclusion, postCount })
 };
 
 // 欠落や不正値を緑へ倒すと、workflowの配線漏れやoutput名の変更がそのままゲート迂回になる。
-// outcomeによらず一律に必須とする。
-const claudeEnabled = (value) => {
+// outcomeによらず一律に必須とする。2つの環境値(CLAUDE_ENABLED・CIRCUIT_BREAKER_SKIP)が
+// 同じ"true"/"false"厳格パースを要求するため、エラーメッセージだけ呼び出し側で変える。
+const booleanEnvironment = (value, errorMessage) => {
   if (value === "true") return true;
   if (value === "false") return false;
-  throw new Error(CLAUDE_ENABLED_ERROR);
+  throw new Error(errorMessage);
 };
+
+const claudeEnabled = (value) => booleanEnvironment(value, CLAUDE_ENABLED_ERROR);
+
+export const CIRCUIT_BREAKER_SKIP_ERROR =
+  'CIRCUIT_BREAKER_SKIP は "true" または "false" である必要があります。workflow の circuit-breaker step と検知stepの配線を確認してください。';
+
+const circuitBreakerSkipEnvironment = (value) =>
+  booleanEnvironment(value, CIRCUIT_BREAKER_SKIP_ERROR);
+
+// 直近の実測(#262、PR #260): 同一head SHAへのreview:full再発火が7→10→19件と拒否を
+// 単調に増やしながら3回連続で投稿0件になり、3回目は$7.31を無駄にして--max-turns上限で
+// 打ち切られた。上限そのものの値の妥当性は#254(フェーズ2)の対象だが、「直っていないのに
+// 同じ失敗を繰り返し焼く」こと自体は再実行前に機械的に検知できる。閾値2
+// (=3回目の起動を見送る)は、この実測で実際に無駄になった3回目を指す最小値であり、
+// AGENTS.mdの「3回試して解決しない」エスカレーション基準とは根拠が別(モデルの試行回数では
+// なく、1回あたり最大$7規模のコストを繰り返し焼かないための閾値)。
+export const MAX_TOLERATED_CLAUDE_REVIEW_FAILURES = 2;
+
+export const shouldSkipRepeatedFailure = (priorFailureCount) => {
+  if (
+    typeof priorFailureCount !== "number" ||
+    !Number.isInteger(priorFailureCount) ||
+    priorFailureCount < 0
+  ) {
+    throw new Error("priorFailureCount は0以上の整数である必要があります");
+  }
+  return priorFailureCount >= MAX_TOLERATED_CLAUDE_REVIEW_FAILURES;
+};
+
+export const CIRCUIT_BREAKER_TRIPPED_ERROR =
+  `直近の同一head SHAでclaude-reviewの投稿確認が既に${MAX_TOLERATED_CLAUDE_REVIEW_FAILURES}回失敗しているため、` +
+  "起動を見送りました(コスト超過防止。#262)。docs/pr-review-flow-details.md「赤・無投稿に遭遇した" +
+  "ときの見分け方」で原因を切り分けたうえで、原因が特定できていれば再実行せず、" +
+  "必要ならclaude-reviewのbypassを検討してください。";
+
+// claude-review.ymlのjob name式(通常runでのcheck名)と同じ文字列。ternary式自体は
+// YAML側にしか無くJSからimportできないため、test/unit/claude-review-workflow.test.tsで
+// この定数とYAMLのリテラルが一致することを固定する(#262セルフレビュー。値が離れて
+// 二重管理になり、片方だけ変わってcircuit breakerが対象を取り違える穴を防ぐ)。
+export const CLAUDE_REVIEW_CHECK_NAME = "claude-review";
+
+// claude-reviewは同一head SHAに対してreview:fullの付け直しで複数回起動しうる
+// (labeled再発火。docs/pr-review-flow-details.md「明示的なレビュー依頼」)。cancelled/skipped等の
+// 世代交代は「直っていないのに同じ失敗を繰り返す」ことを意味しないため対象に含めない
+// (conclusion === "failure" のみを数える)。
+export const countPriorFailures = (checkRuns, { name, headSha }) =>
+  checkRuns.filter(
+    (run) =>
+      hasProperty(run, "name") &&
+      run.name === name &&
+      hasProperty(run, "head_sha") &&
+      run.head_sha === headSha &&
+      hasProperty(run, "conclusion") &&
+      run.conclusion === "failure",
+  ).length;
 
 // 形式を検証しないと、配線を間違えて head_ref(ブランチ名)やPR番号でない値を渡しても
 // 「投稿0件」または「マーカー不一致」として赤くなり、原因が入力側だと読めない。
@@ -197,14 +253,36 @@ const GH_OPTIONS = { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 60_
 
 /** @typedef {(file: string, args: string[], options: typeof GH_OPTIONS) => string} GhExecutor */
 
+// getGhPosts/getCheckRuns で共有するfetch部分。差はflatten方法だけなので、
+// gh呼び出しそのもの(オプション・引数)は1か所にまとめる。
 /** @param {string} path @param {GhExecutor} execute */
-export const getGhPosts = (path, execute = execFileSync) => {
-  const pages = JSON.parse(execute("gh", ["api", "--paginate", "--slurp", path], GH_OPTIONS));
-  return flattenGhPages(pages);
-};
+const fetchGhPages = (path, execute) =>
+  JSON.parse(execute("gh", ["api", "--paginate", "--slurp", path], GH_OPTIONS));
+
+/** @param {string} path @param {GhExecutor} execute */
+export const getGhPosts = (path, execute = execFileSync) =>
+  flattenGhPages(fetchGhPages(path, execute));
 
 const hasProperty = (value, property) =>
   typeof value === "object" && value !== null && Object.hasOwn(value, property);
+
+// commits/{sha}/check-runs はページごとに {total_count, check_runs: []} を返す
+// (issues/comments 等のフラット配列とは形が違うため、flattenGhPages を流用しない)。
+export const flattenCheckRunPages = (pages) => {
+  if (!Array.isArray(pages)) {
+    throw new Error("gh api --paginate --slurp の出力は配列である必要があります");
+  }
+  return pages.flatMap((page) => {
+    if (!hasProperty(page, "check_runs") || !Array.isArray(page.check_runs)) {
+      throw new Error("check-runsページはcheck_runs配列を含む必要があります");
+    }
+    return page.check_runs;
+  });
+};
+
+/** @param {string} path @param {GhExecutor} execute */
+export const getCheckRuns = (path, execute = execFileSync) =>
+  flattenCheckRunPages(fetchGhPages(path, execute));
 
 // maxBuffer超過時のcodeは呼び出したAPIで変わる。実測(Node v24):
 // 同期(execFileSync)は Error / "ENOBUFS"、非同期(execFile)は RangeError /
@@ -362,6 +440,23 @@ const verifyPosts = ({
   throw new Error(failure);
 };
 
+// circuit-breaker step(pre-check)が投稿確認stepへ渡す判定を検証してthrowする。
+// skip=trueの場合、claude actionは--allowedToolsを一切消費せずskipされているため、
+// 以降の投稿件数判定(GitHub API呼び出しを伴う)を行わずここで打ち切る。
+const checkCircuitBreakerOrThrow = (circuitBreakerSkipValue, append, summaryPath, outputNotice) => {
+  let circuitBreakerSkip;
+  try {
+    circuitBreakerSkip = circuitBreakerSkipEnvironment(circuitBreakerSkipValue);
+  } catch (error) {
+    report(append, summaryPath, outputNotice, CIRCUIT_BREAKER_SKIP_ERROR);
+    throw error;
+  }
+  if (circuitBreakerSkip) {
+    report(append, summaryPath, outputNotice, CIRCUIT_BREAKER_TRIPPED_ERROR);
+    throw new Error(CIRCUIT_BREAKER_TRIPPED_ERROR);
+  }
+};
+
 export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   const {
     CLAUDE_OUTCOME,
@@ -375,6 +470,7 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
     EXECUTION_FILE,
     RESTORED_PATHS,
     ALLOWED_TOOLS,
+    CIRCUIT_BREAKER_SKIP,
   } = env;
   // この2つだけはreport()を通さず直接throwする。summaryの出力先が確定する前なので、
   // 構造上どこにも書けない。以降の検証失敗はすべてsummaryとnoticeに残す
@@ -388,6 +484,11 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
     report(append, summaryPath, outputNotice, CLAUDE_ENABLED_ERROR);
     throw error;
   }
+  // tokenが無ければどのみちclaude actionは動かないため、circuit breakerの判定より
+  // token不足のメッセージを優先する(#262のセルフレビューで発覚。token不足のまま
+  // 失敗が積み重なると、以降の実行がすべて「circuit breaker発動」というtoken不足を
+  // 覆い隠すメッセージになっていた)。
+  if (enabled) checkCircuitBreakerOrThrow(CIRCUIT_BREAKER_SKIP, append, summaryPath, outputNotice);
   const decision = reviewCheckDecision({ outcome, enabled, conclusion: CLAUDE_CONCLUSION });
   const message = earlyDecisionMessage(decision);
   if (message !== undefined) {
@@ -423,15 +524,72 @@ export const main = ({ env, getGhPosts, append, read, outputNotice }) => {
   });
 };
 
+// claude action実行前のcircuit-breaker step本体。同一head SHAへの反復失敗を検知し、
+// skip出力をclaude stepの if 条件と投稿確認stepの両方へ渡す(main()側は
+// checkCircuitBreakerOrThrowで検証する)。このstep自体の失敗をjob全体の赤に
+// 直結させない(下記catch。判定の正本は常に投稿確認stepに一本化する)。
+export const preCheckMain = ({ env, getCheckRuns, writeOutput, append, outputNotice }) => {
+  const { REPOSITORY, HEAD_SHA, GITHUB_STEP_SUMMARY } = env;
+  const summaryPath = environment(GITHUB_STEP_SUMMARY, "GITHUB_STEP_SUMMARY");
+  let repository;
+  let headSha;
+  try {
+    repository = environment(REPOSITORY, "REPOSITORY");
+    headSha = headShaEnvironment(HEAD_SHA);
+  } catch (error) {
+    reportValidationError(append, summaryPath, outputNotice, error);
+  }
+  let checkRuns;
+  try {
+    checkRuns = getCheckRuns(`repos/${repository}/commits/${headSha}/check-runs`);
+  } catch (error) {
+    // このstep自体はコスト超過対策の補助ゲートであり、レビューの安全性を守るものではない。
+    // fail-closedにすると、GitHub API の一時的な不調が初回起動のPRまで巻き込んで
+    // claude-reviewを止めてしまう副作用の方が大きいため、取得失敗だけは意図的にfail-open
+    // (skip=false)にする。投稿確認step側の各種ゲートはfail-closedのまま変更しない。
+    const detail = error instanceof Error ? error.message : "不明なエラー";
+    report(
+      append,
+      summaryPath,
+      outputNotice,
+      `直近の失敗回数を取得できなかったため、反復失敗チェックをスキップします: ${detail}`,
+    );
+    writeOutput("skip", "false");
+    return;
+  }
+  const priorFailureCount = countPriorFailures(checkRuns, {
+    name: CLAUDE_REVIEW_CHECK_NAME,
+    headSha,
+  });
+  const skip = shouldSkipRepeatedFailure(priorFailureCount);
+  writeOutput("skip", skip ? "true" : "false");
+  if (skip) report(append, summaryPath, outputNotice, CIRCUIT_BREAKER_TRIPPED_ERROR);
+  else summary(append, summaryPath, `- 直近の同一head失敗回数: ${priorFailureCount}`);
+};
+
+const writeGithubOutput = (name, value) => {
+  appendFileSync(environment(process.env.GITHUB_OUTPUT, "GITHUB_OUTPUT"), `${name}=${value}\n`);
+};
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    main({
-      env: process.env,
-      getGhPosts,
-      append: appendFileSync,
-      read: readFileSync,
-      outputNotice: notice,
-    });
+    if (process.env.CHECK_MODE === "pre-check") {
+      preCheckMain({
+        env: process.env,
+        getCheckRuns,
+        writeOutput: writeGithubOutput,
+        append: appendFileSync,
+        outputNotice: notice,
+      });
+    } else {
+      main({
+        env: process.env,
+        getGhPosts,
+        append: appendFileSync,
+        read: readFileSync,
+        outputNotice: notice,
+      });
+    }
   } catch (error) {
     console.error(
       error instanceof Error ? error.message : "Claude投稿確認で不明なエラーが発生しました",

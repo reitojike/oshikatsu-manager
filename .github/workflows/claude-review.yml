@@ -17,6 +17,11 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write
+  # circuit-breaker step(#262)が `commits/{sha}/check-runs` を読むために必要
+  # (GitHubのREST APIがこのエンドポイントにcheck run読み取り権限を要求する)。
+  # `--allowedTools`(claude actionにモデルへ渡すツール権限)とは別の軸で、
+  # ワークフロー自身のGITHUB_TOKENに対する読み取り専用権限の追加である。
+  checks: read
 
 # 無関係なlabel追加でも labeled は発火する。それを同じgroupに入れると
 # cancel-in-progress が進行中の実レビューをキャンセルし、代替runはjobがskipされるため
@@ -46,6 +51,33 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      # 同一head SHAへのreview:full再発火が繰り返し投稿0件になるパターンを、claude action
+      # (有料・最大--max-turns 60まで焼く)を起動する前に検知する(#262)。判定はskip出力の
+      # みで、赤・緑の最終判断は常に「Claude Review 投稿確認」stepに一本化する
+      # (このstep自体の失敗はjob全体を赤くしない。下記script内のコメント参照)。
+      # promptビルド・最終ゲートと同じ理由でscriptをbase SHAに固定する。
+      #
+      # 下記の`continue-on-error`を`true`にする理由。このstepが参照するscriptは常に
+      # base SHA(main)から取得される。check-claude-review.mjsにこのstep用の新しい
+      # 呼び出し契約(CHECK_MODE)を追加するPR自身では、mainにまだその契約が無いため、
+      # 古いscriptが実行されてCLAUDE_OUTCOME未設定でthrowする(このPR自身では検証
+      # できない、Issue #262本文の既知の制約と同じ形)。これが無いと、それだけで
+      # job全体が赤くなり、後続のBuild review prompt/Check tokenが暗黙のsuccess()判定で
+      # skipされてしまう。マージ後(mainに新しい契約が乗った後)のPRでは通常どおり動く。
+      - name: 直近の同一headへの反復失敗を確認する
+        id: circuit-breaker
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK_MODE: pre-check
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          CHECK_SCRIPT="$RUNNER_TEMP/check-claude-review.mjs"
+          git show "${BASE_SHA}:.github/scripts/check-claude-review.mjs" > "$CHECK_SCRIPT"
+          node "$CHECK_SCRIPT"
 
       # PR headのscriptを実行すると、同じPRがbaseのAGENTS.md読取りや分類を回避できる。
       # prompt構築scriptとレビュー規則の双方をbase SHAに固定し、headへfallbackしない。
@@ -82,7 +114,7 @@ jobs:
 
       - uses: anthropics/claude-code-action@5ef2e550a465a721f4f45e4a7d3c340c873e1dcc # v1.0.190
         id: claude
-        if: steps.check.outputs.enabled == 'true'
+        if: steps.check.outputs.enabled == 'true' && steps.circuit-breaker.outputs.skip != 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # claude-code-actionはenableAllProjectMcpServersを常にtrueにする仕様のため、
@@ -149,6 +181,7 @@ jobs:
           ACTION_STARTED_AT: ${{ steps.claude-started.outputs.started_at }}
           RESTORED_PATHS: ${{ steps.prompt.outputs.restored_paths }}
           ALLOWED_TOOLS: ${{ env.CLAUDE_REVIEW_ALLOWED_TOOLS }}
+          CIRCUIT_BREAKER_SKIP: ${{ steps.circuit-breaker.outputs.skip }}
         run: |
           CHECK_SCRIPT="$RUNNER_TEMP/check-claude-review.mjs"
           git show "${BASE_SHA}:.github/scripts/check-claude-review.mjs" > "$CHECK_SCRIPT"
