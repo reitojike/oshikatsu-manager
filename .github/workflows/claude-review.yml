@@ -65,6 +65,10 @@ jobs:
       # できない、Issue #262本文の既知の制約と同じ形)。これが無いと、それだけで
       # job全体が赤くなり、後続のBuild review prompt/Check tokenが暗黙のsuccess()判定で
       # skipされてしまう。マージ後(mainに新しい契約が乗った後)のPRでは通常どおり動く。
+      # この理由がマージ後に消えた後の扱い(撤去するか、fail-open安定化のための恒久措置
+      # として理由を書き換えて残すか)は
+      # docs/pr-review-flow-details.md「同一head SHAへの反復失敗を検知するcircuit
+      # breaker」を参照(PO確認・2026-08-16。ここには書き写さない)。
       - name: 直近の同一headへの反復失敗を確認する
         id: circuit-breaker
         continue-on-error: true
@@ -75,6 +79,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          set -euo pipefail
           CHECK_SCRIPT="$RUNNER_TEMP/check-claude-review.mjs"
           git show "${BASE_SHA}:.github/scripts/check-claude-review.mjs" > "$CHECK_SCRIPT"
           node "$CHECK_SCRIPT"
@@ -181,7 +186,11 @@ jobs:
           ACTION_STARTED_AT: ${{ steps.claude-started.outputs.started_at }}
           RESTORED_PATHS: ${{ steps.prompt.outputs.restored_paths }}
           ALLOWED_TOOLS: ${{ env.CLAUDE_REVIEW_ALLOWED_TOOLS }}
-          CIRCUIT_BREAKER_SKIP: ${{ steps.circuit-breaker.outputs.skip }}
+          # circuit-breaker step自体が失敗するとoutputは未設定(空文字)になる。空文字は
+          # script側で配線不正として拒否され、claude actionが起動済みなのにこのstepが
+          # 必ず落ちる非対称が生まれる(CodeRabbit指摘)。fail-open側(false)へ既定値を
+          # 補い、上記circuit-breaker stepのfail-open方針と揃える。
+          CIRCUIT_BREAKER_SKIP: ${{ steps.circuit-breaker.outputs.skip || 'false' }}
         run: |
           CHECK_SCRIPT="$RUNNER_TEMP/check-claude-review.mjs"
           git show "${BASE_SHA}:.github/scripts/check-claude-review.mjs" > "$CHECK_SCRIPT"

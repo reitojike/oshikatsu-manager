@@ -171,6 +171,14 @@ export const CIRCUIT_BREAKER_TRIPPED_ERROR =
 // 二重管理になり、片方だけ変わってcircuit breakerが対象を取り違える穴を防ぐ)。
 export const CLAUDE_REVIEW_CHECK_NAME = "claude-review";
 
+// GitHub REST APIの `commits/{sha}/check-runs` は既定で filter=latest であり、
+// 同名のcheck runは最新1件しか返さない。これでは同一head SHAで過去に何回失敗していても
+// 常に1件しか見えず、countPriorFailuresが反復失敗を検知できない(CodeRabbit指摘、
+// #262セルフレビュー。filter=allで全件、check_nameで絞り込む。per_page=100は
+// --paginateと併用して複数ページにまたがっても取りこぼさないための上限)。
+export const checkRunsQuery = (checkName) =>
+  new URLSearchParams({ filter: "all", check_name: checkName, per_page: "100" }).toString();
+
 // claude-reviewは同一head SHAに対してreview:fullの付け直しで複数回起動しうる
 // (labeled再発火。docs/pr-review-flow-details.md「明示的なレビュー依頼」)。cancelled/skipped等の
 // 世代交代は「直っていないのに同じ失敗を繰り返す」ことを意味しないため対象に含めない
@@ -541,7 +549,9 @@ export const preCheckMain = ({ env, getCheckRuns, writeOutput, append, outputNot
   }
   let checkRuns;
   try {
-    checkRuns = getCheckRuns(`repos/${repository}/commits/${headSha}/check-runs`);
+    checkRuns = getCheckRuns(
+      `repos/${repository}/commits/${headSha}/check-runs?${checkRunsQuery(CLAUDE_REVIEW_CHECK_NAME)}`,
+    );
   } catch (error) {
     // このstep自体はコスト超過対策の補助ゲートであり、レビューの安全性を守るものではない。
     // fail-closedにすると、GitHub API の一時的な不調が初回起動のPRまで巻き込んで

@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
 import {
+  checkRunsQuery,
   CIRCUIT_BREAKER_SKIP_ERROR,
   CIRCUIT_BREAKER_TRIPPED_ERROR,
   CLAUDE_ENABLED_ERROR,
+  CLAUDE_REVIEW_CHECK_NAME,
   countBotPostsSince,
   countClaudePosts,
   countPriorFailures,
@@ -990,6 +992,24 @@ describe("flattenCheckRunPages", () => {
   });
 });
 
+describe("checkRunsQuery", () => {
+  test("filter=all・check_name・per_page=100を含む(GitHub REST APIの既定filter=latestは同名check runの最新1件しか返さないため)", () => {
+    const query = checkRunsQuery("claude-review");
+
+    expect(query).toBe("filter=all&check_name=claude-review&per_page=100");
+  });
+
+  test("filter=latest(既定値)を使わない(否定側。CodeRabbit指摘の再発防止)", () => {
+    expect(checkRunsQuery("claude-review")).not.toContain("filter=latest");
+  });
+
+  test("checkNameをURLエンコードする", () => {
+    expect(checkRunsQuery("claude review")).toBe(
+      "filter=all&check_name=claude+review&per_page=100",
+    );
+  });
+});
+
 describe("countPriorFailures", () => {
   const target = { name: "claude-review", headSha };
 
@@ -1095,7 +1115,9 @@ describe("preCheckMain", () => {
 
     preCheckMain(dependencies);
 
-    expect(checkRunPaths).toEqual([`repos/owner/repository/commits/${headSha}/check-runs`]);
+    expect(checkRunPaths).toEqual([
+      `repos/owner/repository/commits/${headSha}/check-runs?${checkRunsQuery(CLAUDE_REVIEW_CHECK_NAME)}`,
+    ]);
     expect(outputs).toEqual([{ name: "skip", value: "false" }]);
     expect(summaries).toEqual(["- 直近の同一head失敗回数: 1\n"]);
     expect(notices).toEqual([]);
@@ -1143,10 +1165,13 @@ describe("preCheckMain", () => {
       GITHUB_STEP_SUMMARY: "summary-path",
       [name]: value,
     };
-    const { dependencies, checkRunPaths } = createPreCheckDependencies({ env });
+    const { dependencies, checkRunPaths, outputs } = createPreCheckDependencies({ env });
 
     expect(() => preCheckMain(dependencies)).toThrow(message);
     expect(checkRunPaths).toEqual([]);
+    // writeOutputが呼ばれないため、workflow側ではskip出力が未設定のまま後段へ渡る
+    // (claude-review.yml側の `|| 'false'` フォールバックで拾う設計。CodeRabbit指摘)
+    expect(outputs).toEqual([]);
   });
 });
 

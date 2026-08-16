@@ -25,6 +25,35 @@ const extractLineContaining = (needle: string) => {
   return line.trim();
 };
 
+// permissions: ブロック(トップレベルキー、インデント0)の直後から、次のインデント0の
+// 非空行(次のトップレベルキーやコメント)までを抜き出す。
+const extractPermissionsBlock = () => {
+  const lines = workflowText.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim() === "permissions:");
+  if (start === -1) throw new Error('line "permissions:" not found in claude-review.yml');
+  const end = lines.findIndex(
+    (line, index) => index > start && line.trim() !== "" && !line.startsWith(" "),
+  );
+  return lines.slice(start, end === -1 ? lines.length : end).map((line) => line.trim());
+};
+
+// `id: circuit-breaker` を含むstepの `- name:` 開始行から、次のstep(同じインデント以下の
+// `- ` 開始行)までを抜き出す。extractLineContainingは行の先頭一致しか見ないため、
+// 他のstepに同じ文字列(continue-on-error: true 等)が増えても検出できてしまう
+// (CodeRabbit指摘・2026-08-16)。
+const extractCircuitBreakerStepBlock = () => {
+  const lines = workflowText.split(/\r?\n/);
+  const idIndex = lines.findIndex((line) => line.includes("id: circuit-breaker"));
+  if (idIndex === -1) throw new Error('line "id: circuit-breaker" not found in claude-review.yml');
+  let start = idIndex;
+  while (start > 0 && !/^\s*- name:/.test(lines[start])) start -= 1;
+  const stepIndent = lines[start].search(/\S/);
+  const end = lines.findIndex(
+    (line, index) => index > start && /^\s*- /.test(line) && line.search(/\S/) <= stepIndent,
+  );
+  return lines.slice(start, end === -1 ? lines.length : end).map((line) => line.trim());
+};
+
 // on.pull_request.types のリテラル。ここに synchronize が無いことは #244(起動コスト削減)の
 // 中心的な変更点であり、このテストの主目的でもある。
 const TYPES_LINE = "types: [opened, reopened, labeled]";
@@ -106,11 +135,12 @@ describe("claude-review.yml: claude action 起動条件のリテラル固定(#26
     );
   });
 
-  it("circuit-breaker stepがcommits/{sha}/check-runsを読むための checks: read 権限を持つ(セルフレビュー指摘)", () => {
+  it("permissions: ブロックが commits/{sha}/check-runs を読むための checks: read を持つ(セルフレビュー指摘)", () => {
     // このpermissionが無いと GET commits/{sha}/check-runs が403になり、
     // preCheckMainのfail-open設計により黙ってskip=falseになる(circuit breakerが
     // 常にトリガーされない)。checkが赤くならないため気づきにくい退行であるため固定する。
-    expect(extractLineContaining("checks: read")).toBe("checks: read");
+    // permissions:ブロック内にあることまで固定する(他ブロックへの同一文字列混入を否定する)。
+    expect(extractPermissionsBlock()).toContain("checks: read");
   });
 
   it("circuit-breaker stepに continue-on-error: true が付いている(セルフレビュー指摘)", () => {
@@ -119,7 +149,9 @@ describe("claude-review.yml: claude action 起動条件のリテラル固定(#26
     // (Issue #262本文の既知の制約と同じ形、このPRでは自己検証できない)。
     // continue-on-errorが無いと、それだけでjob全体が赤くなり後続stepが暗黙のsuccess()
     // 判定でskipされてしまう。マージ後(mainが更新された後)のPRでは通常どおり動く。
-    expect(extractLineContaining("continue-on-error: true")).toBe("continue-on-error: true");
+    // circuit-breaker step自身のブロックに属することまで固定する(extractLineContainingの
+    // 最初の一致だけでは、他stepへの同一文字列混入を検出できない。CodeRabbit指摘)。
+    expect(extractCircuitBreakerStepBlock()).toContain("continue-on-error: true");
   });
 });
 

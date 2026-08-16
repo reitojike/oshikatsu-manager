@@ -142,8 +142,29 @@ claude actionを起動せず、`claude-review`checkを赤にする(claude action
   PR自身のCIでは、mainがまだ`CHECK_MODE`を解釈しない旧版scriptを実行して
   `CLAUDE_OUTCOME`未設定でthrowする(Issue #262本文が明記する「このPRは自分自身では
   検証できない」という既知の制約と同じ形)。`continue-on-error`が無いと、それだけで
-  job全体が赤くなり後続stepが暗黙の`success()`判定でskipされる。マージ後(mainに
-  新しい契約が乗った後)のPRでは通常どおり動く
+  job全体が赤くなり後続stepが暗黙の`success()`判定でskipされる
+- **circuit-breaker step自体が失敗(throw)すると`writeOutput`が呼ばれず、出力`skip`は
+  未設定(空文字)のまま後段へ渡る。**空文字は投稿確認step側の`CIRCUIT_BREAKER_SKIP_ERROR`
+  検証で拒否されるが、claude actionの`if`条件(`!= 'true'`)は空文字を満たすため
+  claude actionは起動して課金される一方、投稿確認stepは必ず赤くなるという非対称が
+  生まれる(CodeRabbit指摘・2026-08-16)。**最終stepのenvで
+  `${{ steps.circuit-breaker.outputs.skip || 'false' }}`とし、未設定をfail-open側
+  (false)へ寄せて解消した**(GitHub API取得失敗時のfail-open方針と揃える)
+- **`continue-on-error: true`のこの理由(base SHA固定scriptとの契約不一致)は、
+  このPRがマージされてmainに`CHECK_MODE`契約が乗った時点で消える。**マージ後の
+  通常のPRではcircuit-breaker stepはbase SHA側も新しい契約を理解するため、
+  この理由で失敗することは無くなる。**`continue-on-error`をその時点で撤去するかどうかは
+  本Issueでは決めない**(直後の「GitHub API取得自体の失敗はfail-openにする」判断を
+  恒久的に望むなら、`continue-on-error`を残す判断もありうる。**撤去せず残す場合は、
+  このstepのコメントの理由を「一時的な契約不一致の回避」から「API不調時のfail-openを
+  安定させるための恒久措置」に書き換えること**(PO確認・2026-08-16)
+- **既知の欠落: circuit breaker自体が壊れて常に不発(skip=false)になった場合を検知する
+  手段が現状無い。**`continue-on-error: true`とGitHub API取得失敗時のfail-open設計を
+  組み合わせているため、「反復失敗が実際に起きていない」状態と「circuit breakerが
+  壊れていて何も検知できていない」状態が外から区別できない。本Issueが直そうとしている
+  症状(「実行された」と「何も出さなかった」が区別できない)と同じ形の穴が、
+  circuit breaker自身にも残っている。塞ぐのは本Issueのスコープ外とし、#254/#257側の
+  材料として記録するにとどめる(PO確認・2026-08-16)
 - **GitHub API取得自体の失敗はfail-openにする(投稿確認stepの他ゲートとは非対称)。**
   fail-closedにすると、GitHub APIの一時的な不調が初回起動のPRまで巻き込んで
   claude-reviewを止めてしまう副作用の方が大きいと判断した(#262)
@@ -199,7 +220,7 @@ circuit breaker発動で赤くなった場合、再実行せずbypassしてよ�
 | 実行されたのに`claude[bot]`の投稿が0件 | **赤** | `--max-turns`打ち切りなどで「run成功・投稿0」が作られるため |
 | 投稿はあるが総評のhead SHAマーカーが不一致 | **赤**(別メッセージ) | 総評コメントは`commit_id`を持たず本文マーカーだけが根拠。原因が「走っていない」のか「マーカーを落とした」のかを区別する |
 | `claude-review.yml`自体を変更するPR(上記のworkflow検証スキップ) | 通常は緑(注記のみ)。**ただし復元対象パスを変更しているのに`--allowedTools`に読み取り手段が無い場合は赤**(型(c)のゲート。下記) | レビュー内容そのものは機械では埋められない。赤にすると`claude-review.yml`を触るPRが恒久的にマージ不能になるため無条件緑が原則だが、読み取り手段の欠落はレビューの実行結果に関係なく静的に判定できるため例外的に赤くする |
-| 同一head SHAでclaude-reviewが直近2回連続で失敗している(circuit breaker。#262) | **赤**(claude actionを起動せず見送る) | 直っていないのに同じ失敗を繰り返し`--max-turns`まで焼くのを防ぐ(実測: PR #260で3回目が$7.31を無駄にした。詳細は上記「同一head SHAへの反復失敗を検知するcircuit breaker」) |
+| 同一head SHAでclaude-reviewが2回以上失敗している(連続でなくてもよい。circuit breaker。#262) | **赤**(claude actionを起動せず見送る) | 直っていないのに同じ失敗を繰り返し`--max-turns`まで焼くのを防ぐ(実測: PR #260で3回目が$7.31を無駄にした。詳細は上記「同一head SHAへの反復失敗を検知するcircuit breaker」) |
 | キャンセル(`concurrency`による世代交代を含む) | 緑(注記のみ) | 本来のキャンセルに人工的な失敗を重ねない。新しいheadの後続runが責任を持つ |
 
 **`review:full`ラベルを付けると、そのPRで全分類の観点を当てた再レビューが走る**
