@@ -4,7 +4,7 @@
 > **独立に**書かれた3草案のうちの1本。他の2草案を見ずに書かれている。
 >
 > 評価と統合方針は [`integration.md`](./integration.md)、統合案のプロセス定義は
-> [`integrated-process.md`](./integrated-process.md)。**採用された設計が決まった時点で、そちらが正本になる。**
+> [`integrated-process.md`](./integrated-process.md)。**採用された設計は [`docs/review-process-design.md`](../../review-process-design.md) にあり、そちらが正本である。**
 
 ## 1. 要約
 

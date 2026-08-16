@@ -2,7 +2,7 @@
 
 > **これは検討記録であり、正本ではない。**本書は3草案の**評価と統合方針**を扱う。
 > **統合案のプロセスそのものは [`integrated-process.md`](./integrated-process.md) にある。**
-> **採用された設計が決まった時点で、別ファイルに起こしたものが正本になる。**
+> **採用された設計は [`docs/review-process-design.md`](../../review-process-design.md) にあり、そちらが正本である。**
 
 3草案(`draft-a-detectability.md` / `draft-b-cost.md` / `draft-c-ideal.md`)を、
 **草案が存在しない時点で固定された4つの選定基準**で評価し、統合案を組んだ記録。

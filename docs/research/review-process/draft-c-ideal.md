@@ -4,7 +4,7 @@
 > 他の2草案を見ずに書かれており、2節は仕様台帳を開く前に書いて保存したものである。
 >
 > 評価と統合方針は [`integration.md`](./integration.md)、統合案のプロセス定義は
-> [`integrated-process.md`](./integrated-process.md)。**採用された設計が決まった時点で、そちらが正本になる。**
+> [`integrated-process.md`](./integrated-process.md)。**採用された設計は [`docs/review-process-design.md`](../../review-process-design.md) にあり、そちらが正本である。**
 
 ## 1. 要約
 
