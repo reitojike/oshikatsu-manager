@@ -501,7 +501,14 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
   `created_at`だけでポーリングする取得手段はこの告知を取りこぼす。**HTMLマーカー
   `<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->`は3回目も
   一致した**(見出し・commit status文言がいずれも変わった中でマーカーだけが安定)。
-  `docs/review-process-design.md`§11の裏付けの2例目として記録する。
+  **さらに強い標本: 同一PRの連続する2 push(4分差)で、同一条件(どちらもレート制限、
+  レビューは1本も走っていない)の`description`が2通り出た**(`5f34452`は`Review skipped`、
+  `417f2cb`は`Review rate limited`。いずれも`state: success`。`pulls/269/reviews`への
+  CodeRabbit投稿は23:19/23:36/23:42の3件のみでこの間に増えていないことを確認済み)。
+  **これは「文言が時点で変わった」ではなく「同一条件・同一セッションでdescriptionが
+  2通りある」ことの直接証拠であり、時点差・プラン差では説明できない。逐語照合という
+  選択肢自体が成立しないことを示す、`docs/review-process-design.md`§11の裏付けとしては
+  最も強い標本である。**
 
 ## 7. 相乗り修正(3箱の仕分けとは別。記録のみ)
 
