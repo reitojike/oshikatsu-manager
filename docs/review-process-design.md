@@ -38,8 +38,10 @@ PRは「1つの判断を包む容器」であって、レビューの単位そ�
 **fork由来のPRは通常経路に乗せない。**理由は2つあり、どちらも単独で十分である。
 
 1. fork PRでは `GITHUB_TOKEN` 以外のsecretがrunnerに渡らず、証拠収集に必要な権限を持てない
-2. **fork PRでは SHA→PR の逆引きが両経路とも空になる**
-   (`commits/{sha}/pulls` と `check_run.pull_requests` の実測。`docs/research/review-process/integration.md` §4.3)
+2. **観測範囲では、fork PR で SHA→PR の逆引きが両経路とも空だった**
+   (`commits/{sha}/pulls` と `check_run.pull_requests`。2リポジトリ6 PR の実測であり、
+   **「fork なら必ず空」を証明してはいない。**根拠と限界は
+   `docs/research/review-process/integration.md` §4.1・§4.3)
 
 ### 束ねPRも本設計の対象単位である
 

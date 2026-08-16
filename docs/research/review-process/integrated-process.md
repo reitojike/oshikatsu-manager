@@ -32,8 +32,9 @@ PRを使う理由は1つだけで、**Rulesetで保護された `main` に入れ
 **fork由来のPRは通常経路に乗せない。**理由は2つあり、どちらも単独で十分である。
 
 1. fork PRでは `GITHUB_TOKEN` 以外のsecretがrunnerに渡らず、証拠収集に必要な権限を持てない
-2. **fork PRでは SHA→PR の逆引きが両経路とも空になる**
-   (`commits/{sha}/pulls` と `check_run.pull_requests` の実測。`integration.md` §4.3)
+2. **観測範囲では、fork PR で SHA→PR の逆引きが両経路とも空だった**
+   (`commits/{sha}/pulls` と `check_run.pull_requests`。2リポジトリ6 PR の実測であり、
+   **「fork なら必ず空」を証明してはいない。**根拠と限界は `integration.md` §4.1・§4.3)
 
 ## 2. 段階
 
@@ -44,7 +45,7 @@ PRを使う理由は1つだけで、**Rulesetで保護された `main` に入れ
 | --- | --- | --- | --- | --- |
 | **S0 契約** | Issue を In Progress へ | 実装エージェント | Issue/Sub-issue 本文の固定見出し | 契約5項目(§3)が埋まっている。不可逆等級 R2 以上なら**着手前に**PO確認 |
 | **S1 ローカル** | 変更を書き終えた時点 | 実装エージェント | ローカルのみ。GitHubに何も出さない | `yarn lint && yarn typecheck && yarn test` が緑。**ここで落ちる変更にレビュー枠を1回も払わない** |
-| **S2 決定論ゲート** | `pull_request` の `opened` / `synchronize` / `reopened` | CI(我々のworkflow) | check run | §4の機械チェックが全緑 |
+| **S2 決定論ゲート** | `pull_request` の `opened` / `synchronize` / `reopened` / `ready_for_review` | CI(我々のworkflow) | check run | §4の機械チェックが全緑 |
 | **S3 契約適合** | S2が緑 | 自前ジョブ | check run | `pulls/{n}/files` のパス集合が契約の「触る面」に収まる。**はみ出したら不合格。**R2の面に触れているのに契約の等級がR1以下なら不合格 |
 | **S4 レビュー実行** | PRイベント(各ボット自身の契機) | レビュアー各系統 | review / inline comment / issue comment / check run | **§6で分かれる** |
 | **S5 収集と判定** | S2〜S4の後、**常に実行** | 自前の関門ジョブ | check run | §5の取得の作法で4面を読み、**§6の合格条件**を満たす |
