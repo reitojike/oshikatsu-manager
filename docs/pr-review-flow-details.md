@@ -135,6 +135,18 @@ claude actionを起動せず、`claude-review`checkを赤にする(claude action
 - **失敗の数え方。**対象head SHAの`claude-review`という名のcheck runのうち
   `conclusion === "failure"`のものだけを数える。`cancelled`(concurrencyによる世代交代)は
   「直っていない」を意味しないため対象に含めない
+- **`commits/{sha}/check-runs`の取得に`filter=all`を指定している(既定は`latest`)。**
+  `filter=latest`が畳むのは**同一workflow runの再試行(`run_attempt`)であって、
+  review:full再ラベルが作る別々のworkflow runではない**(PO実測・2026-08-16。
+  別run3件はいずれも`filter=latest`でも各2件観測され、同一run内の再試行1件のみ
+  `filter=latest`で1件・`filter=all`で2件になった)。**`filter=all`が必要な理由は、
+  型(b)の対処である「再実行」が`run_attempt`を増やす経路として運用に正規に
+  組み込まれているため。**試行ごとに個別に課金されるので、この経路を`latest`で
+  畳むと「1回焼いた」としか数えられずコスト超過防止という目的に反する
+  (`check-claude-review.mjs`の`checkRunsQuery`直上のコメントに詳細)。**閾値2の
+  意味は、失敗が別runにまたがるか同一runの再試行かによらず「このhead SHAで
+  課金を伴う失敗を2回重ねたら3回目を見送る」であり、`filter=all`化で
+  ずれてはいない**(PO確認・2026-08-16)
 - **このstep自体の失敗はjob全体を赤くしない。**判定の正本は常に「Claude Review 投稿確認」
   step(`CIRCUIT_BREAKER_SKIP`env経由でskip状態を受け取り、trueならAPI呼び出しをせず
   即座に失敗する)に一本化する。**加えて`continue-on-error: true`を付けている。**

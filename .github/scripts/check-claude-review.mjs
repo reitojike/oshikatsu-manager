@@ -171,11 +171,22 @@ export const CIRCUIT_BREAKER_TRIPPED_ERROR =
 // 二重管理になり、片方だけ変わってcircuit breakerが対象を取り違える穴を防ぐ)。
 export const CLAUDE_REVIEW_CHECK_NAME = "claude-review";
 
-// GitHub REST APIの `commits/{sha}/check-runs` は既定で filter=latest であり、
-// 同名のcheck runは最新1件しか返さない。これでは同一head SHAで過去に何回失敗していても
-// 常に1件しか見えず、countPriorFailuresが反復失敗を検知できない(CodeRabbit指摘、
-// #262セルフレビュー。filter=allで全件、check_nameで絞り込む。per_page=100は
-// --paginateと併用して複数ページにまたがっても取りこぼさないための上限)。
+// GitHub REST APIの `commits/{sha}/check-runs` は既定で filter=latest である
+// (CodeRabbit指摘、#262セルフレビュー)。
+//
+// **`latest` が畳むのは同一workflow runの再試行(`run_attempt`)であって、
+// review:full再ラベルが作る別々のworkflow runではない**(PO実測・2026-08-16。
+// 別run3件はfilter=latestでも各2件、同一run内の再試行1件のみfilter=latestで
+// 1件・filter=allで2件になった。当初この節に書いていた「同一head SHAで過去に
+// 何回失敗していても常に1件しか見えない」は誤りだった)。
+// **それでもfilter=allが必要な理由は別にある。**
+// `docs/pr-review-flow-details.md`の型(b)の対処は「再実行」であり、
+// これは`run_attempt`を増やす経路として運用に正規に組み込まれている
+// (このPRで追加した但し書き「原因が特定できている場合は再実行しない」の対象外の
+// ケース、すなわち原因不明のまま再実行する場合)。**試行ごとに個別に課金される**
+// ため、この経路をfilter=latestで畳むと「1回焼いた」としか数えられず、コスト超過
+// 防止という本来の目的に反する。check_nameで絞り込む。per_page=100は
+// --paginateと併用して複数ページにまたがっても取りこぼさないための上限。
 export const checkRunsQuery = (checkName) =>
   new URLSearchParams({ filter: "all", check_name: checkName, per_page: "100" }).toString();
 
