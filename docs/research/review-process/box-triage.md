@@ -57,12 +57,11 @@
 | 軸2: `enableAllProjectMcpServers`は常に`true`に固定(A) | ワークフローのコメントが同じ制約を明記し、`disabledMcpjsonServers`で`.mcp.json`のcodexサーバーを個別ブロック | 一致(C側が台帳と同じ制約を独自に把握し対処済み) |
 | 軸3: 復元対象パスは`.claude`/`.mcp.json`/`.claude.json`/`.gitmodules`/`.ripgreprc`/`CLAUDE.md`/`CLAUDE.local.md`/`.husky`(A) | `build-review-prompt.mjs`の`RESTORED_PATHS`定数が完全一致するリストを持つ(pinned SHAへの参照コメント付き) | 一致 |
 | 軸5: `conclusion`は`success`/`failure`の2値のみで、0件・スキップ・レート制限を区別しない(B) | `check-claude-review.mjs`の`reviewCheckDecision`が、この2値だけでは判定しきれない状態(skip・cancelled・validation-skipped等)を個別envで補って多分岐化 | 一致(台帳の限界をC側が把握し設計で吸収) |
-| 軸6: `resultMessage.is_error`が何によってtrueになるか特定できていない(D、未調査) | `check-claude-review.mjs`は`outcome === "failure"`を「元stepが既に赤い」として扱うのみで、is_errorの内部原因追跡はしない | 一致(同じ限界を共有したまま運用。#150として追跡) |
+| 軸6: `resultMessage.is_error`が何によってtrueになるか特定できていない(D、未調査) | `check-claude-review.mjs`は`outcome === "failure"`を「元stepが既に赤い」として扱うのみで、is_errorの内部原因追跡はしない | **一致**(計画セッション裁定・2026-08-17。台帳もC側も「分からない」で揃っており、台帳が「分かっている」ことをC側が違えている構造ではないため不一致ではない。`is_error:true`で投稿0件のまま赤くなる再現性の無い事象が#150として追跡中だが、判定は「意図的か/ずれか」の対象外——不一致ではないため) |
 | 軸8: 正式PRレビュー提出不可・複数コメント投稿不可(A) | promptは「総評は`gh pr comment`」「個別指摘は`mcp__github_inline_comment__create_inline_comment`」と明示的に使い分けさせる設計 | 一致 |
 
 **不一致**
 
-- **#150(すでに実測済み。導出をやり直さない)。**台帳 軸6が記録する「`is_error`が何によってtrueになるか特定できていない」という限界がそのまま現れた事象。`is_error:true`で投稿0件のまま赤くなる再現性の無いバグとして#150がオープンのまま追跡中。**見立て: ずれ(未解決バグ)。意図的な設計ではない。**
 - **#262(すでに実測済み。導出をやり直さない)。`--allowedTools`に汎用`Read`/`Grep`/`Glob`が無く、
   差分の外を一切読めない。判定: 箱1(不一致)**(計画セッション回答・2026-08-17。#257本文には
   当初この件を箱1とする段落(421-449行)と箱2寄りとする段落(85-88行)の両方があり内容が矛盾していたが、
@@ -210,16 +209,29 @@
   断定していたが、Copilotが実際にAGENTS.mdを読んでいた可能性がある以上、この帰属は取り下げる。
   残る言い方は「同一差分・同一回でCodexはAGENTS.mdを引用したP1を3件出し、Copilotは表記3件
   だった。指摘の性質に差がある」まで——**原因を観点の有無に帰属させない。**
-- **⑥ quota失敗時の文言と課金体系の食い違い(用語のずれの可能性)。**
+- **⑥ quota失敗時の文言と課金体系の食い違い。判定は2つに分けて書く(意図的か=確定、
+  ずれか=確定できない)**(計画セッション回答・2026-08-17)。
   台帳 軸7(A等級)は「2026-06-01以降の現行課金はAI Credits + GitHub Actions minutesの2軸で、
   『premium request』はそれ以前の年間契約Pro/Pro+にのみ残るレガシー課金」と確認しているが、
   C側(SKILL.md・`docs/pr-review-flow-details.md`)は一貫して「プレミアムリクエスト」という
-  レガシー用語のみを使用している。`docs/pr-review-flow-details.md`「Draft先行の根拠」の実測
-  (1レビューあたりプレミアムリクエスト13回相当)は台帳のレガシー課金下のmodel multiplier数値と
-  一致するため、**当時の実測はレガシー課金下だったことは裏付けられる**が、現在のC側組織の契約が
-  移行済みかどうかはリポジトリ側のファイルからは判別できない。
-  **見立て: ずれの可能性(用語が古いまま)だが、確定にはGitHub側の契約状態確認が要る。
-  PO確認は必須としないが、`docs/pr-review-flow-details.md`の用語が古い可能性がある点として記録。**
+  レガシー用語のみを使用している。
+
+  | | 判定 |
+  | --- | --- |
+  | 意図的か | **意図的ではない(確定)。**レガシー用語を維持すると決めた記録はどのIssue・PR・docsにも無い |
+  | ずれか | **確定できない。**台帳が言うレガシー課金の対象(2026-06-01以前からの年間契約Pro/Pro+)にC側の組織の契約が該当するなら、C側の用語は現に正しい。該当するかはリポジトリ内のファイルからは判別できない |
+
+  **別立てで記録する追加の発見(用語の古さとは別の問題):**`docs/pr-review-flow-details.md`
+  「Draft先行の根拠」の実測(1レビューあたりプレミアムリクエスト13回相当)は、Draft先行運用
+  (`.claude/skills/pr-review-flow/SKILL.md`「Draft先行の目的は、Copilotのプレミアムリクエスト
+  消費を『Ready化時の1回』に限定すること」)の根拠として置かれている数値である。台帳 軸7は
+  この13が**レガシー課金のmodel multiplierと一致する**ことを示しており、当時の実測がレガシー
+  課金下だったことは裏付けられる。一方、同じ軸7は現行課金(2026-06-01以降)が「AI Credits +
+  GitHub Actions minutesの2軸」であるとしており、**現行課金下では13という数値に対応する単位が
+  存在しない可能性がある。**Draft先行という結論そのものは動かない(CopilotはDraft中にレビュー
+  しないため、どちらの課金体系でもDraft中の消費は生じない)が、**その根拠に置かれている数値の
+  ほうが現行課金下では意味を持たない可能性がある。**用語の更新・数値の再取得・契約状態の確認は
+  #258で行い、本Issueでは行わない。
 
 ## 3. 系統別の箱2(台帳にありC側に無い)
 
@@ -492,22 +504,31 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
 - [x] 3箱すべてが埋まっている(2〜4節)
 - [x] 箱3が空の参照先は無かったが、探した結果を含め参照先ごとに記録した(4.1〜4.4節)
 - [x] 箱1の不一致それぞれに、台帳側の引用に当たり直した記録がある(2.1〜2.4節、各項目に台帳の逐語・軸番号を明記)
-- [x] 箱1の不一致それぞれに、「意図的か/ずれか」が記録されている(CodeRabbit指摘・2026-08-17。
-      「5件」がPO確認対象のサブセットであることを明記し、2.1〜2.4節の全不一致と対応させる)
-      - **計画セッションへ明示的に確認依頼し、[回答(2026-08-17)](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)で確定した5件:**
-        ①Copilotの観点配布=本文の前提誤りを訂正・状態は未調査(2.4節⑤)、②CodexのP0/P1のみ記述=ずれ(2.2節①)、
-        ③Codexの5時間ウィンドウ=「共有する」は確定・単位のみずれ(2.2節②)、④CodeRabbitのreview_progress=
-        台帳B等級とC1実測の食い違い(2.3節③)、⑤CodeRabbitのレート制限文言=時点差・プラン差でマーカーは安定(2.3節④)
-      - **計画セッションへの個別確認を経ず、既存の実測・記録から自明と判断して記録した残り2件:**
-        Claude#150=ずれ・未解決バグ(2.1節)、Claude#262=`.claude-pr/**`限定は意図的・差分横断系の
-        実行不能という帰結は未評価(2.1節。のちにCodeRabbit指摘・計画セッション裁定で箱2から箱1へ再分類)
-      - **PO確認を必須とせず記録した1件:** Copilotのquota用語差(プレミアムリクエスト表記の陳腐化疑い)=
-        ずれの可能性(2.4節⑥。契約状態の確認が必要なため確度は他より低い)
+- [x] 箱1の不一致それぞれに、「意図的か/ずれか」が記録されている(CodeRabbit指摘・2026-08-17、
+      計画セッション回答2件で確定。**「5件」という数え方自体が誤りだった**——#150は不一致では
+      なく一致であり対象外、#262は判定済みだが引用コメントが漏れていた。以下は
+      **不一致として列挙した項目と1対1で対応する最終形**)
+      - **①Copilotの観点配布=本文の前提誤りを訂正・状態は未調査(2.4節⑤)**
+        [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
+      - **②CodexのP0/P1のみ記述=ずれ(2.2節①)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
+      - **③Codexの5時間ウィンドウ=「共有する」は確定・単位のみずれ(2.2節②)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
+      - **④CodeRabbitのreview_progress=台帳B等級とC1実測の食い違い(2.3節③)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
+      - **⑤CodeRabbitのレート制限文言=時点差・プラン差でマーカーは安定(2.3節④)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
+      - **Claude#262=`.claude-pr/**`限定は意図的・差分横断系の実行不能という帰結は未評価(2.1節)**
+        [回答2](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310203364)
+      - **Copilot⑥のquota用語差=「意図的ではない」は確定・「ずれ」は契約状態次第で確定できない(2.4節⑥)**
+        [回答3](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310262725)
+      - **(参考)Claude#150は不一致ではなく一致に分類し直した(2.1節の表。対象外)**
+        [回答3](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310262725)
 - [x] C側の範囲が上記で尽きているかを点検した記録がある(1節)
 - [x] 処置方針を書いていない(すべて#258へ送る前提で統一)
 
-**Draft後のCodeRabbit・計画セッションの指摘(2026-08-17)を反映して修正した点:**
+**Draft後のCodeRabbit・計画セッションの指摘(2026-08-17、3巡)を反映して修正した点:**
 `=`の述語(37行目付近)、**#262の分類を箱2から箱1へ訂正**(#257本文自体が2箇所で矛盾していたための
 計画セッション裁定。5節・3.1節・6.3節を連動して修正)、Codexの読取範囲をClaude・CodeRabbit・Copilotの
 「我々の設定が原因」から分離(6.3節)、本書冒頭へのJST/UTC日付基準の明記、github-platform.mdの
-`check_run.pull_requests`(公式仕様)と`commits/{sha}/pulls`(我々の観測)の混同回避。
+`check_run.pull_requests`(公式仕様)と`commits/{sha}/pulls`(我々の観測)の混同回避、
+`automation-config`分類の項目数(5→7)、6.1節Copilot経路表へのAGENTS.md自動認識・`.github/skills/`の追加、
+**#150を不一致から一致へ再分類**(2.1節)、⑥Copilotのquota用語差の判定を「意図的か」「ずれか」の
+2軸に分割、Draft先行の根拠に置かれた「13回相当」という数値が現行課金下では意味を持たない可能性
+(用語の古さとは別問題として2.4節に追記)。
