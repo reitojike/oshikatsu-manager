@@ -33,7 +33,7 @@ PRを使う理由は1つだけで、**Rulesetで保護された `main` に入れ
 
 1. fork PRでは `GITHUB_TOKEN` 以外のsecretがrunnerに渡らず、証拠収集に必要な権限を持てない
 2. **観測範囲では、fork PR で SHA→PR の逆引きが両経路とも空だった**
-   (`commits/{sha}/pulls` と `check_run.pull_requests`。2リポジトリ6 PR の実測であり、
+   (`commits/{sha}/pulls` と `check_run.pull_requests`。2リポジトリ5 PR の実測であり、
    **「fork なら必ず空」を証明してはいない。**根拠と限界は `integration.md` §4.1・§4.3)
 
 ## 2. 段階
