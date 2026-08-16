@@ -253,10 +253,16 @@
   台帳 軸4(A等級)が確認する「globパターンにマッチするファイルに自然言語でレビュー観点を指示できる」
   機能に対し、C側`.coderabbit.yaml`の`path_instructions`(24-51行)は`**/*.{ts,tsx}` /
   `supabase/migrations/**` / `test/db/**` の3パスのみで、`AGENTS.md`の`automation-config`分類
-  (5項目: 権限拡大・secret/skipの穴・イベント種別/再実行条件・required checkの永久pending・
+  (7項目: 権限拡大・secret/skipの穴・イベント種別/再実行条件・required checkの永久pending・
   fork PRでのsecret・action参照のSHA固定・設定変更と関連文書/テストの整合)がCodeRabbitに
   一切届いていない。**#256論点1の「下限を揃える」を実現するには、この欠落が埋まらないかぎり
   Claude以外の2系統で十分という前提が崩れうる(#257本文)。**
+  **この7項目のうち2つは、単に「配られていない」だけでなく、配られたとしても他の制約と
+  二重に効く(計画セッション指摘・2026-08-17)。**「イベント種別や再実行条件が意図と一致しない」は
+  判定に`.github/workflows/**`の`on:`を読む必要があるが、その`.github/**`自体が
+  `path_instructions`の対象パスに含まれていない——観点と読める範囲の両方が同時に欠けている。
+  「設定変更と関連文書・テストが整合していない」は定義上差分の外(関連文書・テスト)を読む必要が
+  あり、6.3節のClaude行(`automation-config`分類の同項目)と同じ型の制約である。
 - `@coderabbitai emit path instructions`(過去7日の提案を集約しPR化、軸1): 未使用(path_instructionsは手動記述)。
 - AST-grepベースのpath instructions(構文パターン一致、Pro/Pro+限定、軸2): 未使用。
 - `path_filters`(ファイルをレビュー対象から完全除外、軸2): 未設定。
@@ -399,7 +405,7 @@ claude-code-action自体の仕様ではなく、C側が#262で独自に組んだ
 | Claude | 我々のスクリプトが`AGENTS.md`の該当節を注入 | `build-review-prompt.mjs`が`AGENTS.md`の`## Code Review Rules`節を`git show <base>:AGENTS.md`で取得し、共通部分+変更ファイルの分類(`code`/`governance-docs`/`automation-config`)に応じた`###`見出しブロックだけをpromptへ結合する。**節が正確に1つ・各分類ブロックが空でない・見出しの並びが3分類の順**であることを構造的にvalidateし、条件を満たさなければ`fail()`でCIごと落とす |
 | Codex | `AGENTS.md`をネイティブに読む(台帳 軸4、等級A) | ワークフロー不在。追加設定は不要(2.2節で確認済み) |
 | CodeRabbit | `.coderabbit.yaml`の`path_instructions` | `**/*.{ts,tsx}` / `supabase/migrations/**` / `test/db/**` の3パスのみ。**`.github/**`を含む`automation-config`系のパスは対象外**(3.3節の箱2) |
-| Copilot | `.github/copilot-instructions.md` / `.github/instructions/**` | **どちらも存在しない(箱2として確定)。**ただし2026-07-17以降`AGENTS.md`自体が自動認識対象であり(2.4節⑤)、箱1(状態=未調査)として別に置く。「観点が一切届いていない」わけではない可能性がある |
+| Copilot | ①専用ファイル`.github/copilot-instructions.md` / `.github/instructions/**` / `.github/skills/`(agent skills) ②2026-07-17以降の自動認識対象ファイル(`AGENTS.md`・`REVIEW.md`・`GEMINI.md`・`CLAUDE.md`) | **①はいずれも存在しない(箱2として確定。3.4節)。**②のうち`AGENTS.md`(`## Code Review Rules`節を含む)と`CLAUDE.md`は実在し、自動認識対象ファイル名と一致する(箱1、状態=未調査。2.4節⑤)。「観点が一切届いていない」わけではない可能性がある |
 
 ### 6.2 発火タイミングと1PRあたりの起動回数
 
@@ -425,7 +431,7 @@ claude-code-action自体の仕様ではなく、C側が#262で独自に組んだ
 | 系統 | 配った観点のうち、読める範囲の制約で**実行できないもの** |
 | --- | --- |
 | Claude | `code`分類の「`common/`への複製・別層配置」「型の二重定義」、`governance-docs`分類の「成果物間の矛盾」「正本の複数配置」、`automation-config`分類の「設定変更と関連文書・テストの整合」——**差分の外(比較対象の別ファイル)を一切読めないため、これらすべてが実行不能**(5節「読める範囲の差」、2.1節#262参照)。**これは箱1(#262)の帰結であり、ベンダー制約ではなく我々の設定(`--allowedTools`)による制限** |
-| CodeRabbit | リポジトリ全体クローン+Agentic explorationにより、上記の差分横断系観点は原理的に実行可能。ただし`automation-config`分類の5項目自体が`path_instructions`の対象パス(`.github/**`)に含まれていないため、**観点として指示されておらず「配られていない」状態に近い**(3.3節の箱2)。読める範囲の制約ではなく、観点配布側の欠落 |
+| CodeRabbit | リポジトリ全体クローン+Agentic explorationにより、上記の差分横断系観点は原理的に実行可能。ただし`automation-config`分類の7項目自体が`path_instructions`の対象パス(`.github/**`)に含まれていないため、**観点として指示されておらず「配られていない」状態に近い**(3.3節の箱2)。読める範囲の制約ではなく、観点配布側の欠落 |
 | Copilot | Rich Context with Tool Callingにより読める範囲自体は広いと台帳は示す。専用の観点ファイル(`.github/copilot-instructions.md`等、code/governance-docs/automation-configの明示的な書き分け)は無い(箱2、確定)が、`AGENTS.md`自体は2026-07-17以降の自動認識対象であり、これを読んでいれば`## Code Review Rules`全体は届いている可能性がある(箱1、状態=未調査、直接実測なし)。読める範囲の制約ではなく、観点配布側の状態不明 |
 | Codex | `AGENTS.md`をネイティブに読むため、`## Code Review Rules`全体(3分類とも)が届いている。**ただし読める範囲そのものが「diff + 変更ファイルに掛かるAGENTS.md群」であり、差分に現れないファイルとの突き合わせ(成果物間の矛盾等)は、C側の設定ではなくこの製品設計自体に起因する可能性がある。**Claude・CodeRabbit・Copilotの制約(いずれもC側の設定・ファイル配置が原因)とは種類が異なりうる。台帳・C側とも「読める範囲の外側で何が起きるか」を明示的に述べた記述は見つからず、確定はできない |
 
@@ -486,11 +492,17 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
 - [x] 3箱すべてが埋まっている(2〜4節)
 - [x] 箱3が空の参照先は無かったが、探した結果を含め参照先ごとに記録した(4.1〜4.4節)
 - [x] 箱1の不一致それぞれに、台帳側の引用に当たり直した記録がある(2.1〜2.4節、各項目に台帳の逐語・軸番号を明記)
-- [x] 箱1の不一致それぞれに、「意図的か/ずれか」が計画セッションの回答として記録されている
-      —— **5件とも[計画セッションの回答(2026-08-17)](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)で確定済み**
-      (①Copilotの観点配布=本文の前提誤りを訂正・状態は未調査、②CodexのP0/P1のみ記述=ずれ、
-      ③Codexの5時間ウィンドウ=「共有する」は確定・単位のみずれ、④CodeRabbitのreview_progress=
-      台帳B等級とC1実測の食い違い、⑤CodeRabbitのレート制限文言=時点差・プラン差でマーカーは安定)
+- [x] 箱1の不一致それぞれに、「意図的か/ずれか」が記録されている(CodeRabbit指摘・2026-08-17。
+      「5件」がPO確認対象のサブセットであることを明記し、2.1〜2.4節の全不一致と対応させる)
+      - **計画セッションへ明示的に確認依頼し、[回答(2026-08-17)](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)で確定した5件:**
+        ①Copilotの観点配布=本文の前提誤りを訂正・状態は未調査(2.4節⑤)、②CodexのP0/P1のみ記述=ずれ(2.2節①)、
+        ③Codexの5時間ウィンドウ=「共有する」は確定・単位のみずれ(2.2節②)、④CodeRabbitのreview_progress=
+        台帳B等級とC1実測の食い違い(2.3節③)、⑤CodeRabbitのレート制限文言=時点差・プラン差でマーカーは安定(2.3節④)
+      - **計画セッションへの個別確認を経ず、既存の実測・記録から自明と判断して記録した残り2件:**
+        Claude#150=ずれ・未解決バグ(2.1節)、Claude#262=`.claude-pr/**`限定は意図的・差分横断系の
+        実行不能という帰結は未評価(2.1節。のちにCodeRabbit指摘・計画セッション裁定で箱2から箱1へ再分類)
+      - **PO確認を必須とせず記録した1件:** Copilotのquota用語差(プレミアムリクエスト表記の陳腐化疑い)=
+        ずれの可能性(2.4節⑥。契約状態の確認が必要なため確度は他より低い)
 - [x] C側の範囲が上記で尽きているかを点検した記録がある(1節)
 - [x] 処置方針を書いていない(すべて#258へ送る前提で統一)
 
