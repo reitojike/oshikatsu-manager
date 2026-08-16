@@ -109,6 +109,116 @@ test -n "$CHECK_RUN_ID"
 gh api "repos/{owner}/{repo}/check-runs/$CHECK_RUN_ID/annotations" --paginate
 ```
 
+**拒否の内訳(どのツール呼び出しが拒否されたか)はaction出力から機械的に取得できない
+(#262。観測性の欠陥として記録するにとどめ、取得のために`--allowedTools`やactionの
+バージョンは変更しない)。**`permission_denials_count`は集計値のみで、`show_full_output`
+既定`false`のジョブログに現れるのは`system/init`と`result`の2イベントだけである
+(`docs/research/review-tools/claude-code-action.md`軸9、B等級で確認済み)。`execution_file`
+(Claude Agent SDKが返す`SDKMessage`配列をそのままJSON化したもの)自体に個別の拒否内訳を
+持つフィールドが存在するかは、同台帳の軸10で「公式に未文書化」と記録されている
+(`sanitizeSdkOutput`が集計する元の値が生JSONにも残っている可能性はソースの参照関係から
+推論できるが、確定した事実ではない、D等級)。実測(#262、PR #260): 同一head SHAへの
+`review:full`再発火3回で`permission_denials_count`が7→10→19と単調に増加し、3回目は
+`--max-turns`上限まで焼き切って$7.31を無駄にした。この実測を踏まえ、同一head SHAへの
+反復失敗そのものを検知するcircuit breakerを導入した(下記)。
+
+#### 同一head SHAへの反復失敗を検知するcircuit breaker(#262)
+
+claude action(有料。大差分では`--max-turns`上限まで焼き切りうる)を起動する前に、
+「直近の同一head SHAでclaude-reviewが既に2回
+(`.github/scripts/check-claude-review.mjs`の`MAX_TOLERATED_CLAUDE_REVIEW_FAILURES`)
+失敗しているか」を`circuit-breaker`という名のstepで確認する。該当すれば
+claude actionを起動せず、`claude-review`checkを赤にする(claude actionを起動しない分、
+コストは焼かない)。**`--max-turns`の値そのもの(60が適切か)は#254(フェーズ2)の対象。**
+このcircuit breakerは値を変えず、「直っていないのに同じ失敗を繰り返し焼く」ことだけを止める。
+
+- **失敗の数え方。**対象head SHAの`claude-review`という名のcheck runのうち
+  `conclusion === "failure"`のものだけを数える。`cancelled`(concurrencyによる世代交代)は
+  「直っていない」を意味しないため対象に含めない
+- **`commits/{sha}/check-runs`の取得に`filter=all`を指定している(既定は`latest`)。**
+  `filter=latest`が畳むのは**同一workflow runの再試行(`run_attempt`)であって、
+  review:full再ラベルが作る別々のworkflow runではない**(PO実測・2026-08-16。
+  別run3件はいずれも`filter=latest`でも各2件観測され、同一run内の再試行1件のみ
+  `filter=latest`で1件・`filter=all`で2件になった)。**`filter=all`が必要な理由は、
+  型(b)の対処である「再実行」が`run_attempt`を増やす経路として運用に正規に
+  組み込まれているため。**試行ごとに個別に課金されるので、この経路を`latest`で
+  畳むと「1回焼いた」としか数えられずコスト超過防止という目的に反する
+  (`check-claude-review.mjs`の`checkRunsQuery`直上のコメントに詳細)。**閾値2の
+  意味は、失敗が別runにまたがるか同一runの再試行かによらず「このhead SHAで
+  課金を伴う失敗を2回重ねたら3回目を見送る」であり、`filter=all`化で
+  ずれてはいない**(PO確認・2026-08-16)
+- **このstep自体の失敗はjob全体を赤くしない。**判定の正本は常に「Claude Review 投稿確認」
+  step(`CIRCUIT_BREAKER_SKIP`env経由でskip状態を受け取り、trueならAPI呼び出しをせず
+  即座に失敗する)に一本化する。**加えて`continue-on-error: true`を付けている。**
+  このstepが参照するscriptは常にbase SHA(main)から取得されるため、この機能を追加した
+  PR自身のCIでは、mainがまだ`CHECK_MODE`を解釈しない旧版scriptを実行して
+  `CLAUDE_OUTCOME`未設定でthrowする(Issue #262本文が明記する「このPRは自分自身では
+  検証できない」という既知の制約と同じ形)。`continue-on-error`が無いと、それだけで
+  job全体が赤くなり後続stepが暗黙の`success()`判定でskipされる
+- **circuit-breaker step自体が失敗(throw)すると`writeOutput`が呼ばれず、出力`skip`は
+  未設定(空文字)のまま後段へ渡る。**空文字は投稿確認step側の`CIRCUIT_BREAKER_SKIP_ERROR`
+  検証で拒否されるが、claude actionの`if`条件(`!= 'true'`)は空文字を満たすため
+  claude actionは起動して課金される一方、投稿確認stepは必ず赤くなるという非対称が
+  生まれる(CodeRabbit指摘・2026-08-16)。**最終stepのenvで
+  `${{ steps.circuit-breaker.outputs.skip || 'false' }}`とし、未設定をfail-open側
+  (false)へ寄せて解消した**(GitHub API取得失敗時のfail-open方針と揃える)
+- **`continue-on-error: true`のこの理由(base SHA固定scriptとの契約不一致)は、
+  このPRがマージされてmainに`CHECK_MODE`契約が乗った時点で消える。**マージ後の
+  通常のPRではcircuit-breaker stepはbase SHA側も新しい契約を理解するため、
+  この理由で失敗することは無くなる。**`continue-on-error`をその時点で撤去するかどうかは
+  本Issueでは決めない**(直後の「GitHub API取得自体の失敗はfail-openにする」判断を
+  恒久的に望むなら、`continue-on-error`を残す判断もありうる。**撤去せず残す場合は、
+  このstepのコメントの理由を「一時的な契約不一致の回避」から「API不調時のfail-openを
+  安定させるための恒久措置」に書き換えること**(PO確認・2026-08-16)
+- **既知の欠落: circuit breaker自体が壊れて常に不発(skip=false)になった場合を検知する
+  手段が現状無い。**`continue-on-error: true`とGitHub API取得失敗時のfail-open設計を
+  組み合わせているため、「反復失敗が実際に起きていない」状態と「circuit breakerが
+  壊れていて何も検知できていない」状態が外から区別できない。本Issueが直そうとしている
+  症状(「実行された」と「何も出さなかった」が区別できない)と同じ形の穴が、
+  circuit breaker自身にも残っている。塞ぐのは本Issueのスコープ外とし、#254/#257側の
+  材料として記録するにとどめる(PO確認・2026-08-16)
+- **GitHub API取得自体の失敗はfail-openにする(投稿確認stepの他ゲートとは非対称)。**
+  fail-closedにすると、GitHub APIの一時的な不調が初回起動のPRまで巻き込んで
+  claude-reviewを止めてしまう副作用の方が大きいと判断した(#262)
+- **`permissions:`に`checks: read`を追加している。**`commits/{sha}/check-runs`の読み取りに
+  GitHub REST APIが要求する権限で、`--allowedTools`(claude actionへ渡すモデルのツール権限)
+  とは別の軸(ワークフロー自身の`GITHUB_TOKEN`に対する読み取り専用権限)。無いと
+  `getCheckRuns`が403で失敗し、上記のfail-open設計によりcircuit breakerが常にトリガー
+  されなくなる(checkは赤くならないため気づきにくい退行。#262セルフレビューで発覚)
+- **CLAUDE_CODE_OAUTH_TOKEN未設定時はcircuit breakerより先に判定する。**
+  tokenが無ければどのみちclaude actionは動かないため、「token不足」のメッセージを
+  「circuit breaker発動」のメッセージで覆い隠さない(#262セルフレビューで発覚)。
+  当初は`check-claude-review.mjs`側の判定順序だけを直したが、**workflow側の
+  step自体の実行順序が「circuit-breaker → token確認」のままだと、token不足時にも
+  無駄なGitHub API呼び出しが発生する。**「Check for CLAUDE_CODE_OAUTH_TOKEN」stepを
+  circuit-breaker stepより前に移動し、circuit-breaker stepの`if`にも
+  `steps.check.outputs.enabled == 'true'`を追加した(CodeRabbit指摘・2026-08-16)
+- **claude-started stepのif条件をclaude actionと揃えている。**揃えないと、
+  circuit breakerがskipした回(claude actionは実際には起動していない)にも
+  `ACTION_STARTED_AT`へ開始時刻が記録され、「実行状態の記録」stepの診断ログが
+  誤った開始時刻を示す(CodeRabbit指摘・2026-08-16)
+
+#### `docs/**`の大差分PRでのbypass既定化(フェーズ2まで。#262)
+
+**フェーズ2(#254)が着地するまで、`docs/**`の大差分PR(目安: PR #260の1,740行や
+issue #256の想定1,591行のように、複数ファイルを横断する仕様台帳級の差分)では、
+`claude-review`のbypassを既定経路とする。**根拠はPR #260のbypass理由と同じ
+(`AGENTS.md`の`automation-config`が P0 とする「required checkが永久にpendingになり得る」に
+該当し、`--allowedTools`に汎用`Read`/`Grep`/`Glob`が無い構造上、この種の大差分では
+claude-reviewが構造的にグリーンになり得ない。上記circuit breakerはコストを止めるための
+ものであり、この構造そのものは変えない)。**GitHubのRulesetはrequired checkを1本だけ
+選択的に迂回する機能を持たない。**bypassは常にオーナー権限による全体迂回であり、
+運用として`claude-review`以外が赤くないことをマージ直前に確認したうえで使う
+(実務上「`claude-review`1本だけをbypassする」と表現しているのはこの運用上の意味であり、
+GitHub機能としての選択的迂回ではない。Copilot指摘・2026-08-16)。bypassする場合も
+CodeRabbit・Codex Cloud・Draft前セルフレビューは通常どおりすべて通す。
+
+**終了条件は#254の成果がこのリポジトリの設定に反映された時点。**それまでは、
+上記profileに該当する大差分PRで`claude-review`が「実行完了・投稿0件」または
+circuit breaker発動で赤くなった場合、再実行せずbypassしてよい
+(`docs/pr-review-flow-details.md`「赤・無投稿に遭遇したときの見分け方」で型を
+確認したうえで判断する)。
+
 `claude-review.yml`自体を変更するPRでは、GitHub Actions側のワークフロー保護機構
 (PRがワークフローファイル自体を書き換えて昇格した権限で任意のコードを実行するのを防ぐもの)
 により、`anthropics/claude-code-action`が実際にはレビューを実行せず正常終了する
@@ -135,6 +245,7 @@ gh api "repos/{owner}/{repo}/check-runs/$CHECK_RUN_ID/annotations" --paginate
 | 実行されたのに`claude[bot]`の投稿が0件 | **赤** | `--max-turns`打ち切りなどで「run成功・投稿0」が作られるため |
 | 投稿はあるが総評のhead SHAマーカーが不一致 | **赤**(別メッセージ) | 総評コメントは`commit_id`を持たず本文マーカーだけが根拠。原因が「走っていない」のか「マーカーを落とした」のかを区別する |
 | `claude-review.yml`自体を変更するPR(上記のworkflow検証スキップ) | 通常は緑(注記のみ)。**ただし復元対象パスを変更しているのに`--allowedTools`に読み取り手段が無い場合は赤**(型(c)のゲート。下記) | レビュー内容そのものは機械では埋められない。赤にすると`claude-review.yml`を触るPRが恒久的にマージ不能になるため無条件緑が原則だが、読み取り手段の欠落はレビューの実行結果に関係なく静的に判定できるため例外的に赤くする |
+| 同一head SHAでclaude-reviewが2回以上失敗している(連続でなくてもよい。circuit breaker。#262) | **赤**(claude actionを起動せず見送る) | 直っていないのに同じ失敗を繰り返し`--max-turns`まで焼くのを防ぐ(実測: PR #260で3回目が$7.31を無駄にした。詳細は上記「同一head SHAへの反復失敗を検知するcircuit breaker」) |
 | キャンセル(`concurrency`による世代交代を含む) | 緑(注記のみ) | 本来のキャンセルに人工的な失敗を重ねない。新しいheadの後続runが責任を持つ |
 
 **`review:full`ラベルを付けると、そのPRで全分類の観点を当てた再レビューが走る**
@@ -157,9 +268,10 @@ required status checksに`claude-review`が含まれる)。上記の赤はマー
 | --- | --- | --- |
 | 「Claude actionは実行されましたが、対象head以降のclaude[bot]投稿が0件です」 | ゲートによる赤(投稿0件) | 下記「投稿0件の原因を切り分ける」へ |
 | 「Claude actionは実行され、対象head以降にclaude[bot]の投稿がありますが、head SHAマーカーに一致する投稿が0件です。promptのマーカー指示が守られていない可能性があります」 | ゲートによる赤(マーカー不一致) | promptのマーカー指示が守られていない可能性。再実行して改善しなければissueへ記録する |
-| 「Claude actionが失敗したため投稿件数判定は対象外です。元stepの失敗を維持します。」 | action自体の実行時失敗(元stepの赤をそのまま維持) | `gh run view <run-id> --log`で`"is_error": true`を確認する。再現性のない失敗であることが多く、失敗ジョブの再実行で完走することがある(PR #139・run 31348464844で実測。再実行後3m45sで完走し指摘0件を投稿した。原因の特定は#150) |
+| 「Claude actionが失敗したため投稿件数判定は対象外です。元stepの失敗を維持します。」 | action自体の実行時失敗(元stepの赤をそのまま維持) | `gh run view <run-id> --log`で`"is_error": true`を確認する。再現性のない失敗であることが多く、失敗ジョブの再実行で完走することがある(PR #139・run 31348464844で実測。再実行後3m45sで完走し指摘0件を投稿した。原因の特定は#150)。**ただし原因が特定できている場合は再実行しない**(#262。症状の分類であって原因の分類ではないため、症状レベルの対処が特定済みの原因を上書きしてはならない。実例: PR #260の3回目は本行に該当したが、拒否件数が7→10→19と単調増加していたため「同じ場所」への再実行と判断でき、再実行せず本Issueの修正に進んだ) |
 | 「Claude actionはworkflow validation skipでした。投稿件数判定は機械では行えません。」 | 意図的スキップ(`claude-review.yml`自体を変更するPR) | 上記のworkflow検証スキップの対処に従う |
 | 「このPRは復元対象パスを変更していますが、.claude-pr/ を読む手段(Read(.claude-pr/**)等)が --allowedTools に含まれていません。レビューは復元後(origin/main)のツリーを見たまま完了した可能性があります。」 | ゲートによる赤(型(c)。下記) | `--allowedTools`の配線を確認する。投稿の有無によらず赤くなる |
+| 「直近の同一head SHAでclaude-reviewの投稿確認が既に2回失敗しているため、起動を見送りました(コスト超過防止。#262)。…」 | circuit breakerによる赤(claude actionは起動していない) | 再実行では直らないパターン(同一head SHAでは同じ判定を繰り返す)。原因を切り分けたうえで、`docs/**`の大差分PRなら上記「大差分PRでのbypass既定化」に従う。新しいpush(head SHAの変更)があれば失敗回数はリセットされる |
 
 #### 型(c): 復元後のツリーを見たまま、通常どおり投稿された
 

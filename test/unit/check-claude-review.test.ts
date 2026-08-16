@@ -1,8 +1,14 @@
 import { describe, expect, test } from "vitest";
 import {
+  checkRunsQuery,
+  CIRCUIT_BREAKER_SKIP_ERROR,
+  CIRCUIT_BREAKER_TRIPPED_ERROR,
   CLAUDE_ENABLED_ERROR,
+  CLAUDE_REVIEW_CHECK_NAME,
   countBotPostsSince,
   countClaudePosts,
+  countPriorFailures,
+  flattenCheckRunPages,
   flattenGhPages,
   getGhPosts,
   hasRestoredPathReadAccess,
@@ -10,9 +16,12 @@ import {
   isRestoredPathGateBlocked,
   main,
   MARKER_MISSING_ERROR,
+  MAX_TOLERATED_CLAUDE_REVIEW_FAILURES,
   MISSING_CLAUDE_POSTS_ERROR,
+  preCheckMain,
   RESTORED_PATH_GATE_ERROR,
   reviewCheckDecision,
+  shouldSkipRepeatedFailure,
 } from "../../.github/scripts/check-claude-review.mjs";
 
 const headSha = "abc1230000000000000000000000000000000000";
@@ -33,6 +42,7 @@ const baseEnv = {
   EXECUTION_FILE: "execution-path",
   RESTORED_PATHS: "",
   ALLOWED_TOOLS: ALLOWED_TOOLS_WITH_READ,
+  CIRCUIT_BREAKER_SKIP: "false",
 };
 
 const createDependencies = ({
@@ -952,4 +962,283 @@ describe("flattenGhPages", () => {
       "gh api --paginate --slurp の出力は配列である必要があります",
     );
   });
+});
+
+describe("flattenCheckRunPages", () => {
+  test("複数ページの check_runs を1つの配列に平坦化する", () => {
+    expect(
+      flattenCheckRunPages([{ check_runs: [{ id: 1 }] }, { check_runs: [{ id: 2 }] }]),
+    ).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  test("空のページとページなしを空配列にする", () => {
+    expect(flattenCheckRunPages([{ check_runs: [] }])).toEqual([]);
+    expect(flattenCheckRunPages([])).toEqual([]);
+  });
+
+  test("配列でない値を説明付きで拒否する", () => {
+    expect(() => flattenCheckRunPages({ page: [] })).toThrow(
+      "gh api --paginate --slurp の出力は配列である必要があります",
+    );
+  });
+
+  test("check_runsを含まないページを説明付きで拒否する(否定側)", () => {
+    expect(() => flattenCheckRunPages([{ total_count: 0 }])).toThrow(
+      "check-runsページはcheck_runs配列を含む必要があります",
+    );
+    expect(() => flattenCheckRunPages([{ check_runs: "not-an-array" }])).toThrow(
+      "check-runsページはcheck_runs配列を含む必要があります",
+    );
+  });
+});
+
+describe("checkRunsQuery", () => {
+  test("filter=all・check_name・per_page=100を含む(型(b)の再実行がrun_attemptを増やし、試行ごとに課金されるため。PO実測・2026-08-16)", () => {
+    const query = checkRunsQuery("claude-review");
+
+    expect(query).toBe("filter=all&check_name=claude-review&per_page=100");
+  });
+
+  test("filter=latest(既定値)を使わない(否定側。CodeRabbit指摘の再発防止。同一runの再試行を畳んでしまう)", () => {
+    expect(checkRunsQuery("claude-review")).not.toContain("filter=latest");
+  });
+
+  test("checkNameをURLエンコードする", () => {
+    expect(checkRunsQuery("claude review")).toBe(
+      "filter=all&check_name=claude+review&per_page=100",
+    );
+  });
+});
+
+describe("countPriorFailures", () => {
+  const target = { name: "claude-review", headSha };
+
+  test("対象名・対象head・failure結論の3条件をすべて満たすものだけを数える", () => {
+    const checkRuns = [
+      { name: "claude-review", head_sha: headSha, conclusion: "failure" },
+      { name: "claude-review", head_sha: headSha, conclusion: "failure" },
+    ];
+    expect(countPriorFailures(checkRuns, target)).toBe(2);
+  });
+
+  test("check名が異なるものは数えない(否定側)", () => {
+    const checkRuns = [
+      { name: "claude-review-label-ignored", head_sha: headSha, conclusion: "failure" },
+    ];
+    expect(countPriorFailures(checkRuns, target)).toBe(0);
+  });
+
+  test("head_shaが異なるものは数えない(否定側)", () => {
+    const checkRuns = [{ name: "claude-review", head_sha: otherHead, conclusion: "failure" }];
+    expect(countPriorFailures(checkRuns, target)).toBe(0);
+  });
+
+  test.each(["success", "cancelled", "skipped", "neutral", null, undefined])(
+    "conclusionが%pのものは数えない(cancelled等の世代交代を反復失敗と混同しない。否定側)",
+    (conclusion) => {
+      const checkRuns = [{ name: "claude-review", head_sha: headSha, conclusion }];
+      expect(countPriorFailures(checkRuns, target)).toBe(0);
+    },
+  );
+
+  test("空配列は0", () => {
+    expect(countPriorFailures([], target)).toBe(0);
+  });
+});
+
+describe("shouldSkipRepeatedFailure", () => {
+  test(`${MAX_TOLERATED_CLAUDE_REVIEW_FAILURES}回未満は継続する(境界値。否定側)`, () => {
+    for (let count = 0; count < MAX_TOLERATED_CLAUDE_REVIEW_FAILURES; count += 1) {
+      expect(shouldSkipRepeatedFailure(count)).toBe(false);
+    }
+  });
+
+  test(`${MAX_TOLERATED_CLAUDE_REVIEW_FAILURES}回以上は見送る(境界値)`, () => {
+    expect(shouldSkipRepeatedFailure(MAX_TOLERATED_CLAUDE_REVIEW_FAILURES)).toBe(true);
+    expect(shouldSkipRepeatedFailure(MAX_TOLERATED_CLAUDE_REVIEW_FAILURES + 1)).toBe(true);
+  });
+
+  test.each([-1, 1.5, Number.NaN, "2", null, undefined])(
+    "不正な入力 %p を説明付きで拒否する(否定側)",
+    (value) => {
+      expect(() => shouldSkipRepeatedFailure(value)).toThrow(
+        "priorFailureCount は0以上の整数である必要があります",
+      );
+    },
+  );
+});
+
+const createPreCheckDependencies = ({
+  env = {
+    REPOSITORY: "owner/repository",
+    HEAD_SHA: headSha,
+    GITHUB_STEP_SUMMARY: "summary-path",
+  },
+  checkRuns = [],
+  checkRunsError,
+}: {
+  env?: Record<string, unknown>;
+  checkRuns?: unknown[];
+  checkRunsError?: Error;
+} = {}) => {
+  const checkRunPaths: string[] = [];
+  const outputs: { name: string; value: string }[] = [];
+  const summaries: string[] = [];
+  const notices: string[] = [];
+  return {
+    dependencies: {
+      env,
+      getCheckRuns: (path: string) => {
+        checkRunPaths.push(path);
+        if (checkRunsError !== undefined) throw checkRunsError;
+        return checkRuns;
+      },
+      writeOutput: (name: string, value: string) => outputs.push({ name, value }),
+      append: (_path: string, message: string) => summaries.push(message),
+      outputNotice: (message: string) => notices.push(message),
+    },
+    checkRunPaths,
+    outputs,
+    summaries,
+    notices,
+  };
+};
+
+describe("preCheckMain", () => {
+  test("反復失敗が閾値未満なら skip=false を書き、継続を記録する", () => {
+    const checkRuns = [{ name: "claude-review", head_sha: headSha, conclusion: "failure" }];
+    const { dependencies, checkRunPaths, outputs, summaries, notices } = createPreCheckDependencies(
+      {
+        checkRuns,
+      },
+    );
+
+    preCheckMain(dependencies);
+
+    expect(checkRunPaths).toEqual([
+      `repos/owner/repository/commits/${headSha}/check-runs?${checkRunsQuery(CLAUDE_REVIEW_CHECK_NAME)}`,
+    ]);
+    expect(outputs).toEqual([{ name: "skip", value: "false" }]);
+    expect(summaries).toEqual(["- 直近の同一head失敗回数: 1\n"]);
+    expect(notices).toEqual([]);
+  });
+
+  test(`反復失敗が${MAX_TOLERATED_CLAUDE_REVIEW_FAILURES}回に達したら skip=true を書き、理由を記録する(否定側の境界)`, () => {
+    const checkRuns = Array.from({ length: MAX_TOLERATED_CLAUDE_REVIEW_FAILURES }, () => ({
+      name: "claude-review",
+      head_sha: headSha,
+      conclusion: "failure",
+    }));
+    const { dependencies, outputs, summaries, notices } = createPreCheckDependencies({ checkRuns });
+
+    preCheckMain(dependencies);
+
+    expect(outputs).toEqual([{ name: "skip", value: "true" }]);
+    expect(notices).toEqual([CIRCUIT_BREAKER_TRIPPED_ERROR]);
+    expect(summaries).toEqual([`- ${CIRCUIT_BREAKER_TRIPPED_ERROR}\n`]);
+  });
+
+  test("check-runs取得に失敗しても、fail-openでskip=falseを書き、理由を記録する(投稿確認stepとの非対称)", () => {
+    const { dependencies, outputs, summaries, notices } = createPreCheckDependencies({
+      checkRunsError: new Error("gh api failed"),
+    });
+
+    expect(() => preCheckMain(dependencies)).not.toThrow();
+    expect(outputs).toEqual([{ name: "skip", value: "false" }]);
+    expect(notices).toEqual([
+      "直近の失敗回数を取得できなかったため、反復失敗チェックをスキップします: gh api failed",
+    ]);
+    expect(summaries).toEqual([
+      "- 直近の失敗回数を取得できなかったため、反復失敗チェックをスキップします: gh api failed\n",
+    ]);
+  });
+
+  test.each([
+    ["REPOSITORY", "", "REPOSITORY が空です"],
+    ["HEAD_SHA", "", "HEAD_SHA が空です"],
+    ["HEAD_SHA", "main", "HEAD_SHA は40桁の小文字16進数である必要があります"],
+    ["GITHUB_STEP_SUMMARY", "", "GITHUB_STEP_SUMMARY が空です"],
+  ])("必須環境値 %s の不正を拒否する(否定側)", (name, value, message) => {
+    const env = {
+      REPOSITORY: "owner/repository",
+      HEAD_SHA: headSha,
+      GITHUB_STEP_SUMMARY: "summary-path",
+      [name]: value,
+    };
+    const { dependencies, checkRunPaths, outputs } = createPreCheckDependencies({ env });
+
+    expect(() => preCheckMain(dependencies)).toThrow(message);
+    expect(checkRunPaths).toEqual([]);
+    // writeOutputが呼ばれないため、workflow側ではskip出力が未設定のまま後段へ渡る
+    // (claude-review.yml側の `|| 'false'` フォールバックで拾う設計。CodeRabbit指摘)
+    expect(outputs).toEqual([]);
+  });
+});
+
+describe("main: circuit breaker(#262)", () => {
+  test("CIRCUIT_BREAKER_SKIP=trueならAPIを呼ばずCIRCUIT_BREAKER_TRIPPED_ERRORで失敗する", () => {
+    const env = { ...baseEnv, CIRCUIT_BREAKER_SKIP: "true" };
+    const { dependencies, ghPaths, notices, reads, summaries } = createDependencies({ env });
+
+    expect(() => main(dependencies)).toThrow(CIRCUIT_BREAKER_TRIPPED_ERROR);
+    expect(ghPaths).toEqual([]);
+    expect(reads).toEqual([]);
+    expect(notices).toEqual([CIRCUIT_BREAKER_TRIPPED_ERROR]);
+    expect(summaries).toEqual([`- ${CIRCUIT_BREAKER_TRIPPED_ERROR}\n`]);
+  });
+
+  test.each([undefined, "", "yes", "1"])(
+    "CIRCUIT_BREAKER_SKIPが%pなら配線不正としてAPI取得前に拒否する(否定側)",
+    (value) => {
+      const env = { ...baseEnv, CIRCUIT_BREAKER_SKIP: value };
+      const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+
+      expect(() => main(dependencies)).toThrow(CIRCUIT_BREAKER_SKIP_ERROR);
+      expect(ghPaths).toEqual([]);
+      expect(notices).toEqual([CIRCUIT_BREAKER_SKIP_ERROR]);
+      expect(summaries).toEqual([`- ${CIRCUIT_BREAKER_SKIP_ERROR}\n`]);
+    },
+  );
+
+  test("CIRCUIT_BREAKER_SKIP=falseなら既存の判定経路をそのまま通る(回帰防止)", () => {
+    const [issuePath] = apiPaths();
+    const posts = new Map([
+      [issuePath, [{ user: bot, body: headShaMarker(headSha), created_at: since }]],
+    ]);
+    const env = { ...baseEnv, CIRCUIT_BREAKER_SKIP: "false" };
+    const { dependencies, summaries } = createDependencies({ env, posts });
+
+    main(dependencies);
+
+    expect(summaries).toEqual([
+      "- Claude投稿件数: 1\n",
+      "- 診断: num_turns: 1\n",
+      "- 復元対象パス: 無し\n",
+    ]);
+  });
+
+  test.each(["true", "yes"])(
+    "CLAUDE_ENABLED=falseのときは、CIRCUIT_BREAKER_SKIPが%pでもtoken不足のメッセージを優先する(セルフレビュー指摘)",
+    (circuitBreakerSkip) => {
+      // 実運用ではtoken不足時にclaude stepの if が false になりskippedとして扱われる
+      // ため、CLAUDE_OUTCOMEも合わせて"skipped"にする(reviewCheckDecisionの
+      // token-unavailable分岐は outcome==="skipped" かつ enabled===false の組で決まる)。
+      const env = {
+        ...baseEnv,
+        CLAUDE_OUTCOME: "skipped",
+        CLAUDE_ENABLED: "false",
+        CIRCUIT_BREAKER_SKIP: circuitBreakerSkip,
+      };
+      const { dependencies, ghPaths, notices, summaries } = createDependencies({ env });
+      const message =
+        "CLAUDE_CODE_OAUTH_TOKEN が利用できないため Claude action は実行されませんでした。claude setup-token でトークンを発行し、リポジトリシークレット CLAUDE_CODE_OAUTH_TOKEN に追加してください。";
+
+      expect(() => main(dependencies)).toThrow(message);
+      expect(ghPaths).toEqual([]);
+      // circuit breakerのバリデーションは走らないため、CIRCUIT_BREAKER_SKIPが不正値
+      // ("yes")でもCIRCUIT_BREAKER_SKIP_ERRORにはならない
+      expect(notices).toEqual([message]);
+      expect(summaries).toEqual([`- ${message}\n`]);
+    },
+  );
 });

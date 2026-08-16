@@ -17,6 +17,11 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write
+  # circuit-breaker step(#262)が `commits/{sha}/check-runs` を読むために必要
+  # (GitHubのREST APIがこのエンドポイントにcheck run読み取り権限を要求する)。
+  # `--allowedTools`(claude actionにモデルへ渡すツール権限)とは別の軸で、
+  # ワークフロー自身のGITHUB_TOKENに対する読み取り専用権限の追加である。
+  checks: read
 
 # 無関係なlabel追加でも labeled は発火する。それを同じgroupに入れると
 # cancel-in-progress が進行中の実レビューをキャンセルし、代替runはjobがskipされるため
@@ -47,6 +52,52 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # token不足時はcircuit breakerを評価するまでもなくレビューが走らないため、
+      # token不足の報告を優先し、circuit breakerの無駄なGitHub API呼び出しも避ける
+      # (CodeRabbit指摘・2026-08-16。以前はcircuit breakerがこのstepより先にあった)。
+      - name: Check for CLAUDE_CODE_OAUTH_TOKEN
+        id: check
+        run: |
+          if [ -n "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLAUDE_CODE_OAUTH_TOKEN が未設定のためClaudeレビューをスキップします。'claude setup-token' で発行してリポジトリシークレットに追加してください。"
+          fi
+
+      # 同一head SHAへのreview:full再発火が繰り返し投稿0件になるパターンを、claude action
+      # (有料・最大--max-turns 60まで焼く)を起動する前に検知する(#262)。判定はskip出力の
+      # みで、赤・緑の最終判断は常に「Claude Review 投稿確認」stepに一本化する
+      # (このstep自体の失敗はjob全体を赤くしない。下記script内のコメント参照)。
+      # promptビルド・最終ゲートと同じ理由でscriptをbase SHAに固定する。
+      #
+      # 下記の`continue-on-error`を`true`にする理由。このstepが参照するscriptは常に
+      # base SHA(main)から取得される。check-claude-review.mjsにこのstep用の新しい
+      # 呼び出し契約(CHECK_MODE)を追加するPR自身では、mainにまだその契約が無いため、
+      # 古いscriptが実行されてCLAUDE_OUTCOME未設定でthrowする(このPR自身では検証
+      # できない、Issue #262本文の既知の制約と同じ形)。これが無いと、それだけで
+      # job全体が赤くなり、後続のBuild review promptが暗黙のsuccess()判定でskipされる。
+      # マージ後(mainに新しい契約が乗った後)のPRでは通常どおり動く。
+      # この理由がマージ後に消えた後の扱い(撤去するか、fail-open安定化のための恒久措置
+      # として理由を書き換えて残すか)は
+      # docs/pr-review-flow-details.md「同一head SHAへの反復失敗を検知するcircuit
+      # breaker」を参照(PO確認・2026-08-16。ここには書き写さない)。
+      - name: 直近の同一headへの反復失敗を確認する
+        id: circuit-breaker
+        if: steps.check.outputs.enabled == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK_MODE: pre-check
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          CHECK_SCRIPT="$RUNNER_TEMP/check-claude-review.mjs"
+          git show "${BASE_SHA}:.github/scripts/check-claude-review.mjs" > "$CHECK_SCRIPT"
+          node "$CHECK_SCRIPT"
+
       # PR headのscriptを実行すると、同じPRがbaseのAGENTS.md読取りや分類を回避できる。
       # prompt構築scriptとレビュー規則の双方をbase SHAに固定し、headへfallbackしない。
       #
@@ -65,24 +116,17 @@ jobs:
           git show "${BASE_SHA}:.github/scripts/build-review-prompt.mjs" > "$PROMPT_SCRIPT"
           node "$PROMPT_SCRIPT"
 
-      - name: Check for CLAUDE_CODE_OAUTH_TOKEN
-        id: check
-        run: |
-          if [ -n "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::CLAUDE_CODE_OAUTH_TOKEN が未設定のためClaudeレビューをスキップします。'claude setup-token' で発行してリポジトリシークレットに追加してください。"
-          fi
-
       - name: Record Claude action start time
         id: claude-started
-        if: steps.check.outputs.enabled == 'true'
+        # claude actionが実際に起動する条件(token有効 かつ circuit breakerが
+        # skipしていない)と揃える。揃えないと、circuit breakerがskipした回で
+        # 実際には起動していないactionの開始時刻が記録される(CodeRabbit指摘)。
+        if: steps.check.outputs.enabled == 'true' && steps.circuit-breaker.outputs.skip != 'true'
         run: echo "started_at=$(date --utc +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - uses: anthropics/claude-code-action@5ef2e550a465a721f4f45e4a7d3c340c873e1dcc # v1.0.190
         id: claude
-        if: steps.check.outputs.enabled == 'true'
+        if: steps.check.outputs.enabled == 'true' && steps.circuit-breaker.outputs.skip != 'true'
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # claude-code-actionはenableAllProjectMcpServersを常にtrueにする仕様のため、
@@ -149,6 +193,11 @@ jobs:
           ACTION_STARTED_AT: ${{ steps.claude-started.outputs.started_at }}
           RESTORED_PATHS: ${{ steps.prompt.outputs.restored_paths }}
           ALLOWED_TOOLS: ${{ env.CLAUDE_REVIEW_ALLOWED_TOOLS }}
+          # circuit-breaker step自体が失敗するとoutputは未設定(空文字)になる。空文字は
+          # script側で配線不正として拒否され、claude actionが起動済みなのにこのstepが
+          # 必ず落ちる非対称が生まれる(CodeRabbit指摘)。fail-open側(false)へ既定値を
+          # 補い、上記circuit-breaker stepのfail-open方針と揃える。
+          CIRCUIT_BREAKER_SKIP: ${{ steps.circuit-breaker.outputs.skip || 'false' }}
         run: |
           CHECK_SCRIPT="$RUNNER_TEMP/check-claude-review.mjs"
           git show "${BASE_SHA}:.github/scripts/check-claude-review.mjs" > "$CHECK_SCRIPT"
