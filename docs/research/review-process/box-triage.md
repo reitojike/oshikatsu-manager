@@ -490,6 +490,18 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
   rolling allowance方式(古いレビューがウィンドウから外れるにつれ枠が空く)は台帳(等級A)で
   裏付けが取れている。**「N分待て」で戻るのは1件分の枠であって、絞られている状態そのものは
   続くという理解は、この2つの台帳記述と整合する。
+- **4つ目の変種と、`state: success`が「レビュー不要」を意味しない実例(計画セッション実測・
+  2026-08-17、PR #269の4回目push `5f34452`)。**commit statusの`description`が
+  `Review skipped`(PR #267の`Review rate limited`とも異なる文言)になった一方、`state`は
+  `success`のまま。**`success`+`skipped`を「レビュー不要につき通過」と読むと、必須2本
+  (claude-review・Copilot)のうちCodeRabbitが実際には走っていないのに条件を満たしたことになる**
+  (#256§8.5「不在を成功の根拠にしない」が想定する形そのもの)。同時刻(12秒前)に、既存の
+  walkthroughコメントへレート制限の告知(`## Review limit reached`、「Next review available
+  in: 31 minutes」)が**新規投稿ではなく編集(`updated_at`のみ進む)で**追記されていた——
+  `created_at`だけでポーリングする取得手段はこの告知を取りこぼす。**HTMLマーカー
+  `<!-- This is an auto-generated comment: rate limited by coderabbit.ai -->`は3回目も
+  一致した**(見出し・commit status文言がいずれも変わった中でマーカーだけが安定)。
+  `docs/review-process-design.md`§11の裏付けの2例目として記録する。
 
 ## 7. 相乗り修正(3箱の仕分けとは別。記録のみ)
 
@@ -508,8 +520,6 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
       計画セッション回答2件で確定。**「5件」という数え方自体が誤りだった**——#150は不一致では
       なく一致であり対象外、#262は判定済みだが引用コメントが漏れていた。以下は
       **不一致として列挙した項目と1対1で対応する最終形**)
-      - **①Copilotの観点配布=本文の前提誤りを訂正・状態は未調査(2.4節⑤)**
-        [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
       - **②CodexのP0/P1のみ記述=ずれ(2.2節①)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
       - **③Codexの5時間ウィンドウ=「共有する」は確定・単位のみずれ(2.2節②)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
       - **④CodeRabbitのreview_progress=台帳B等級とC1実測の食い違い(2.3節③)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
@@ -520,6 +530,12 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
         [回答3](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310262725)
       - **(参考)Claude#150は不一致ではなく一致に分類し直した(2.1節の表。対象外)**
         [回答3](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310262725)
+      - **(参考)Copilotの観点配布(①/2.4節⑤)は状態=未調査であり不一致に数えていない。**
+        本文の前提誤り(「観点を一切持っていない」)は訂正済みだが、`AGENTS.md`をCopilotが
+        実際に読んでいるかの直接実測は無い。「無理に一致/不一致へ倒さず未調査のまま置く」という
+        計画セッションの回答([回答2](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310203364))
+        どおり、この項目には「意図的か/ずれか」の判定を要求しない(#150と同じ理屈。
+        [回答3](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310262725))
 - [x] C側の範囲が上記で尽きているかを点検した記録がある(1節)
 - [x] 処置方針を書いていない(すべて#258へ送る前提で統一)
 
@@ -531,4 +547,6 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
 `automation-config`分類の項目数(5→7)、6.1節Copilot経路表へのAGENTS.md自動認識・`.github/skills/`の追加、
 **#150を不一致から一致へ再分類**(2.1節)、⑥Copilotのquota用語差の判定を「意図的か」「ずれか」の
 2軸に分割、Draft先行の根拠に置かれた「13回相当」という数値が現行課金下では意味を持たない可能性
-(用語の古さとは別問題として2.4節に追記)。
+(用語の古さとは別問題として2.4節に追記)、**Copilotの観点配布(未調査)を不一致の集計から除外**
+(受け入れ条件、8節)、**CodeRabbitレート制限信号の4つ目の変種**(`Review skipped`+
+`state: success`、既存コメントの編集による告知追記、マーカーの再度の安定。6.4節)。
