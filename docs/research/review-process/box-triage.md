@@ -588,10 +588,10 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
       計画セッション回答2件で確定。**「5件」という数え方自体が誤りだった**——#150は不一致では
       なく一致であり対象外、#262は判定済みだが引用コメントが漏れていた。以下は
       **不一致として列挙した項目と1対1で対応する最終形**)
-      - **②CodexのP0/P1のみ記述=ずれ(2.2節①)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
-      - **③Codexの5時間ウィンドウ=「共有する」は確定・単位のみずれ(2.2節②)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
-      - **④CodeRabbitのreview_progress=台帳B等級とC1実測の食い違い(2.3節③)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
-      - **⑤CodeRabbitのレート制限文言=時点差・プラン差でマーカーは安定(2.3節④)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
+      - **①CodexのP0/P1のみ記述=ずれ(2.2節①)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
+      - **②Codexの5時間ウィンドウ=「共有する」は確定・単位のみずれ(2.2節②)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
+      - **③CodeRabbitのreview_progress=台帳B等級とC1実測の食い違い(2.3節③)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
+      - **④CodeRabbitのレート制限文言=時点差・プラン差でマーカーは安定(2.3節④)** [回答1](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310184730)
       - **Claude#262=`.claude-pr/**`限定は意図的。「差分の外は読まない」という帰結が今回
         貫徹しなかったことは意図されていない(到達経路・実効性は未確定のまま記録。2.1節。
         訂正あり)**
@@ -599,13 +599,13 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
         [訂正](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310524970)
         (当初「読めないまま読んだと報告し緑を返す」と記録したが、権限設定からの演繹のみで
         引用の実ファイル一致を確認しなかったための誤りと判明し、上記の形に訂正した)
-      - **Copilot⑥のquota用語差=「意図的ではない」「ずれ」両方とも確定(契約が2026-08からで
+      - **⑥Copilotのquota用語差=「意図的ではない」「ずれ」両方とも確定(契約が2026-08からで
         レガシー課金の対象外と判明。2.4節⑥)**
         [回答3](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310262725)、
         [回答4](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310509189)
       - **(参考)Claude#150は不一致ではなく一致に分類し直した(2.1節の表。対象外)**
         [回答3](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310262725)
-      - **(参考)Copilotの観点配布(①/2.4節⑤)は状態=未調査であり不一致に数えていない。**
+      - **(参考)Copilotの観点配布(2.4節⑤)は状態=未調査であり不一致に数えていない。**
         本文の前提誤り(「観点を一切持っていない」)は訂正済みだが、`AGENTS.md`をCopilotが
         実際に読んでいるかの直接実測は無い。「無理に一致/不一致へ倒さず未調査のまま置く」という
         計画セッションの回答([回答2](https://github.com/reitojike/stage-tracker/issues/257#issuecomment-5310203364))
