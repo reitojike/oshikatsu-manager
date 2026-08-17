@@ -512,8 +512,9 @@ Codexの扱いを訂正・2026-08-17。当初「ベンダー側の読める範�
 - **4つ目の変種と、`state: success`が「レビュー不要」を意味しない実例(計画セッション実測・
   2026-08-17、PR #269の4回目push `5f34452`)。**commit statusの`description`が
   `Review skipped`(PR #267の`Review rate limited`とも異なる文言)になった一方、`state`は
-  `success`のまま。**`success`+`skipped`を「レビュー不要につき通過」と読むと、必須2本
-  (claude-review・Copilot)のうちCodeRabbitが実際には走っていないのに条件を満たしたことになる**
+  `success`のまま。**`success`+`skipped`を「レビュー不要につき通過」と読むと、Draft中の
+  必須2本(claude-review・CodeRabbit。SKILL.md「Draft PR中の必須レビュー」)のうち
+  CodeRabbitが実際には走っていないのに条件を満たしたことになる**
   (#256§8.5「不在を成功の根拠にしない」が想定する形そのもの)。同時刻(12秒前)に、既存の
   walkthroughコメントへレート制限の告知(`## Review limit reached`、「Next review available
   in: 31 minutes」)が**新規投稿ではなく編集(`updated_at`のみ進む)で**追記されていた——
